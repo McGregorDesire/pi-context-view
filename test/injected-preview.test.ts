@@ -344,7 +344,7 @@ test("prompt additions render as guessed attributions with their own caveat", ()
 	const view = new InjectionsView(theme, { snapshot }, () => {}, () => 40);
 	// System Prompt counts the addition; no extension row counts it again.
 	const list = plain(view.render(120));
-	assert.match(list, /└─ Extension Additions \.+ 9\n/);
+	assert.match(list, /└─ Extension Additions \.+ +9\n/);
 	assert.doesNotMatch(list, /npm:web|system prompt additions/);
 	view.handleInput("j"); // System Prompt
 	view.handleInput("\r");
@@ -549,7 +549,7 @@ test("a replaced prompt marks its dropped blocks in the tree and in previews", (
 
 	// Dropped blocks stay visible at 0 tokens, marked after the estimate they explain.
 	for (const label of ["Available Tools", "Guidelines", "Documentation"]) {
-		assert.match(plain(list).replace(/\.{2,}/g, "\u2026"), new RegExp(`${label} \u2026 0 · Dropped`));
+		assert.match(plain(list).replace(/\.{2,}/g, "\u2026"), new RegExp(`${label} \u2026 +0 · Dropped`));
 	}
 	const row = list.find((line) => plain([line]).includes("Documentation"));
 	assert.ok(row?.includes(styledMarker(theme, "dropped")), "a dim separator carries the keyword's fixed color");
@@ -632,7 +632,7 @@ test("a relocated block stays a counted System Prompt part, marked where it now 
 	assert.deepEqual(
 		rows.filter((row) => /Current Dir|Available Tools|Guidelines/.test(row))
 			.map((row) => row.replace(/^[\s│├└─]+/, "")),
-		["Current Dir \u2026 2", "Available Tools \u2026 11 · Moved", "Guidelines \u2026 16 · Moved"],
+		["Current Dir \u2026  2", "Available Tools \u2026 11 · Moved", "Guidelines \u2026 16 · Moved"],
 	);
 	const row = list.find((line) => plain([line]).includes("Guidelines"));
 	assert.ok(row?.includes(styledMarker(theme, "moved")), "a dim separator carries the keyword's fixed color");

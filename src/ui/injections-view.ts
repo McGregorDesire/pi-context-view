@@ -64,6 +64,8 @@ export interface InjectionsViewInput {
 /** Shared token-value column measured after the fixed cursor column. */
 interface InjectionColumns {
 	readonly value: number;
+	/** Width of the largest formatted estimate in the whole tree, including TOTAL. */
+	readonly valueWidth: number;
 }
 
 /** Open the Injections view as a fullscreen overlay. */
@@ -394,7 +396,7 @@ export class InjectionsView {
 			...contentRows.map((row) => row.tokens.toLocaleString("en-US").length),
 		);
 		const idealValue = Math.min(MAX_TOKEN_VALUE_COLUMN, labelWidth + TOKEN_LEADER_GAP);
-		return { value: Math.max(1, Math.min(idealValue, width - tokenWidth)) };
+		return { value: Math.max(1, Math.min(idealValue, width - tokenWidth)), valueWidth: tokenWidth };
 	}
 
 	/** One hierarchy row with dim leaders and a full token estimate when width permits. */
@@ -407,7 +409,7 @@ export class InjectionsView {
 		const labelWidth = Math.max(1, columns.value - 1);
 		const left = fitLine(this.styledRowLabel(row, selected), labelWidth);
 		const leader = this.tokenLeader(columns.value - visibleWidth(left));
-		const value = row.tokens.toLocaleString("en-US");
+		const value = row.tokens.toLocaleString("en-US").padStart(columns.valueWidth);
 		const tokens = row.kind === "total"
 			? this.theme.bold(this.theme.fg("text", value))
 			: this.theme.fg(selected ? "accent" : "muted", value);

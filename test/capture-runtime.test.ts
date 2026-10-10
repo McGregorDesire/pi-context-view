@@ -605,7 +605,7 @@ async function createRuntime(t: TestContext, provider: MockProvider, options: Ru
 /** Rendered tree rows as `label` or `label · marker`, without tree lines, leader dots, or token counts. */
 function treeRows(lines: readonly string[]): string[] {
 	return lines.flatMap((line) => {
-		const row = /^[→│├└─\s]*(.+?) \.+ \d+(?: · (\w+))?$/.exec(line);
+		const row = /^[→│├└─\s]*(.+?) \.+ +[\d,]+(?: · (\w+))?$/.exec(line);
 		if (row === null) return [];
 		return [row[2] === undefined ? row[1] : `${row[1]} · ${row[2]}`];
 	});

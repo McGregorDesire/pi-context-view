@@ -181,6 +181,63 @@ test("InjectionsView follows pi selector styling and cursor alignment", () => {
 	assert.doesNotMatch(stripSgr(lines[hintsIndex] ?? ""), /Toggle Runtime|\bR\b/);
 });
 
+test("InjectionsView right-aligns token values across every hierarchy level", () => {
+	const children: InjectionItem[] = [
+		{ ...item("wide", "pi", true, 1_234_560), label: "wide" },
+		{ ...item("small", "pi", true, 7), label: "small 👩‍💻" },
+		{ ...item("dropped", "pi", true, 0), label: "dropped", dropped: true },
+	];
+	const parent: InjectionItem = {
+		...item("parent", "pi", true, 1_234_567), label: "parent", children,
+	};
+	const tool: InjectionItem = { ...item("tool", "npm:web", false, 42), label: "tool" };
+	const groups = [group("pi", true, [parent]), group("npm:web", false, [tool])];
+	const theme = createTheme();
+	const view = new InjectionsView(theme, {
+		snapshot: { groups, totalTokens: 1_234_609 },
+	}, () => {}, () => 40);
+
+	for (const width of [24, 40, 60, 80, 120]) {
+		const lines = view.render(width).map(stripSgr);
+		const values = lines.flatMap((line) => {
+			const match = /(\d[\d,]*)(?: · Dropped)?$/.exec(line);
+			return match === null ? [] : [{ value: match[1], end: visibleWidth(line.slice(0, match.index) + match[1]) }];
+		});
+		assert.deepEqual(values.map((entry) => entry.value), [
+			"1,234,567", "1,234,567", "1,234,560", "7", "0", "42", "42", "1,234,609",
+		]);
+		assert.equal(new Set(values.map((entry) => entry.end)).size, 1, `right edges at width ${width}`);
+		assert.ok(lines.every((line) => visibleWidth(line) <= width));
+	}
+
+	for (let step = 0; step < 3; step++) view.handleInput("j");
+	const selected = view.render(120).find((line) => stripSgr(line).startsWith("→") && stripSgr(line).includes("small"));
+	assert.ok(selected?.includes(theme.fg("accent", "        7")), "the right-aligned selected value stays accent");
+	const dropped = view.render(120).map(stripSgr).find((line) => line.includes("dropped"));
+	assert.match(dropped ?? "", / {8}0 · Dropped$/, "markers follow the full shared value column");
+});
+
+test("InjectionsView keeps the right-aligned value column stable while scrolling and resizing", () => {
+	let height = 18;
+	const view = createView(30, undefined, () => height);
+	for (const width of [24, 60, 80, 120]) {
+		view.handleInput("\u001b[H");
+		const first = view.render(width).map(stripSgr).find((line) => line.startsWith("→ pi"));
+		assert.ok(first !== undefined);
+		view.handleInput("\u001b[F");
+		const last = view.render(width).map(stripSgr).find((line) => line.startsWith("→ └─ ext-29"));
+		assert.ok(last !== undefined);
+		assert.equal(visibleWidth(last), visibleWidth(first), `right edge after scrolling at width ${width}`);
+
+		height = 30;
+		view.invalidate();
+		const resized = view.render(width).map(stripSgr).find((line) => line.startsWith("→ └─ ext-29"));
+		assert.ok(resized !== undefined);
+		assert.equal(visibleWidth(resized), visibleWidth(first), `right edge after resizing at width ${width}`);
+		height = 18;
+	}
+});
+
 test("InjectionsView wraps narrow descriptions instead of truncating them", () => {
 	const lines = createView(4).render(40).map(stripSgr);
 	const descriptionStart = lines.findIndex((line) => line.includes("Injections into the model context"));

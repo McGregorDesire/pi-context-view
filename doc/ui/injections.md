@@ -208,8 +208,12 @@ section-introduction scaffolding; pi sends its `cwd` section with every
 request, so it is measured as the `Current Dir` part.
 
 Use dim `├─`, `└─`, and `│` connectors for source, item, and constituent
-hierarchy. Align every token estimate to one shared column capped near the tree
+hierarchy. Right-align every token estimate in one shared, fixed-width value
+column, sized from the largest formatted estimate in the whole tree, including
+`TOTAL`, so its
+right edge stays stable while scrolling. Cap the column's start near the tree
 (`MAX_TOKEN_VALUE_COLUMN`) on wide terminals, leaving unused space to the right.
+Markers follow the right edge of the value column.
 Fill label/value gaps with dim dot leaders; as width shrinks, shorten or remove
 leaders before truncating labels or token values, and retain tree connectors
 where space permits.

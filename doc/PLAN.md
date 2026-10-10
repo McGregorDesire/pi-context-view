@@ -10,11 +10,11 @@
     Verified on Pi 1.1.0: `pnpm check` (735 tests). Real-PTY run with a temporary extension that registers a tool with a snippet and guideline and appends a prompt addition: Injections counted `Extension Additions` (16) and the tool lines in System Prompt, the tool row counted only its definition (32), the preview annotated each line once with `<- ext.ts:smoke_tool`, and Usage showed no `Extensions` category.
 
 - [ ] **Improve Injection View Readability** ([UI draft](drafts/injections-redesign.md))
-  - [ ] Right-align token values in the shared value column, so magnitudes line up.
+  - [x] Right-align token values in the shared value column, so magnitudes line up.
   - [ ] Keep the file name in long instruction-file paths: shorten the middle (`~/…/injection-redesign/AGENTS.md`) or show the path relative to cwd.
   - [ ] Rename `TOTAL` to `TOTAL (Prompt, Tools, Injections)`, so it does not read as the context or payload size.
-  - [ ] Replace the `Added`, `Modified`, and `Deleted` legend bullets in the list description with one bullet that explains `+N`/`-N` in their diff colors and one for `Request-Only`; keep the full sentences in previews.
   - [ ] **Diff columns instead of change markers** ([injections.md](ui/injections.md#request-only-changes)):
+    - Replace the `Added`, `Modified`, and `Deleted` legend bullets in the list description with one bullet that explains `+N`/`-N` in their diff colors and one for `Request-Only`; keep the full sentences in previews.
     - The value column holds the tokens sent, on every counted row, including `0` for a deleted part and `10 +10` for an added one.
     - `+N` and `-N` columns follow the value. Rows under `pi` compare with pi's default prompt, so saved and request-only extension changes both show; extension-owned rows (tools, messages) compare with the session.
     - Parent and group rows sum the changes of the rows they count only.
