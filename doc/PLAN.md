@@ -12,7 +12,7 @@
 - [ ] **Improve Injection View Readability** ([UI draft](drafts/injections-redesign.md))
   - [x] Right-align token values in the shared value column, so magnitudes line up.
   - [x] Keep the file name in long instruction-file paths: shorten the middle (`~/…/injection-redesign/AGENTS.md`), retaining whole trailing directories where space permits.
-  - [ ] Rename `TOTAL` to `TOTAL (Prompt, Tools, Injections)`, so it does not read as the context or payload size.
+  - [x] Rename `TOTAL` to `TOTAL (Prompt, Tools, Injections)`, so it does not read as the context or payload size.
   - [ ] **Diff columns instead of change markers** ([injections.md](ui/injections.md#request-only-changes)):
     - Replace the `Added`, `Modified`, and `Deleted` legend bullets in the list description with one bullet that explains `+N`/`-N` in their diff colors and one for `Request-Only`; keep the full sentences in previews.
     - The value column holds the tokens sent, on every counted row, including `0` for a deleted part and `10 +10` for an added one.

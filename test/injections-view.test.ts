@@ -148,12 +148,12 @@ test("InjectionsView follows pi selector styling and cursor alignment", () => {
 	assert.ok((alignedValues[0] ?? 80) < 64, "the capped token column stays near the hierarchy");
 
 	// TOTAL is the final table row and sums the snapshot without double-counting children.
-	const totalRowIndex = lines.findIndex((line) => stripSgr(line).includes("TOTAL"));
+	const totalRowIndex = lines.findIndex((line) => stripSgr(line).includes("TOTAL (Prompt, Tools, Injections)"));
 	const descIndex = lines.findIndex((line) => stripSgr(line).includes("Injections into the model context"));
 	assert.ok(totalRowIndex >= 0 && totalRowIndex < descIndex);
 	assert.equal(lines[totalRowIndex - 1], "");
 	assert.equal(stripSgr(lines[totalRowIndex] ?? "").indexOf("TOTAL"), 2);
-	assert.match(stripSgr(lines[totalRowIndex] ?? ""), /TOTAL \.{2,}\s+60/);
+	assert.match(stripSgr(lines[totalRowIndex] ?? ""), /TOTAL \(Prompt, Tools, Injections\) \.{2,}\s+60/);
 	assert.doesNotMatch(stripSgr(lines[totalRowIndex] ?? ""), /→/);
 
 	view.handleInput("\u001b[B");
@@ -179,6 +179,32 @@ test("InjectionsView follows pi selector styling and cursor alignment", () => {
 	assert.doesNotMatch(stripSgr(lines[hintsIndex] ?? ""), /Switch Tabs|←→\/Tab/);
 	assert.match(lines[hintsIndex] ?? "", / · /);
 	assert.doesNotMatch(stripSgr(lines[hintsIndex] ?? ""), /Toggle Runtime|\bR\b/);
+});
+
+test("InjectionsView clarifies the total scope and preserves its estimate at narrow widths", () => {
+	const tool = { ...item("read", "pi", true, 1_234_567), label: "read" };
+	const piGroup = group("pi", true, [tool]);
+	const view = new InjectionsView(createTheme(), {
+		snapshot: { groups: [piGroup], totalTokens: piGroup.totalTokens },
+	}, () => {}, () => 40);
+
+	for (const width of [24, 40, 60, 80, 120]) {
+		const lines = view.render(width).map(stripSgr);
+		const totalIndex = lines.findIndex((line) => line.startsWith("  TOTAL"));
+		const total = lines[totalIndex] ?? "";
+		assert.ok(totalIndex >= 0);
+		assert.equal(lines[totalIndex - 1], "", "the total keeps its blank separator");
+		assert.match(total, /1,234,567$/);
+		if (width >= 60) {
+			assert.match(total, /^  TOTAL \(Prompt, Tools, Injections\) \.{2,}\s+1,234,567$/);
+		} else {
+			assert.match(total, /…/, "the label yields space to the full estimate");
+		}
+		const valueRows = lines.filter((line) => /1,234,567$/.test(line));
+		assert.equal(valueRows.length, 3, "the group, tool, and total keep their estimates");
+		assert.equal(new Set(valueRows.map(visibleWidth)).size, 1, "the total shares the value column");
+		assert.ok(lines.every((line) => visibleWidth(line) <= width));
+	}
 });
 
 test("InjectionsView right-aligns token values across every hierarchy level", () => {
@@ -1000,7 +1026,7 @@ test("InjectionsView navigation scrolls the non-selectable total and Escape clos
 	view.handleInput("\u001b[4~"); // End
 	const atEnd = view.render(80).join("\n");
 	assert.match(stripSgr(atEnd), /→ └─ ext-29/);
-	assert.match(atEnd, /TOTAL/);
+	assert.match(stripSgr(atEnd), /TOTAL \(Prompt, Tools, Injections\)/);
 	assert.doesNotMatch(stripSgr(atEnd), /→ TOTAL/);
 
 	view.handleInput("\u001b[B");

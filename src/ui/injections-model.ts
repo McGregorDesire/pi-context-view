@@ -39,7 +39,7 @@ export type InjectionRow =
 	}
 	| {
 		readonly kind: "total";
-		readonly label: "TOTAL";
+		readonly label: "TOTAL (Prompt, Tools, Injections)";
 		readonly tokens: number;
 		readonly depth: 0;
 	};
@@ -97,7 +97,7 @@ export function buildInjectionRows(snapshot: InjectionSnapshot): InjectionRow[] 
 		});
 	}
 	rows.push({ kind: "separator", label: "", tokens: 0, depth: 0 });
-	rows.push({ kind: "total", label: "TOTAL", tokens: snapshot.totalTokens, depth: 0 });
+	rows.push({ kind: "total", label: "TOTAL (Prompt, Tools, Injections)", tokens: snapshot.totalTokens, depth: 0 });
 	return rows;
 }
 

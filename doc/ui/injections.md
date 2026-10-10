@@ -148,8 +148,9 @@ editor.
 
 A row can carry `Moved` and a change marker together; markers keep the order
 `Dropped`, `Moved`, then the change. The estimate counts the request version.
-`TOTAL` covers these contributions only, not unchanged ordinary conversation;
-it is not a provider-payload size.
+`TOTAL (Prompt, Tools, Injections)` covers these contributions only, not
+unchanged ordinary conversation; it is neither the full context nor a
+provider-payload size.
 
 ### Payload changes
 
@@ -168,8 +169,8 @@ or source, so they cannot stay in place. The `payload changes` group, after
 Each row carries the `Added`, `Modified`, or `Deleted` marker of its change.
 The guard keeps only the changed lines, so a row's estimate counts the lines
 the payload added, and a deleted row reads 0 tokens. These estimates count
-toward the group and `TOTAL`. Rows sort like other source groups. While the
-group is shown, the description carries a dim bullet:
+toward the group and `TOTAL (Prompt, Tools, Injections)`. Rows sort like other
+source groups. While the group is shown, the description carries a dim bullet:
 
 ```text
 - Payload changes appear only in the provider payload. Their sources are unknown.
@@ -180,9 +181,10 @@ group is shown, the description carries a dim bullet:
 A tool in the snapshot's `hiddenTools` is hidden: Pi leaves its declaration
 out while it stays active and callable through another tool, such as codemode.
 The tree leaves a hidden tool out, whatever structured change it had: it has no
-row, marker, or preview, and `TOTAL` does not count it. A source left without
-rows has no group, and `Built-in Tools (N)` has no row without children. Its
-prompt lines, if the prompt still has them, stay in pi's prompt text.
+row, marker, or preview, and `TOTAL (Prompt, Tools, Injections)` does not count
+it. A source left without rows has no group, and `Built-in Tools (N)` has no row
+without children. Its prompt lines, if the prompt still has them, stay in pi's
+prompt text.
 
 While the request declared any hidden tool, the description carries one dim
 bullet with their count and all their names in alphabetical order, wrapping as
@@ -215,17 +217,19 @@ request, so it is measured as the `Current Dir` part.
 Use dim `├─`, `└─`, and `│` connectors for source, item, and constituent
 hierarchy. Right-align every token estimate in one shared, fixed-width value
 column, sized from the largest formatted estimate in the whole tree, including
-`TOTAL`, so its
-right edge stays stable while scrolling. Cap the column's start near the tree
-(`MAX_TOKEN_VALUE_COLUMN`) on wide terminals, leaving unused space to the right.
+`TOTAL (Prompt, Tools, Injections)`, so its right edge stays stable while
+scrolling. Cap the column's start near the tree (`MAX_TOKEN_VALUE_COLUMN`) on
+wide terminals, leaving unused space to the right.
 Markers follow the right edge of the value column.
 Fill label/value gaps with dim dot leaders; as width shrinks, shorten or remove
 leaders before truncating labels or token values, and retain tree connectors
 where space permits.
 
-Place one empty row before `TOTAL`. It is the last row in the scrollable list,
-counts only the shown snapshot's contributions, and is not selectable: cursor
-navigation, the selectable-row counter, and Enter preview skip it.
+Place one empty row before `TOTAL (Prompt, Tools, Injections)`. It is the last
+row in the scrollable list, counts only the shown snapshot's contributions, and
+is not selectable: cursor navigation, the selectable-row counter, and Enter
+preview skip it. At narrow widths, truncate the label before the token value,
+like other list labels.
 
 The list description survives scrolling, per the floor in
 [Descriptions](../UI.md#descriptions); the `(current/total)` counter never

@@ -47,7 +47,7 @@ test("buildInjectionRows flattens groups and separates the snapshot total", () =
 			["group", "npm:web", 0],
 			["item", "web_search", 1],
 			["separator", "", 0],
-			["total", "TOTAL", 0],
+			["total", "TOTAL (Prompt, Tools, Injections)", 0],
 		],
 	);
 	const basePromptRow = rows[1];

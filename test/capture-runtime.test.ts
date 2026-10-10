@@ -291,12 +291,15 @@ suite("structured edits", { concurrency: true }, () => {
 
 			await runtime.session.prompt("/context injections");
 			const rows = treeRows(await runtime.renderView());
-			assert.deepEqual(rows.slice(rows.indexOf(POINT_AGENT_START_TYPE), rows.indexOf("TOTAL")), [
-				POINT_AGENT_START_TYPE, "message",
-				...(before ? [POINT_SYSTEM_TYPE, "message · Added"] : []),
-				"unattributed", "user message · Added",
-				"payload changes", "user message · Added",
-			]);
+			assert.deepEqual(
+				rows.slice(rows.indexOf(POINT_AGENT_START_TYPE), rows.indexOf("TOTAL (Prompt, Tools, Injections)")),
+				[
+					POINT_AGENT_START_TYPE, "message",
+					...(before ? [POINT_SYSTEM_TYPE, "message · Added"] : []),
+					"unattributed", "user message · Added",
+					"payload changes", "user message · Added",
+				],
+			);
 			assert.deepEqual(runtime.errors, []);
 		});
 
@@ -311,7 +314,7 @@ suite("structured edits", { concurrency: true }, () => {
 			const fixtureRows = async () => {
 				await runtime.session.prompt("/context injections");
 				const rows = treeRows(await runtime.renderView());
-				return rows.slice(rows.indexOf("read") + 1, rows.indexOf("TOTAL"));
+				return rows.slice(rows.indexOf("read") + 1, rows.indexOf("TOTAL (Prompt, Tools, Injections)"));
 			};
 
 			// The probe saves one copy; a probe has no payload, so a payload change cannot show yet
