@@ -407,7 +407,7 @@ export class InjectionsView {
 		selected: boolean,
 	): string {
 		const labelWidth = Math.max(1, columns.value - 1);
-		const left = fitLine(this.styledRowLabel(row, selected), labelWidth);
+		const left = fitLine(this.styledRowLabel(row, selected, labelWidth), labelWidth);
 		const leader = this.tokenLeader(columns.value - visibleWidth(left));
 		const value = row.tokens.toLocaleString("en-US").padStart(columns.valueWidth);
 		const tokens = row.kind === "total"
@@ -444,13 +444,18 @@ export class InjectionsView {
 	private styledRowLabel(
 		row: Exclude<InjectionRow, { readonly kind: "separator" }>,
 		selected: boolean,
+		width: number,
 	): string {
 		const theme = this.theme;
-		const label = normalizeInlineText(row.label);
+		let label = normalizeInlineText(row.label);
 		if (row.kind === "group" || row.kind === "total") {
 			return theme.bold(theme.fg(selected ? "accent" : "text", label));
 		}
 		const prefix = theme.fg("dim", this.treePrefix(row));
+		const item = this.itemsById.get(row.itemId);
+		if (item?.kind === "context-file" && item.children === undefined) {
+			label = shortenInstructionPath(label, Math.max(0, width - visibleWidth(prefix)));
+		}
 		const color = selected ? "accent" : row.depth === 1 ? "muted" : "dim";
 		return `${prefix}${theme.fg(color, label)}`;
 	}
@@ -543,6 +548,26 @@ export class InjectionsView {
 		this.cachedTerminalRows = undefined;
 		this.cachedLines = undefined;
 	}
+}
+
+/**
+ * Fit a sanitized path by replacing middle directories with an ellipsis. Keep
+ * the root and longest whole tail that fits; give the filename priority when
+ * even the root and ellipsis leave too little room.
+ */
+function shortenInstructionPath(path: string, width: number): string {
+	if (visibleWidth(path) <= width) return path;
+	const separators = [...path.matchAll(/[/\\]/g)];
+	const lastSeparator = separators.at(-1);
+	if (lastSeparator === undefined) return fitLine(path, width);
+	const root = /^(?:~|[A-Za-z]:)?[/\\]/.exec(path)?.[0] ?? "";
+	for (const separator of separators) {
+		if (separator.index < root.length) continue;
+		const shortened = `${root}…${path.slice(separator.index)}`;
+		if (visibleWidth(shortened) <= width) return shortened;
+	}
+	const tail = `…${path.slice(lastSeparator.index)}`;
+	return visibleWidth(tail) <= width ? tail : fitLine(path.slice(lastSeparator.index + 1), width);
 }
 
 /**

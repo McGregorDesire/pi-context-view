@@ -238,6 +238,99 @@ test("InjectionsView keeps the right-aligned value column stable while scrolling
 	}
 });
 
+/** A small instruction-file tree with realistic child kinds and no real prompt content. */
+function createInstructionFilesView(paths: readonly string[], theme = createTheme()): InjectionsView {
+	const children: InjectionItem[] = paths.map((path, index) => ({
+		...item(`file-${index}`, "pi", true, 10),
+		kind: "context-file",
+		label: path,
+		text: "Instruction preview fixture",
+	}));
+	const parent: InjectionItem = {
+		...item("files", "pi", true, children.length * 10),
+		kind: "context-file",
+		label: `Instruction Files (${children.length})`,
+		children,
+	};
+	const piGroup = group("pi", true, [parent]);
+	return new InjectionsView(theme, {
+		snapshot: { groups: [piGroup], totalTokens: piGroup.totalTokens },
+	}, () => {}, () => 40);
+}
+
+test("InjectionsView shortens instruction-file paths in the middle, keeping whole trailing directories", () => {
+	const view = createInstructionFilesView([
+		"~/projects/pi-context-view/.worktree/injection-redesign/AGENTS.md",
+		"~/.pi/agent/AGENTS.md",
+	]);
+	for (const width of [60, 80, 120]) {
+		const lines = view.render(width).map(stripSgr);
+		assert.ok(lines.some((line) => line.includes("~/…/.worktree/injection-redesign/AGENTS.md")));
+		assert.ok(lines.some((line) => line.includes("~/.pi/agent/AGENTS.md")), "short paths stay intact");
+		assert.ok(lines.some((line) => line.includes("Instruction Files (2)")), "the parent stays intact");
+		assert.ok(lines.every((line) => visibleWidth(line) <= width));
+		const values = lines.filter((line) => /\s\d+$/.test(line));
+		assert.equal(new Set(values.map(visibleWidth)).size, 1, "token alignment is unchanged");
+	}
+	assert.ok(view.render(40).map(stripSgr).some((line) => line.includes("~/…/AGENTS.md")));
+	assert.ok(view.render(24).map(stripSgr).some((line) => line.includes("~/…/AGENTS.md")));
+	assert.ok(view.render(20).map(stripSgr).some((line) => line.includes("AGENTS.md")));
+});
+
+test("InjectionsView preserves absolute, relative, Windows, and Unicode instruction-file names", () => {
+	const cases = [
+		["/a-very-long-directory-name/another-long-directory/AGENTS.md", "/…/AGENTS.md"],
+		["relative-long-directory/another-long-directory/CLAUDE.md", "…/CLAUDE.md"],
+		["C:\\a-very-long-directory-name\\another-long-directory\\AGENTS.md", "C:\\…\\AGENTS.md"],
+		["~/a-very-long-directory-name/项目👩‍💻/指令.md", "~/…/项目👩‍💻/指令.md"],
+	];
+	for (const [path, expected] of cases) {
+		const view = createInstructionFilesView([path]);
+		const lines = view.render(30).map(stripSgr);
+		assert.ok(lines.some((line) => line.includes(expected)), `path tail for ${path}`);
+		assert.ok(lines.every((line) => visibleWidth(line) <= 30));
+		for (const width of [1, 8, 16, 24, 60, 80, 120]) {
+			assert.ok(view.render(width).every((line) => visibleWidth(line) <= width));
+		}
+	}
+	const longName = createInstructionFilesView([`~/directory/${"指令👩‍💻".repeat(20)}.md`]);
+	assert.ok(longName.render(24).every((line) => visibleWidth(line) <= 24));
+});
+
+test("InjectionsView keeps path shortening render-only, sanitized, and themed on selection", () => {
+	const theme = createTheme();
+	const path = "~/projects/pi-context-view/.worktree/injection-redesign/AGENTS.md";
+	const view = createInstructionFilesView([`\u001b]0;unsafe\u0007${path}`], theme);
+	view.handleInput("j");
+	view.handleInput("j");
+	const before = view.render(60);
+	const selected = before.find((line) => stripSgr(line).startsWith("→"));
+	assert.ok(selected !== undefined);
+	assert.ok(selected.includes(theme.fg("accent", "~/…/.worktree/injection-redesign/AGENTS.md")));
+	assert.ok(selected.includes(theme.fg("dim", "   └─ ")));
+	assert.doesNotMatch(before.join("\n"), /unsafe|Instruction preview fixture|\u001b\]/);
+
+	view.handleInput("\r");
+	const preview = view.render(120).map(stripSgr).join("\n");
+	assert.ok(preview.includes(path), "the preview still has the full path");
+	assert.ok(preview.includes("Instruction preview fixture"));
+	view.handleInput("\u001b");
+	view.invalidate();
+	assert.deepEqual(view.render(60), before, "return and invalidation preserve selection and rendering");
+});
+
+test("InjectionsView does not shorten other slash-containing labels as paths", () => {
+	const label = "~/projects/pi-context-view/.worktree/injection-redesign/AGENTS.md";
+	const message = { ...item("message", "pi", true, 10), label };
+	const piGroup = group("pi", true, [message]);
+	const view = new InjectionsView(createTheme(), {
+		snapshot: { groups: [piGroup], totalTokens: piGroup.totalTokens },
+	}, () => {}, () => 40);
+	const lines = view.render(40).map(stripSgr);
+	assert.ok(lines.some((line) => line.includes("~/projects/pi-context-view/")));
+	assert.ok(!lines.some((line) => line.includes("AGENTS.md")));
+});
+
 test("InjectionsView wraps narrow descriptions instead of truncating them", () => {
 	const lines = createView(4).render(40).map(stripSgr);
 	const descriptionStart = lines.findIndex((line) => line.includes("Injections into the model context"));

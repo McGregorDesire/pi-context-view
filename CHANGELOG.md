@@ -22,6 +22,7 @@ forced prompts, and tools Pi hides.
 * `[probe]` Skip probing above the auto-compaction threshold or when settings cannot be checked.
 * `[context]` Refuse both views with a warning while compaction is in progress.
 * `[package]` Require Pi 1.1 and report older versions, drop the pre-0.86 prompt parser.
+* `[injections]` Keep filenames visible by shortening the middle of long instruction-file paths.
 
 ### Fixed
 * `[injections]` Fixed the issue reported in PR [#9](https://github.com/dimk90/pi-context-view/pull/9) by [@Drakejiejie](https://github.com/Drakejiejie) and adopted the PR’s tests.

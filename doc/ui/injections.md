@@ -95,7 +95,12 @@ Present the request's contributions in this order:
     Any forced prompt carries the
     [`Forced` marker](#request-only-changes) on System Prompt.
   - `Instruction Files (M)`, with one child per context file, abbreviating home
-    paths with `~`
+    paths with `~`. When a path exceeds its list-label space, replace middle
+    directories with `…`, keeping the root and as many whole trailing
+    directories as fit (`~/…/injection-redesign/AGENTS.md`). At narrow widths,
+    drop directories before shortening the filename; truncate the filename
+    only if it cannot fit by itself. This is list-only formatting: captured
+    paths and preview labels stay unchanged.
   - Skills (K), with one content-only child per skill
   - Built-in Tools (N), with one child per active built-in tool
 - each extension/tool source, labelled by its package (`npm:pi-web`). An
