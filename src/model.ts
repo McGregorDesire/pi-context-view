@@ -104,6 +104,17 @@ export const BUILT_IN_TOOLS_LABEL = "Built-in Tools";
  */
 export type RequestChange = "added" | "modified" | "deleted" | "forced";
 
+/**
+ * Tokens a contribution gained and lost against its base: pi's default prompt
+ * for rows under pi, the session for extension tools and messages, and the
+ * captured request for payload changes. Rounded so that the base estimate plus
+ * `added` minus `removed` equals the contribution's estimate exactly.
+ */
+export interface TokenDiff {
+	readonly added: number;
+	readonly removed: number;
+}
+
 /** What kind of context data an injection item is. */
 export type InjectionKind =
 	| "base-prompt"
@@ -180,6 +191,8 @@ export interface InjectionSection {
 	readonly moved?: boolean;
 	/** Request-only change of this part; a deleted part carries no counted characters. */
 	readonly change?: RequestChange;
+	/** Tokens this part gained and lost against its base; absent when unchanged. */
+	readonly diff?: TokenDiff;
 	/** Serialized JSON inside `text`, e.g. a tool's parameter schema. */
 	readonly jsonSpan?: JsonSpan;
 	/** Extension lines inside `text`, annotated with their source in previews. */
@@ -209,6 +222,8 @@ export interface InjectionItem {
 	readonly moved?: boolean;
 	/** Request-only change of this contribution; a deleted one reads 0 tokens. */
 	readonly change?: RequestChange;
+	/** Tokens this contribution gained and lost against its base; a parent sums its children. */
+	readonly diff?: TokenDiff;
 	/**
 	 * Changed lines of a payload change, in payload order. `text` holds only the
 	 * added lines, which the estimate counts.
@@ -225,6 +240,8 @@ export interface InjectionGroup {
 	readonly source: InjectionSource;
 	readonly items: readonly InjectionItem[];
 	readonly totalTokens: number;
+	/** Sum of the items' token diffs; absent when none changed. */
+	readonly diff?: TokenDiff;
 }
 
 /**
@@ -325,8 +342,20 @@ export function groupInjections(items: readonly InjectionItem[]): InjectionGroup
 	}
 	for (const group of groups.values()) {
 		group.items.sort(compareItems);
+		group.diff = sumTokenDiffs(group.items.map((item) => item.diff));
 	}
 	return [...groups.values()].sort(compareGroups);
+}
+
+/** Sum of token diffs, or undefined when none adds or removes a token. */
+export function sumTokenDiffs(diffs: Iterable<TokenDiff | undefined>): TokenDiff | undefined {
+	let added = 0;
+	let removed = 0;
+	for (const diff of diffs) {
+		added += diff?.added ?? 0;
+		removed += diff?.removed ?? 0;
+	}
+	return added === 0 && removed === 0 ? undefined : { added, removed };
 }
 
 /** Build an owned snapshot from measured items. */
@@ -343,6 +372,7 @@ interface MutableGroup {
 	source: InjectionSource;
 	items: InjectionItem[];
 	totalTokens: number;
+	diff?: TokenDiff;
 }
 
 /** Owned copy of an item, including its nested source, spans, and children. */
@@ -351,10 +381,12 @@ function copyItem(item: InjectionItem): InjectionItem {
 		...item,
 		source: { ...item.source },
 		jsonSpan: copyJsonSpan(item.jsonSpan),
+		diff: copyTokenDiff(item.diff),
 		injectedReferences: copyInjectedReferences(item.injectedReferences),
 		changedLines: item.changedLines?.map((line) => ({ ...line })),
 		sections: item.sections?.map((section) => ({
 			...section,
+			diff: copyTokenDiff(section.diff),
 			jsonSpan: copyJsonSpan(section.jsonSpan),
 			injectedReferences: copyInjectedReferences(section.injectedReferences),
 		})),
@@ -367,6 +399,11 @@ function copyInjectedReferences(
 	references: readonly InjectedReference[] | undefined,
 ): InjectedReference[] | undefined {
 	return references?.map((reference) => ({ ...reference, source: { ...reference.source } }));
+}
+
+/** Owned copy of an optional token diff. */
+function copyTokenDiff(diff: TokenDiff | undefined): TokenDiff | undefined {
+	return diff === undefined ? undefined : { ...diff };
 }
 
 /** Owned copy of an optional span. */

@@ -35,4 +35,4 @@ pnpm check
 ```
 
 - **Lifecycle changes.** Load `test/fixtures/marker.ts`, `test/fixtures/forced-prompt.ts`, and `test/fixtures/input-transform.ts` in both extension orders and use an `after_provider_response` sentinel to prove a probe makes no provider request. Runtime tests use the mock provider in `test/harness/`; `doc/architecture/validation.md` maps each validation case to its tests.
-- **TUI changes.** Follow the `pi-extension` skill for real-PTY and provider smoke tests, and exercise the dimensions and interactions required by `doc/UI.md`.
+- **TUI changes.** Run real-PTY UI checks and provider smoke tests only when explicitly requested. When requested, follow the `pi-extension` skill and exercise the dimensions and interactions required by `doc/UI.md`.

@@ -2,7 +2,7 @@
  * Pure presentation model for the Injections view: flattened rows and
  * list navigation/scrolling state. No pi or TUI access — unit-testable.
  */
-import type { InjectionItem, InjectionSnapshot, RequestChange } from "../model.ts";
+import type { InjectionItem, InjectionSnapshot, RequestChange, TokenDiff } from "../model.ts";
 
 /** One flattened list row derived from the snapshot hierarchy. */
 export type InjectionRow =
@@ -11,6 +11,8 @@ export type InjectionRow =
 		readonly label: string;
 		readonly tokens: number;
 		readonly depth: 0;
+		/** Sum of the group's token diffs. */
+		readonly diff?: TokenDiff;
 	}
 	| {
 		readonly kind: "item";
@@ -28,6 +30,8 @@ export type InjectionRow =
 		readonly moved?: boolean;
 		/** Request-only change of this contribution. */
 		readonly change?: RequestChange;
+		/** Tokens this contribution gained and lost against its base. */
+		readonly diff?: TokenDiff;
 		/** Stable preview target id from the snapshot. */
 		readonly itemId: string;
 	}
@@ -65,6 +69,7 @@ export function buildInjectionRows(snapshot: InjectionSnapshot): InjectionRow[] 
 			label: group.source.label,
 			tokens: group.totalTokens,
 			depth: 0,
+			diff: group.diff,
 		});
 		group.items.forEach((item, itemIndex) => {
 			const isLastItem = itemIndex === group.items.length - 1;
@@ -77,6 +82,7 @@ export function buildInjectionRows(snapshot: InjectionSnapshot): InjectionRow[] 
 				dropped: item.dropped,
 				moved: item.moved,
 				change: item.change,
+				diff: item.diff,
 				itemId: item.id,
 			});
 			const children = item.children ?? [];
@@ -91,6 +97,7 @@ export function buildInjectionRows(snapshot: InjectionSnapshot): InjectionRow[] 
 					dropped: child.dropped,
 					moved: child.moved,
 					change: child.change,
+					diff: child.diff,
 					itemId: child.id,
 				});
 			});

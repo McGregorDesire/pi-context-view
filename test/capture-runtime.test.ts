@@ -295,9 +295,9 @@ suite("structured edits", { concurrency: true }, () => {
 				rows.slice(rows.indexOf(POINT_AGENT_START_TYPE), rows.indexOf("TOTAL (Prompt, Tools, Injections)")),
 				[
 					POINT_AGENT_START_TYPE, "message",
-					...(before ? [POINT_SYSTEM_TYPE, "message · Added"] : []),
-					"unattributed", "user message · Added",
-					"payload changes", "user message · Added",
+					...(before ? [`${POINT_SYSTEM_TYPE} +`, "message +"] : []),
+					"unattributed +", "user message +",
+					"payload changes +", "user message +",
 				],
 			);
 			assert.deepEqual(runtime.errors, []);
@@ -309,7 +309,7 @@ suite("structured edits", { concurrency: true }, () => {
 			const factories = position === "before" ? [...fixtures, monitorSlot] : [monitorSlot, ...fixtures];
 			const runtime = await createRuntime(t, provider, { factories });
 			const before = position === "before";
-			const added = [SYSTEM_ADD_MESSAGE_TYPE, "message · Added"];
+			const added = [`${SYSTEM_ADD_MESSAGE_TYPE} +`, "message +"];
 			/** Rows of the fixtures' groups in the rendered Injections view, after pi's own rows. */
 			const fixtureRows = async () => {
 				await runtime.session.prompt("/context injections");
@@ -323,7 +323,7 @@ suite("structured edits", { concurrency: true }, () => {
 			await runtime.session.prompt("prompt");
 			assert.deepEqual(await fixtureRows(), [
 				AGENT_START_MESSAGE_TYPE, "message", "message",
-				...(before ? added : ["payload changes", "user message · Added"]),
+				...(before ? added : ["payload changes +", "user message +"]),
 			]);
 
 			const snapshots = await runtime.settled({ payloadChanges: true });
@@ -605,12 +605,17 @@ async function createRuntime(t: TestContext, provider: MockProvider, options: Ru
 	};
 }
 
-/** Rendered tree rows as `label` or `label · marker`, without tree lines, leader dots, or token counts. */
+/**
+ * Rendered tree rows as `label`, then `+` or `-` for each diff column it fills,
+ * then `· marker`, without tree lines, leader dots, or token counts.
+ */
 function treeRows(lines: readonly string[]): string[] {
 	return lines.flatMap((line) => {
-		const row = /^[→│├└─\s]*(.+?) \.+ +[\d,]+(?: · (\w+))?$/.exec(line);
+		const row = /^[→│├└─\s]*(.+?) \.+ +[\d,]+(?: +(\+)[\d,]+)?(?: +(-)[\d,]+)?(?: +· (\w+))?$/.exec(line);
 		if (row === null) return [];
-		return [row[2] === undefined ? row[1] : `${row[1]} · ${row[2]}`];
+		const [, label, added, removed, marker] = row;
+		const diffs = `${added === undefined ? "" : " +"}${removed === undefined ? "" : " -"}`;
+		return [`${label}${diffs}${marker === undefined ? "" : ` · ${marker}`}`];
 	});
 }
 

@@ -62,6 +62,21 @@ const SECTION_PARTS: Readonly<Record<string, { id: string; label: string }>> = {
 	skills: { id: "base-prompt:skills", label: SKILLS_LABEL },
 };
 
+/** Ids of the System Prompt parts pi renders itself; custom sections and Extension Additions are not among them. */
+const PI_PROMPT_PART_IDS: ReadonlySet<string> = new Set([
+	PREAMBLE_BLOCK.id,
+	...Object.values(SECTION_PARTS).map((part) => part.id),
+]);
+
+/**
+ * Whether a System Prompt part is one pi renders itself, so pi's default
+ * prompt has it too. A custom section is an extension's own, and Extension
+ * Additions hold only text extensions added.
+ */
+export function isPiPromptPart(id: string): boolean {
+	return PI_PROMPT_PART_IDS.has(id);
+}
+
 /** Minimal slice of BuildSystemPromptOptions that measurement needs. */
 export interface PromptOptionsSlice {
 	/** Home directory used to abbreviate context-file paths; omitted disables it. */
@@ -352,7 +367,7 @@ export function textTokens(text: string): number {
 }
 
 /** Token estimate for an already known character count. */
-function charTokens(chars: number): number {
+export function charTokens(chars: number): number {
 	return Math.ceil(chars / 4);
 }
 

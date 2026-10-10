@@ -79,8 +79,8 @@ select `--context` and send their marker prompts (`XYZZY_CONTEXT_DELETE` and
 ## Automatic payload-change demo
 
 Run `./scripts/demo-injections.sh --payload --no-session`, send an ordinary
-prompt, then open `/context injections`. `payload-changes` produces one of each marker in
-`payload changes` on the first real request:
+prompt, then open `/context injections`. `payload-changes` produces one of each change in
+`payload changes` on the first real request, each row with its `+N`/`-N` diff:
 
 | Change   | Preview                                                                |
 | -------- | ---------------------------------------------------------------------- |
@@ -108,11 +108,11 @@ Run `./scripts/demo-injections.sh --message --no-session`, open
 
 | Fixture               | Event                 | Target: before                              | Target: after                              |
 | --------------------- | --------------------- | ------------------------------------------- | ------------------------------------------ |
-| `agent-start-message` | `before_agent_start`  | no change: a saved message, no marker       | same as before                             |
-| `system-add-message`  | `context_with_system` | addition, `context-view-fixture-system-add` | edited after monitor: `Added` user message |
+| `agent-start-message` | `before_agent_start`  | no change: a saved message, no diff         | same as before                             |
+| `system-add-message`  | `context_with_system` | addition, `context-view-fixture-system-add` | edited after monitor: added user message   |
 
 Pi saves one `agent-start-message` per run under
-`context-view-fixture-agent-message`, without a change marker. After the probe
+`context-view-fixture-agent-message`, without a diff. After the probe
 and one prompt, the group has two messages.
 
 With `--after`, `system-add-message` is absent from the probe. After a real
@@ -142,8 +142,8 @@ they remain callable through codemode scripts. With the default tool selection,
 `read`, `bash`, `edit`, and `write` are hidden; Usage counts only `codemode`.
 Tool-selection arguments can change that set.
 
-`--payload` without codemode reports its manual `write` removal as a `Deleted`
-tool under `payload changes`, not a hidden tool. Its normal tool row and Usage count
+`--payload` without codemode reports its manual `write` removal as a deleted
+tool (`0 -N`) under `payload changes`, not a hidden tool. Its normal tool row and Usage count
 remain unchanged.
 
 ## Comparison with v0.6.0

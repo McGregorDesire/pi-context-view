@@ -54,6 +54,12 @@ const LEGEND: Record<ContextMarker, { keyword: string; color: ThemeColor; senten
 		color: "warning",
 		sentence: "prompts replace pi’s system prompt for this request.",
 	},
+	// `+N` opens in toolDiffAdded and `-N` in toolDiffRemoved; previews of pi's contributions name their base
+	diff: {
+		keyword: "+N -N",
+		color: "toolDiffAdded",
+		sentence: "Tokens extensions added or removed, compared with pi’s default prompt.",
+	},
 	added: {
 		keyword: "Added",
 		color: "toolDiffAdded",

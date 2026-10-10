@@ -22,6 +22,11 @@ a `--system-prompt` replacement dropped, which keeps its subheader with
 the [`Dropped` marker](../UI.md#color-and-casing) after its estimate — even with
 an empty body, since the point is to show what the replacement gave up.
 
+In Injections, a part that stands for a child row — a System Prompt part, an
+instruction file, a skill, a built-in tool — also carries the row's
+[`+N`/`-N` diff](injections.md#token-diffs) after its share, behind a dim
+` · ` and before its markers: `Current Dir · 31 tokens · +14`.
+
 A moved block out of pi's normal order keeps its ordinary token share and
 adds the [`Moved` marker](../UI.md#color-and-casing) after it. This applies in
 both views, including the direct System Prompt Usage preview and standalone
@@ -91,6 +96,8 @@ uses, followed by dim text:
 > - **Moved** blocks appear in a different position in the system prompt than
 >   usual. Their token counts are unchanged.
 > - **Forced** prompts replace pi’s system prompt for this request.
+> - **+N -N** Tokens extensions added or removed, compared with pi’s default
+>   prompt.
 > - **Added** parts exist only in this request: an extension added them, and
 >   the session does not keep them. They are counted.
 > - **Modified** parts were changed by an extension for this request only; the
@@ -100,6 +107,11 @@ uses, followed by dim text:
 
 Each sentence is fixed and states its own accounting, so the `Dropped` bullet
 reads as the exception to the `Highlighted` one wherever a preview shows both.
+Only the `+N -N` sentence names the
+[base](injections.md#token-diffs) of the preview's diffs: pi's default prompt,
+as above, for pi's items; `compared with the session.` for extension tools and
+messages; and `Tokens added or removed, compared with the captured request.`
+for payload changes. The Injections list names no base.
 The `(guess)` bullet covers a guessed `:<tool>` qualifier as well, which is
 inferred the same way and never gets a marker of its own.
 
@@ -111,11 +123,11 @@ A bullet renders only where its mark is visible on that frame:
   preview of both views, including the direct single-entry Usage preview, in the
   standalone `Available Tools` and `Guidelines` children in Injections, and in
   multi-entry Usage streams and their full content levels.
-- `Dropped`, `Moved`, `Forced`, `Added`, `Modified`, and `Deleted` follow the
-  part states a frame renders: preview subheaders and item metadata in any
-  category, and Injections hierarchy rows. Only Injections renders the last
-  three; Usage renders `Forced` only in
-  [System Prompt previews](usage.md#forced-prompt).
+- `Dropped`, `Moved`, `Forced`, `+N -N`, `Added`, `Modified`, and `Deleted`
+  follow the part states a frame renders: preview subheaders and item metadata
+  in any category, and Injections hierarchy rows. Only Injections renders the
+  last four, and its hierarchy rows show diffs instead of the last three; Usage
+  renders `Forced` only in [System Prompt previews](usage.md#forced-prompt).
   They follow the captured state, not each row's fit, so a row too narrow for
   its own marker keeps the bullet that explains it.
 

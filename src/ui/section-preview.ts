@@ -7,13 +7,15 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
-import type { InjectedReference, InjectionSection, JsonSpan, RequestChange } from "../model.ts";
+import type { InjectedReference, InjectionSection, JsonSpan, RequestChange, TokenDiff } from "../model.ts";
 import type { PayloadChangeLine } from "../snapshot.ts";
 import { normalizeInlineText, normalizePreviewText } from "../text.ts";
 import { shiftJsonSpan } from "./json-preview.ts";
 import { BODY_INDENT, calculateViewport, descriptionBlockRows } from "./layout.ts";
 import {
 	type ContextMarker,
+	type DiffBase,
+	diffMarker,
 	guessMarker,
 	markerLegendLines,
 	noteBulletLines,
@@ -45,6 +47,8 @@ export interface SectionedContent {
 	readonly moved?: boolean;
 	/** Request-only change of this content; Usage shows only `forced`. */
 	readonly change?: RequestChange;
+	/** Tokens this content gained and lost against its base; only Injections measures them. */
+	readonly diff?: TokenDiff;
 	/** Changed lines of a payload change; rendered as a diff instead of the text. */
 	readonly changedLines?: readonly PayloadChangeLine[];
 }
@@ -60,22 +64,23 @@ export interface PreviewDescriptionLayout {
 
 /**
  * One fixed legend for the markers a preview shows, never part of its raw
- * content, followed by `notes` that explain the shown item further. Collapse it
- * whole when fewer than `DESCRIPTION_MIN_CONTENT_ROWS` content rows would
- * remain, or when a shorter preview would no longer fit in full. Uncapped line
- * counts keep the collapse decision independent of the Usage cap it helps
- * determine.
+ * content, followed by `notes` that explain the shown item further. `diffBase`
+ * names what the shown token diffs compare with. Collapse it whole when fewer
+ * than `DESCRIPTION_MIN_CONTENT_ROWS` content rows would remain, or when a
+ * shorter preview would no longer fit in full. Uncapped line counts keep the
+ * collapse decision independent of the Usage cap it helps determine.
  */
 export function previewLegendLines(
 	theme: Theme,
 	contents: readonly SectionedContent[],
 	layout: PreviewDescriptionLayout,
 	notes: readonly string[] = [],
+	diffBase?: DiffBase,
 ): string[] {
 	const markers = previewMarkers(contents);
 	if (markers.length === 0 && notes.length === 0) return [];
 	const lines = [
-		...markerLegendLines(theme, markers, layout.width),
+		...markerLegendLines(theme, markers, layout.width, diffBase),
 		...notes.flatMap((note) => noteBulletLines(theme, note, layout.width)),
 	];
 	const availableRows = layout.availableRows - descriptionBlockRows(lines);
@@ -232,12 +237,14 @@ function headingKey(text: string): string {
 }
 
 /**
- * Bold subheader naming one part and its share of the parent estimate. Parts use
- * `syntaxKeyword` rather than the usual `mdHeading` subheader color, because they
- * nest under item and entry headings that already carry `mdHeading`.
+ * Bold subheader naming one part, its share of the parent estimate, and its
+ * token diff. Parts use `syntaxKeyword` rather than the usual `mdHeading`
+ * subheader color, because they nest under item and entry headings that
+ * already carry `mdHeading`.
  */
 function sectionHeaderLines(theme: Theme, section: InjectionSection, wrapWidth: number): string[] {
 	const label = theme.fg("syntaxKeyword", theme.bold(normalizeInlineText(section.label)));
 	const tokens = theme.fg("muted", ` · ${section.tokens.toLocaleString("en-US")} tokens`);
-	return wrapTextWithAnsi(`${label}${tokens}${stateMarkers(theme, section)}`, wrapWidth).map((line) => `${BODY_INDENT}${line}`);
+	const header = `${label}${tokens}${diffMarker(theme, section.diff)}${stateMarkers(theme, section)}`;
+	return wrapTextWithAnsi(header, wrapWidth).map((line) => `${BODY_INDENT}${line}`);
 }

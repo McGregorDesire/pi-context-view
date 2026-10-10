@@ -27,7 +27,7 @@ import {
 import { SnapshotBuilder } from "./capture/builder.ts";
 import { registerCapture } from "./capture/register.ts";
 import { CompactionState, registerCompactionTracking } from "./compaction.ts";
-import { buildInjectionsSnapshot } from "./injections.ts";
+import { buildFallbackInjectionsSnapshot, buildInjectionsSnapshot } from "./injections.ts";
 import { isSupportedPiVersion } from "./pi-version.ts";
 import { ProbeFilter, registerProbeFilter } from "./probe/filter.ts";
 import { registerSilentProbe, SilentProbe } from "./probe/silent-probe.ts";
@@ -35,7 +35,7 @@ import { ProbeTrigger } from "./probe/trigger.ts";
 import { createProbeView } from "./probe/view.ts";
 import { applyRequestSnapshot } from "./projection.ts";
 import { collectPromptSources } from "./prompt-additions.ts";
-import { buildNativeSnapshot, buildUsageSnapshot } from "./replay.ts";
+import { buildUsageSnapshot } from "./replay.ts";
 import { readAutoCompactReserveTokens } from "./settings.ts";
 import { SnapshotStore } from "./snapshot.ts";
 import { showInjectionsView } from "./ui/injections-view.ts";
@@ -59,7 +59,7 @@ export default function (pi: ExtensionAPI, snapshots = new SnapshotStore()) {
 	async function openInjections(ctx: ExtensionCommandContext, latest: RequestSnapshotResult): Promise<void> {
 		if (latest.type === "missing") {
 			await showInjectionsView(ctx, {
-				snapshot: buildNativeSnapshot({
+				snapshot: buildFallbackInjectionsSnapshot({
 					systemPrompt: ctx.getSystemPrompt(),
 					options: ctx.getSystemPromptOptions(),
 					allTools: pi.getAllTools(),

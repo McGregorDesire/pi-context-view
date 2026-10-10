@@ -8,8 +8,8 @@ import { test } from "node:test";
 import type { Tool } from "@earendil-works/pi-ai";
 import { SessionManager, type ToolInfo } from "@earendil-works/pi-coding-agent";
 
-import { buildInjectionsSnapshot, type InjectionsInput } from "../src/injections.ts";
-import type { InjectionSnapshot, InjectionItem } from "../src/model.ts";
+import { buildFallbackInjectionsSnapshot, buildInjectionsSnapshot, type InjectionsInput } from "../src/injections.ts";
+import { AGGREGATE_SOURCE_ID, type InjectionItem, type InjectionSnapshot } from "../src/model.ts";
 import type {
 	ConversationChange,
 	GuardFinding,
@@ -356,4 +356,173 @@ test("only compared channels contribute findings; a pending guard has none", () 
 	assert.equal(partial.groups.at(-1)?.source.label, "payload changes");
 	const pending = buildInjectionsSnapshot(input(session, {}, { guard: { status: "pending" } }));
 	assert.ok(pending.groups.every((group) => group.source.label !== "payload changes"));
+});
+
+// ============================================================================
+// Token diffs
+// ============================================================================
+
+const SEARCH: Tool = { name: "search", description: "Search the web", parameters: { type: "object" } } as Tool;
+const SEARCH_INFO = {
+	...SEARCH, promptGuidelines: ["Use search to verify claims"], sourceInfo: { source: "npm:web", path: "/ext/web" },
+} as unknown as ToolInfo;
+
+/** A session whose saved prompt carries an extension tool's lines and two extension sections. */
+function createExtensionSession(): SessionManager {
+	const session = SessionManager.inMemory("/tmp/project");
+	session.appendMessage({
+		role: "system",
+		content: "",
+		sections: {
+			...SECTIONS,
+			tools: "<tools>\n- read: Read files\n- bash: Run commands\n- search: Search the web\n</tools>",
+			rules: "<rules>\n- Use search to verify claims\n</rules>",
+			"fixture-review": "<fixture-review>\nReview the changed files.\n</fixture-review>",
+			"fixture-obsolete": "<fixture-obsolete>\nAn obsolete note.\n</fixture-obsolete>",
+		},
+		toolsAdded: [READ, BASH, SEARCH],
+		timestamp: 1,
+	});
+	session.appendMessage({ role: "user", content: "first prompt", timestamp: 2 });
+	return session;
+}
+
+/** `[label, value, +N, -N]` of an item and each of its children. */
+function diffRows(item: InjectionItem | undefined): Array<[string, number, number, number]> {
+	return [item, ...(item?.children ?? [])].filter((entry) => entry !== undefined)
+		.map((entry) => [entry.label, entry.tokens, entry.diff?.added ?? 0, entry.diff?.removed ?? 0]);
+}
+
+test("pi's rows compare with pi's default prompt, so saved and request-only extension text both count", () => {
+	const session = createExtensionSession();
+	const edit: Tool = { ...READ, description: "Read files, edited" };
+	const snapshot = buildInjectionsSnapshot({
+		...input(session, { system: [
+			{ type: "section", name: "cwd", text: "<cwd>\n/tmp/project\nwith a note\n</cwd>" },
+			{ type: "section", name: "docs", text: null },
+			{ type: "section", name: "fixture-obsolete", text: null },
+			{ type: "section", name: "fixture-added", text: "<fixture-added>\nRequest-only section.\n</fixture-added>" },
+			{ type: "tool", name: "read", declaration: edit },
+		] }),
+		allTools: [...BUILTIN_TOOLS, SEARCH_INFO],
+	});
+	const items = itemsById(snapshot);
+
+	// Shares round cumulatively, so the search line's 25 characters add 6 tokens to a 10-token default
+	assert.deepEqual(diffRows(items.get("base-prompt")), [
+		["System Prompt", 48, 28, 11],
+		["Preamble", 7, 0, 0],
+		["Available Tools", 16, 6, 0],
+		["Current Dir", 6, 3, 0],
+		["Guidelines", 7, 7, 0],
+		["fixture-review", 7, 7, 0],
+		["fixture-added", 5, 5, 0],
+		["Documentation", 0, 0, 7],
+		["fixture-obsolete", 0, 0, 4],
+	], "saved extension text counts as added: the tool's lines and its own section");
+	assert.equal(items.get("base-prompt:section:fixture-obsolete")?.change, "deleted",
+		"a deleted extension section compares with the session, so its deletion stays visible");
+	const prompt = items.get("base-prompt");
+	assert.deepEqual(prompt?.sections?.map((section) => section.diff), prompt?.children?.map((child) => child.diff),
+		"preview subheaders show the rows' diffs");
+
+	assert.deepEqual(diffRows(items.get("tool:builtin")).map(([label, , added, removed]) => [label, added > 0, removed]),
+		[["Built-in Tools (2)", true, 0], ["read", true, 0], ["bash", false, 0]]);
+	assert.equal(items.get("tool:npm:web:search")?.diff, undefined, "a saved extension tool matches the session");
+	const pi = snapshot.groups.find((group) => group.source.label === "pi");
+	assert.deepEqual(pi?.diff, {
+		added: (prompt?.diff?.added ?? 0) + (items.get("tool:builtin")?.diff?.added ?? 0),
+		removed: prompt?.diff?.removed,
+	}, "a group sums its items");
+	assert.equal(snapshot.groups.find((group) => group.source.label === "web")?.diff, undefined);
+});
+
+test("tool and message rows compare with the session; deletions remove the session estimate", () => {
+	const { session, entries } = createSession();
+	const added: RequestMessage = {
+		role: "custom", customType: "fixture-add", content: "added note", display: false, timestamp: 5,
+	};
+	const grep: Tool = { name: "grep", description: "Search files", parameters: { type: "object" } } as Tool;
+	const snapshot = buildInjectionsSnapshot(input(session, {
+		conversation: [
+			{ type: "added", message: added, attribution: { customType: "fixture-add" } },
+			{ type: "modified", entryId: entries.second, message: user("edited second prompt"), attribution: {} },
+			{ type: "deleted", entryId: entries.first, attribution: {} },
+		],
+		system: [{ type: "tool", name: "grep", declaration: grep }, { type: "tool", name: "bash", declaration: null }],
+	}));
+	const messages = snapshot.groups.flatMap((group) => group.items).filter((item) => item.kind === "message");
+
+	assert.deepEqual(messages.map((item) => [item.label, item.change, item.tokens, item.diff]), [
+		["message", undefined, 3, undefined],
+		["message", "added", 3, { added: 3, removed: 0 }],
+		["user message", "modified", 5, { added: 1, removed: 0 }],
+		["user message", "deleted", 0, { added: 0, removed: 3 }],
+	], "the modification reconciles with the 4-token session prompt");
+	const items = itemsById(snapshot);
+	assert.deepEqual(items.get("tool:unattributed:grep")?.diff, { added: items.get("tool:unattributed:grep")?.tokens,
+		removed: 0 });
+	assert.deepEqual(items.get("tool:builtin:bash")?.diff, { added: 0, removed: 13 });
+	assert.deepEqual(snapshot.groups.find((group) => group.source.id === AGGREGATE_SOURCE_ID)?.diff,
+		{ added: 1, removed: 3 });
+});
+
+test("a payload change compares its added lines with the captured request's removed lines", () => {
+	const { session } = createSession();
+	const snapshot = buildInjectionsSnapshot(input(session, {}, complete([
+		{ type: "payload-change", change: "modified", part: "system", lines: [
+			{ type: "removed", text: "old rule" }, { type: "added", text: "new rule!" },
+		] },
+		{ type: "payload-change", change: "added", part: "user", lines: [{ type: "added", text: "XYZZY edit line" }] },
+		{ type: "payload-tool-change", change: "deleted", name: "bash", lines: [{ type: "removed", text: "Run commands" }] },
+	])));
+	const changes = snapshot.groups.at(-1);
+
+	assert.deepEqual(changes?.items.map((item) => [item.label, item.tokens, item.diff]), [
+		["bash", 0, { added: 0, removed: 3 }],
+		["user message", 4, { added: 4, removed: 0 }],
+		["system message", 3, { added: 2, removed: 1 }],
+	]);
+	assert.deepEqual(changes?.diff, { added: 6, removed: 4 });
+});
+
+test("a forced prompt without sections compares with pi's whole default prompt", () => {
+	const session = createExtensionSession();
+	const forced = "Forced prompt text.";
+	const snapshot = buildInjectionsSnapshot({
+		...input(session, {}, { forcedPrompt: forced }), allTools: [...BUILTIN_TOOLS, SEARCH_INFO],
+	});
+	const prompt = itemsById(snapshot).get("base-prompt");
+
+	assert.equal(prompt?.children, undefined);
+	assert.equal(prompt?.change, "forced");
+	// Pi's default prompt holds pi's parts without the extension's lines and sections
+	const defaultText = [
+		"You are a test assistant.", "\n- read: Read files\n- bash: Run commands", "Pi documentation lives here.", "/tmp/project",
+	].join("\n");
+	assert.deepEqual(prompt?.diff, { added: prompt?.tokens, removed: Math.ceil(defaultText.length / 4) });
+});
+
+test("a branch with no recorded system state and the degraded fallback compare with pi's default prompt", () => {
+	const session = SessionManager.inMemory("/tmp/project");
+	session.appendMessage({ role: "user", content: "first prompt", timestamp: 1 });
+	const live = [
+		"You are a test assistant.",
+		"<tools>\n- read: Read files\n- search: Search the web\n</tools>",
+		"<cwd>\n/tmp/project\n</cwd>",
+	].join("\n\n");
+	const native = {
+		systemPrompt: live, options: { cwd: "/tmp/project", toolSnippets: { search: "Search the web" } },
+		allTools: [...BUILTIN_TOOLS, SEARCH_INFO], activeToolNames: ["read", "search"],
+	};
+	const fromBranch = buildInjectionsSnapshot({ ...input(session), ...native });
+	const fallback = buildFallbackInjectionsSnapshot(native);
+
+	for (const snapshot of [fromBranch, fallback]) {
+		const items = itemsById(snapshot);
+		assert.deepEqual(items.get("base-prompt:available-tools")?.diff, { added: 6, removed: 0 });
+		assert.equal(items.get("base-prompt:current-dir")?.diff, undefined);
+		assert.equal(items.get("tool:npm:web:search")?.diff, undefined);
+		assert.deepEqual(snapshot.groups[0]?.diff, { added: 6, removed: 0 });
+	}
 });

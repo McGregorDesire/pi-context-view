@@ -5,7 +5,13 @@
 import type { ExtensionCommandContext, Theme } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
-import { type InjectionItem, type InjectionSnapshot, PAYLOAD_CHANGES_SOURCE_ID } from "../model.ts";
+import {
+	type InjectionItem,
+	type InjectionSnapshot,
+	PAYLOAD_CHANGES_SOURCE_ID,
+	type RequestChange,
+	type TokenDiff,
+} from "../model.ts";
 import type { GuardResult } from "../snapshot.ts";
 import { normalizeInlineText, normalizePreviewText } from "../text.ts";
 import {
@@ -33,7 +39,17 @@ import {
 	STEP_KEY_HINT,
 	wrapDescriptionLines,
 } from "./layout.ts";
-import { type ContextMarker, markerLegendLines, noteBulletLines, partMarkers, stateMarkers } from "./markers.ts";
+import {
+	type ContextMarker,
+	type DiffBase,
+	diffMarker,
+	formatDiffAdded,
+	formatDiffRemoved,
+	markerLegendLines,
+	noteBulletLines,
+	partMarkers,
+	stateMarkers,
+} from "./markers.ts";
 import { previewBodyLines, previewLegendLines } from "./section-preview.ts";
 import { DEFAULT_WHEEL_SCROLL_LINES, parseWheelDirection, readWheelScrollLines } from "./wheel.ts";
 
@@ -50,6 +66,8 @@ const LIST_DESCRIPTION_MIN_ROWS = 26;
 const CURSOR_COLUMN_WIDTH = 2;
 const MAX_TOKEN_VALUE_COLUMN = 54;
 const TOKEN_LEADER_GAP = 4;
+/** Spaces before each diff column, after the value column. */
+const DIFF_COLUMN_GAP = 2;
 
 /** Everything the Injections view renders. */
 export interface InjectionsViewInput {
@@ -61,11 +79,15 @@ export interface InjectionsViewInput {
 	readonly guard?: GuardResult;
 }
 
-/** Shared token-value column measured after the fixed cursor column. */
+/** Shared token-value and diff columns measured after the fixed cursor column. */
 interface InjectionColumns {
 	readonly value: number;
 	/** Width of the largest formatted estimate in the whole tree, including TOTAL. */
 	readonly valueWidth: number;
+	/** Width of the widest `+N` in the whole tree; 0 when no row adds tokens. */
+	readonly addedWidth: number;
+	/** Width of the widest `-N` in the whole tree; 0 when no row removes tokens. */
+	readonly removedWidth: number;
 }
 
 /** Open the Injections view as a fullscreen overlay. */
@@ -277,7 +299,7 @@ export class InjectionsView {
 			width,
 			availableRows: terminalRows - PREVIEW_FIXED_LINE_COUNT,
 			contentLineCount: wrapped.length,
-		}, findingNotes([item, ...(item.children ?? [])]));
+		}, findingNotes([item, ...(item.children ?? [])]), previewDiffBase(item));
 		const viewport = calculateViewport(
 			wrapped.length, terminalRows, PREVIEW_FIXED_LINE_COUNT, descriptionBlockRows(descriptionLines),
 		);
@@ -287,9 +309,13 @@ export class InjectionsView {
 		const title = theme.fg("accent", theme.bold(normalizeInlineText(item.label)));
 		const source = normalizeInlineText(item.source.label);
 		const meta = theme.fg("muted", `${source} · ${item.tokens.toLocaleString("en-US")} tokens`);
+		const diff = diffMarker(theme, item.diff);
 		const marker = stateMarkers(theme, { moved: item.moved, change: item.change });
-		const fitsMarker = visibleWidth(title) + visibleWidth(meta) + visibleWidth(marker) + 2 <= width;
-		lines.push(this.spread(title, `${meta}${fitsMarker ? marker : ""} `, width));
+		// Drop the marker first when space runs out, then the diff
+		const headerWidth = visibleWidth(title) + visibleWidth(meta) + 2;
+		const fitsDiff = headerWidth + visibleWidth(diff) <= width;
+		const fitsMarker = fitsDiff && headerWidth + visibleWidth(diff) + visibleWidth(marker) <= width;
+		lines.push(this.spread(title, `${meta}${fitsDiff ? diff : ""}${fitsMarker ? marker : ""} `, width));
 		lines.push("");
 
 		const start = this.previewScroller.offset;
@@ -387,7 +413,10 @@ export class InjectionsView {
 		return lines;
 	}
 
-	/** Choose the earliest useful shared value column, capped on wide terminals. */
+	/**
+	 * Choose the earliest useful shared value column, capped on wide terminals,
+	 * and size the diff columns from the widest `+N` and `-N` in the whole tree.
+	 */
 	private injectionColumns(width: number): InjectionColumns {
 		const contentRows = this.rows.filter((row) => row.kind !== "separator");
 		const labelWidth = Math.max(1, ...contentRows.map((row) => visibleWidth(this.plainRowLabel(row))));
@@ -395,11 +424,23 @@ export class InjectionsView {
 			1,
 			...contentRows.map((row) => row.tokens.toLocaleString("en-US").length),
 		);
+		const diffs = contentRows.map(rowDiff);
 		const idealValue = Math.min(MAX_TOKEN_VALUE_COLUMN, labelWidth + TOKEN_LEADER_GAP);
-		return { value: Math.max(1, Math.min(idealValue, width - tokenWidth)), valueWidth: tokenWidth };
+		return {
+			value: Math.max(1, Math.min(idealValue, width - tokenWidth)),
+			valueWidth: tokenWidth,
+			addedWidth: Math.max(0, ...diffs.map((diff) => diff !== undefined && diff.added > 0
+				? formatDiffAdded(diff.added).length : 0)),
+			removedWidth: Math.max(0, ...diffs.map((diff) => diff !== undefined && diff.removed > 0
+				? formatDiffRemoved(diff.removed).length : 0)),
+		};
 	}
 
-	/** One hierarchy row with dim leaders and a full token estimate when width permits. */
+	/**
+	 * One hierarchy row with dim leaders and a full token estimate when width
+	 * permits, then its diff columns and state markers. Narrow widths drop the
+	 * diff columns whole for every row, and a marker that does not fit.
+	 */
 	private injectionLine(
 		row: Exclude<InjectionRow, { readonly kind: "separator" }>,
 		columns: InjectionColumns,
@@ -413,19 +454,45 @@ export class InjectionsView {
 		const tokens = row.kind === "total"
 			? this.theme.bold(this.theme.fg("text", value))
 			: this.theme.fg(selected ? "accent" : "muted", value);
-		const line = `${left}${leader}${tokens}`;
-		return fitLine(`${line}${this.rowMarker(row, columns.value + value.length, width)}`, width);
+		const marker = this.rowMarker(row);
+		const diff = rowDiff(row);
+		let lineWidth = columns.value + value.length;
+		let diffs = "";
+		const diffWidth = diffColumnsWidth(columns);
+		// Blank diff columns only keep a following marker aligned
+		if (diffWidth > 0 && lineWidth + diffWidth <= width && (diff !== undefined || marker.length > 0)) {
+			diffs = this.diffColumns(diff, columns, marker.length > 0);
+			lineWidth += diffWidth;
+		}
+		const fittedMarker = lineWidth + visibleWidth(marker) <= width ? marker : "";
+		return fitLine(`${left}${leader}${tokens}${diffs}${fittedMarker}`, width);
 	}
 
-	/** State marker after the estimate, dropped whole rather than truncated when it does not fit. */
-	private rowMarker(
-		row: Exclude<InjectionRow, { readonly kind: "separator" }>,
-		lineWidth: number,
-		width: number,
-	): string {
-		if (row.kind !== "item") return "";
-		const marker = stateMarkers(this.theme, row);
-		return lineWidth + visibleWidth(marker) <= width ? marker : "";
+	/**
+	 * `+N` and `-N` right-aligned in their tree-wide columns. A blank column is
+	 * padded only when `followed` by a marker, so no row ends in spaces.
+	 */
+	private diffColumns(diff: TokenDiff | undefined, columns: InjectionColumns, followed: boolean): string {
+		const added = diff !== undefined && diff.added > 0 ? formatDiffAdded(diff.added) : "";
+		const removed = diff !== undefined && diff.removed > 0 ? formatDiffRemoved(diff.removed) : "";
+		let text = "";
+		if (columns.addedWidth > 0 && (added.length > 0 || removed.length > 0 || followed)) {
+			text += " ".repeat(DIFF_COLUMN_GAP + columns.addedWidth - added.length);
+			if (added.length > 0) text += this.theme.fg("toolDiffAdded", added);
+		}
+		if (columns.removedWidth > 0 && (removed.length > 0 || followed)) {
+			text += " ".repeat(DIFF_COLUMN_GAP + columns.removedWidth - removed.length);
+			if (removed.length > 0) text += this.theme.fg("toolDiffRemoved", removed);
+		}
+		return text;
+	}
+
+	/**
+	 * State markers after the estimate and diff columns: `Dropped`, `Moved`, and
+	 * `Forced`. The diff columns replace the other request-only change markers.
+	 */
+	private rowMarker(row: Exclude<InjectionRow, { readonly kind: "separator" }>): string {
+		return row.kind === "item" ? stateMarkers(this.theme, listMarkedState(row)) : "";
 	}
 
 	/** Fill a label/value gap with dim dots, retaining spaces at both ends. */
@@ -530,9 +597,12 @@ export class InjectionsView {
 		return lines;
 	}
 
-	/** Markers the hierarchy rows carry, whatever the current width leaves room to render. */
+	/** Markers and diffs the hierarchy rows carry, whatever the current width leaves room to render. */
 	private rowMarkers(): ContextMarker[] {
-		return this.rows.flatMap((row) => row.kind === "item" ? partMarkers(row) : []);
+		return this.rows.flatMap((row) => {
+			if (row.kind === "group") return partMarkers({ diff: row.diff });
+			return row.kind === "item" ? partMarkers({ ...listMarkedState(row), diff: row.diff }) : [];
+		});
 	}
 
 	private spread(left: string, right: string, width: number): string {
@@ -568,6 +638,35 @@ function shortenInstructionPath(path: string, width: number): string {
 	}
 	const tail = `…${path.slice(lastSeparator.index)}`;
 	return visibleWidth(tail) <= width ? tail : fitLine(path.slice(lastSeparator.index + 1), width);
+}
+
+/** Token diff a list row shows; the total and the separator have none. */
+function rowDiff(row: InjectionRow): TokenDiff | undefined {
+	return row.kind === "group" || row.kind === "item" ? row.diff : undefined;
+}
+
+/** Width the diff columns take after the value column, including their gaps. */
+function diffColumnsWidth(columns: InjectionColumns): number {
+	const added = columns.addedWidth > 0 ? DIFF_COLUMN_GAP + columns.addedWidth : 0;
+	const removed = columns.removedWidth > 0 ? DIFF_COLUMN_GAP + columns.removedWidth : 0;
+	return added + removed;
+}
+
+/** The marked state a list row shows: its `Forced` change, but no change the diff columns already show. */
+function listMarkedState(
+	row: Extract<InjectionRow, { readonly kind: "item" }>,
+): { readonly dropped?: boolean; readonly moved?: boolean; readonly change?: RequestChange } {
+	return { dropped: row.dropped, moved: row.moved, change: row.change === "forced" ? "forced" : undefined };
+}
+
+/**
+ * What a preview's token diffs compare with: pi's default prompt for pi's
+ * contributions, the captured request for a payload change, and the session
+ * for everything else.
+ */
+function previewDiffBase(item: InjectionItem): DiffBase {
+	if (item.source.id === PAYLOAD_CHANGES_SOURCE_ID) return "captured-request";
+	return item.source.native ? "default-prompt" : "session";
 }
 
 /**

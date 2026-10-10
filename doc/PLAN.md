@@ -13,7 +13,7 @@
   - [x] Right-align token values in the shared value column, so magnitudes line up.
   - [x] Keep the file name in long instruction-file paths: shorten the middle (`~/…/injection-redesign/AGENTS.md`), retaining whole trailing directories where space permits.
   - [x] Rename `TOTAL` to `TOTAL (Prompt, Tools, Injections)`, so it does not read as the context or payload size.
-  - [ ] **Diff columns instead of change markers** ([injections.md](ui/injections.md#request-only-changes)):
+  - [x] **Diff columns instead of change markers** ([injections.md](ui/injections.md#request-only-changes)):
     - Replace the `Added`, `Modified`, and `Deleted` legend bullets in the list description with one bullet that explains `+N`/`-N` in their diff colors and one for `Request-Only`; keep the full sentences in previews.
     - The value column holds the tokens sent, on every counted row, including `0` for a deleted part and `10 +10` for an added one.
     - `+N` and `-N` columns follow the value. Rows under `pi` compare with pi's default prompt, so saved and request-only extension changes both show; extension-owned rows (tools, messages) compare with the session.
@@ -24,6 +24,8 @@
     - Round so that base + `+N` - `-N` equals the value exactly.
     - `Dropped`, `Moved`, `Forced`, and `Request-Only` are markers after the `-N` column. Narrow widths drop the diff columns whole, like markers.
     - Known limits: a request-only edit of an extension's own section folds into its `+N`; a saved edit inside pi's own section text is not detectable.
+    Decided: the `Request-Only` marker and its list bullet land with the next item. Previews keep `Added`, `Modified`, and `Deleted` with their full sentences and add `+N`/`-N` after the estimate in headers and part subheaders, with a legend bullet that names the base; word-level diff lines in previews wait for the preview items. A section an extension saved and the request deleted compares with the session (`0 -N`). A forced prompt without sections compares with pi's whole default prompt. A diff never removes more than its base or adds more than its value, so text outside the estimates, such as JSON around content blocks, cannot inflate it. The degraded fallback compares the live prompt with pi's default too.
+    Verified on Pi 1.1.0: `pnpm check` (754 tests). Real-PTY runs with `--system`, `--forced`, and `--context --payload --message` plus a temporary extension with a tool snippet, guideline, and custom section: the tool lines (`+8`, `+10`) and the section (`+18`) showed under pi while the tool row showed no diff, deleted extension sections read `0 -32`, the forced System Prompt read `17 +17 -3,316 · Forced`, payload changes read `+8 -6` in the row and preview header, and the diff columns dropped whole at 60 columns, in fullscreen and regular modes.
   - [ ] **`Request-Only` marker** ([injections.md](ui/injections.md#request-only-changes)):
     - `Request-Only`, in `dim`, marks every row whose sent content differs from the session: request-only additions, edits, and deletions, alone or mixed with saved changes.
     - It shows what `+N` cannot: whether a change is saved or only in this request, including a request-only edit folded into a saved `+N`.

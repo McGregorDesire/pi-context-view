@@ -62,6 +62,24 @@ original text at zero tokens, after sent parts and before Extension Additions.
 A deleted tool keeps its definition at zero tokens. The total counts only this
 view's contributions, not unchanged ordinary history or provider serialization.
 
+Every row also carries a token diff, the tokens it gained and lost against its
+base, from a word-level comparison in `src/token-diff.ts`:
+
+- **Prompt and tools.** The session's prompt and tools at the snapshot's leaf
+  are measured like the request, without its changes. Pi's parts compare with
+  that version minus the extension lines its references cover: pi's default
+  prompt. Custom sections and Extension Additions have no default, except that
+  a deleted custom section compares with the session. Tools, instruction
+  files, and skills compare with the session; parents sum their children.
+- **Messages.** A changed message compares its content-only preview with the
+  session original's; an unchanged custom message has no diff.
+- **Payload changes.** A finding compares the lines the payload added with
+  the lines it removed.
+
+A branch without recorded system state and the degraded fallback compare the
+live prompt with itself, so only extension text shows.
+[ui/injections.md](../ui/injections.md#token-diffs) holds the rules.
+
 Prompt additions have no `before_agent_start` handler boundary: recorded
 structured edits already belong to the baseline, and the forced prompt is
 captured as final text ([prompt additions](measurement.md#extension-prompt-additions)).

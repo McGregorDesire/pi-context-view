@@ -89,6 +89,9 @@ Context Injections · [Latest Request]
   the empty value column. They count toward neither their group nor `TOTAL`.
   pi-ask's row (`+127` = `+20` + `+44` + `+63`) repeats its changes; the
   `unattributed` row (`+73 -466`) repeats every change with an unknown source.
+- **Deleted extension section.** A section an extension saved and the request
+  deleted has no base under pi's default, so it compares with the session and
+  reads `0 -N`.
 - **Parent and group sums.** A parent sums the changes of the rows it counts
   only, so `npm:@eko24ive/pi-ask` shows no diff, and `unattributed` shows
   `+31 -5` from `messages (4)` and `payload changes (2)`.
@@ -308,10 +311,6 @@ payload changes (2)                                       unattributed · 12 tok
 
 ## Open questions
 
-- **Deleted extension section.** Under pi's default as the base, a section an
-  extension added and the request deleted has no base and no value, so its row
-  reads `0` with no diff, and the deletion disappears. Compare it with the
-  session instead, or leave the row out?
 - **Unchanged rows in the status bar.** `No changes by extensions.` or an
   empty reserved line?
 - **Header status wording.** `Payload: not checked`, `pending`, and

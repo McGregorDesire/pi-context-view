@@ -117,28 +117,30 @@ Present the request's contributions in this order:
 ### Request-only changes
 
 Changes from all `context` handlers and earlier `context_with_system` handlers
-stay in place in the tree, with a marker after the estimate:
+stay in place in the tree. Each changed row shows its [token diff](#token-diffs)
+after the tokens the request sent: an added message reads `10 +10`, a deleted
+part `0 -466`, and a modified one can show both columns. The diff columns
+replace the `Added`, `Modified`, and `Deleted` markers in the list; previews
+keep them ([Injection preview](#injection-preview)). One change marker remains
+in the list:
 
-| Marker     | Color             | Row                                                                                   |
-| ---------- | ----------------- | ------------------------------------------------------------------------------------- |
-| `Added`    | `toolDiffAdded`   | A message, System Prompt part, or tool the request has and the session does not       |
-| `Modified` | `warning`         | A message, System Prompt part, or tool whose request version differs from the session |
-| `Deleted`  | `toolDiffRemoved` | A message, System Prompt part, or tool the request removed; it reads 0 tokens         |
-| `Forced`   | `warning`         | System Prompt, when the request carried an extension's forced prompt instead of pi's  |
+| Marker   | Color     | Row                                                                                  |
+| -------- | --------- | ------------------------------------------------------------------------------------ |
+| `Forced` | `warning` | System Prompt, when the request carried an extension's forced prompt instead of pi's |
 
 - **Messages.** An added or modified custom message sits under its
   `customType` source with the `message` label; any other message sits under
   `unattributed` with a `<role> message` label, such as `user message`. A
   deleted message uses the `customType` of the session message it removed. A
   modified or deleted session custom message replaces its unchanged row.
-- **System Prompt.** A changed section marks its part, at its position in the
+- **System Prompt.** A changed section changes its part, at its position in the
   request prompt. The recorded layout also identifies inline XML, unwrapped,
   and empty sections. Pi renders changed plain content before the first section, so
-  it marks `Preamble`. A deleted section follows the parts the request sent, in
+  it changes `Preamble`. A deleted section follows the parts the request sent, in
   session order, before `Extension Additions`. A forced prompt replaces every
   section, so section and content changes do not apply to it. `Forced` marks
   the System Prompt row and its preview header, never its parts.
-- **Tools.** A changed declaration marks its tool. A deleted tool keeps a
+- **Tools.** A changed declaration changes its tool. A deleted tool keeps a
   0-token row under its source; `Built-in Tools (N)` counts only the tools the
   request declared. A [hidden](#hidden-tools) tool has no row.
 
@@ -146,11 +148,48 @@ These source groups identify the affected content, not the extension that
 edited it. Changes to a pi part or a custom message remain unattributed to an
 editor.
 
-A row can carry `Moved` and a change marker together; markers keep the order
-`Dropped`, `Moved`, then the change. The estimate counts the request version.
+Markers keep the order `Dropped`, `Moved`, then the change, after a row's
+diff columns or a preview's diff. The estimate counts the request version.
 `TOTAL (Prompt, Tools, Injections)` covers these contributions only, not
 unchanged ordinary conversation; it is neither the full context nor a
 provider-payload size.
+
+### Token diffs
+
+`+N` and `-N` are the tokens a row gained and lost against its base. They are
+rounded so that the base estimate plus `+N` minus `-N` equals the value
+exactly:
+
+| Rows                         | Base                                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------------- |
+| Under `pi`                   | Pi's default prompt: the session's version of a pi part without its extension lines |
+| Extension tools and messages | The session                                                                         |
+| Payload changes              | The captured request: the finding's removed lines                                   |
+
+- **Saved extension text.** Rows under `pi` show saved and request-only
+  extension text alike: an extension tool's lines in `Available Tools` and
+  `Guidelines`, a custom section, and `Extension Additions`. Pi's default has
+  no custom section and no `Extension Additions`, so their whole value is
+  `+N`. A saved extension tool or message matches the session and shows no
+  diff.
+- **Deleted extension section.** A custom section the session has and the
+  request deleted has no default; it compares with the session instead and
+  reads `0 -N`, so the deletion stays visible.
+- **Forced prompt.** A forced prompt with sections compares part by part; one
+  without sections compares System Prompt with pi's whole default prompt,
+  instruction files and skills included.
+- **Word-level diff.** Changed words, not changed lines, make up `+N` and `-N`.
+  Changed characters round up to tokens, and any rounding difference goes to
+  the side with changed characters. Equal texts have no diff. A diff never
+  removes more than the base or adds more than the value has; text the
+  estimates leave out, such as JSON around content blocks, would otherwise
+  inflate it, so such a row reads as a whole replacement.
+- **Parents and groups.** A parent or group row sums the diffs of the rows it
+  counts, plus the removal of parts or children only the session has.
+  `TOTAL (Prompt, Tools, Injections)` shows no diff.
+- **Known limits.** A request-only edit of an extension's own section folds
+  into its `+N`. A saved edit inside pi's own section text is not detectable:
+  the session is pi's default there.
 
 ### Payload changes
 
@@ -166,9 +205,10 @@ or source, so they cannot stay in place. The `payload changes` group, after
   tool name. A removal Pi did not report in `hiddenTools` is a `Deleted`
   payload change, not a [hidden tool](#hidden-tools).
 
-Each row carries the `Added`, `Modified`, or `Deleted` marker of its change.
-The guard keeps only the changed lines, so a row's estimate counts the lines
-the payload added, and a deleted row reads 0 tokens. These estimates count
+Each row's [token diff](#token-diffs) compares the lines the payload added
+with the lines it removed from the captured request. The guard keeps only the
+changed lines, so a row's estimate counts the lines the payload added, and a
+deleted row reads 0 tokens. These estimates count
 toward the group and `TOTAL (Prompt, Tools, Injections)`. Rows sort like other
 source groups. While the group is shown, the description carries a dim bullet:
 
@@ -220,7 +260,14 @@ column, sized from the largest formatted estimate in the whole tree, including
 `TOTAL (Prompt, Tools, Injections)`, so its right edge stays stable while
 scrolling. Cap the column's start near the tree (`MAX_TOKEN_VALUE_COLUMN`) on
 wide terminals, leaving unused space to the right.
-Markers follow the right edge of the value column.
+The `+N` and `-N` columns follow the value column, each after two spaces and
+right-aligned in a fixed width sized from the widest `+N` or `-N` in the whole
+tree, so they also stay stable while scrolling. A column no row fills is
+absent. `+N` uses `toolDiffAdded` and `-N` `toolDiffRemoved`, also on the
+selected row. A row leaves a column blank when that side is zero, and ends
+without trailing blanks unless a marker follows. Markers follow the right edge
+of the `-N` column. When the diff columns do not fit the width, every row drops
+them whole, like a marker; markers then follow the value column.
 Fill label/value gaps with dim dot leaders; as width shrinks, shorten or remove
 leaders before truncating labels or token values, and retain tree connectors
 where space permits.
@@ -238,8 +285,14 @@ the header and show a `[Degraded: …]` indicator beside the description, keepin
 the fallback hierarchy usable. Below both come, when shown, the probe bullet,
 the guard-status bullet, the [hidden-tools bullet](#hidden-tools), one
 [legend bullet](previews.md#marker-legend) per marker the rows carry —
-`Dropped`, `Moved`, `Forced`, `Added`, `Modified`, `Deleted`, or none — then
-the payload-changes bullet. All of them collapse with the rest of the block.
+`Dropped`, `Moved`, `Forced`, or none — then one `+N -N` bullet while any row
+has a diff, then the payload-changes bullet. All of them collapse with the
+rest of the block. The diff bullet names no base, since rows compare with
+different ones:
+
+```text
+- +N -N Tokens extensions added or removed.
+```
 
 ## Injection preview
 
@@ -256,8 +309,14 @@ stay separated by two blank rows instead of running together. The whole preview
 is full content, so marked JSON expands here, in an aggregate part as much as in
 a tool's own definition.
 
-The preview header carries the item's markers after its estimate. A changed
-message previews both versions:
+The preview header carries the item's token diff, then its markers, after its
+estimate: `pi · 547 tokens · +200 -466 · Forced`. A narrow header drops the
+markers first, then the diff. Each [labeled part](previews.md#labeled-parts)
+subheader carries its part's diff the same way. Previews keep the `Added`,
+`Modified`, and `Deleted` markers with their full legend sentences, and their
+`+N -N` legend bullet names the base: pi's default prompt for pi's items, the
+session for extension tools and messages, and the captured request for payload
+changes. A changed message previews both versions:
 
 - **Modified** renders a `Request` part with the counted request version and a
   `Session` part with the session original at 0 tokens.

@@ -74,8 +74,9 @@ Every frame showing a marker also explains it, through the
 [marker legend](ui/previews.md#marker-legend) in its description block. A legend
 bullet opens with the keyword in the same fixed color as the marker it explains,
 so `Highlighted` uses `syntaxNumber`, `(guess)` `dim`, `Dropped`
-`toolDiffRemoved`, `Moved` `warning`, `Forced` `warning`, `Added`
-`toolDiffAdded`, `Modified` `warning`, and `Deleted` `toolDiffRemoved`.
+`toolDiffRemoved`, `Moved` `warning`, `Forced` `warning`, `+N` `toolDiffAdded`
+and `-N` `toolDiffRemoved` in one `+N -N` keyword, `Added` `toolDiffAdded`,
+`Modified` `warning`, and `Deleted` `toolDiffRemoved`.
 
 Moved `Available Tools` and `Guidelines` sections outside pi's normal order
 carry a fixed `warning` `Moved` marker after the estimate, in hierarchy rows,
@@ -85,10 +86,14 @@ position, not ownership or a dropped contribution: these parts count normally,
 and extension tool lines keep their own attribution. Like `Dropped`, it is not
 configurable and does not change category/map colors.
 
-Injections marks request-only changes with fixed `Added`, `Modified`,
-`Deleted`, and `Forced` markers after the estimate, in hierarchy rows,
-preview subheaders, and preview headers; [ui/injections.md](ui/injections.md#request-only-changes)
-defines them. They follow the same separator, fit, and configuration rules as
+Injections shows the tokens extensions added or removed as fixed `+N`
+(`toolDiffAdded`) and `-N` (`toolDiffRemoved`)
+[token diffs](ui/injections.md#token-diffs): in their own columns after the
+estimate in hierarchy rows, and after the estimate behind a dim ` · ` in preview
+headers and subheaders. Besides them, hierarchy rows mark only the request-only
+`Forced` change; previews also keep the fixed `Added`, `Modified`, and
+`Deleted` markers after the diff.
+[ui/injections.md](ui/injections.md#request-only-changes) defines them. They follow the same separator, fit, and configuration rules as
 `Dropped` and `Moved`. Usage shows `Forced` the same way in its System Prompt
 previews; [ui/usage.md](ui/usage.md#forced-prompt) defines where.
 
