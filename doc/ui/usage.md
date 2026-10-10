@@ -169,10 +169,10 @@ assembles them into a request, and both views name them identically:
 - Tool Output and Extensions;
 - Compacted Data and Free Space.
 
-Extensions groups what extensions contributed outside their tool definitions:
-one child per injected `customType`, plus one per source whose system-prompt
-additions were attributed, named by that source. Those additions stay out of the
-System Prompt total, which counts pi's own prompt alone.
+Extensions groups the messages extensions injected: one child per injected
+`customType`. System Prompt counts all its text, including the tool lines and
+additions extensions put into it; Custom Tools and MCP Tools count only tool
+definitions.
 
 Messages the latest request added or modified count in the category of their
 role or `customType`, like session messages. A replacement counts and previews
@@ -291,8 +291,8 @@ paging alone reaches `(1/n)` and `(n/n)`. Home/End select the first or last
 block.
 
 Indent content two spaces after the gutter and separate blocks with one blank
-row. An entry carrying labeled parts — a tool's prompt lines and definition, the
-System Prompt's sections — renders them inside its own block under the
+row. An entry carrying labeled parts — a tool's definition and dropped prompt lines,
+the System Prompt's sections — renders them inside its own block under the
 [labeled part rules](previews.md#labeled-parts), never as separate blocks, and
 its entry header keeps the whole estimate. In User Messages only, replace
 complete attached `<skill name="…">…</skill>` expansions with pi-colored

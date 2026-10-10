@@ -198,7 +198,7 @@ the changes only until the first real request's snapshot replaces it.
   also in the live fallback. As in Pi, section and content changes do not apply
   to it, and tool changes still do. Pi's sections inside it are
   [measured as usual](measurement.md#prompt-parts-and-moved-blocks), so
-  appended text counts as an extension addition. Like Injections, Usage marks
+  appended text counts in its Extension Additions part. Like Injections, Usage marks
   the System Prompt item `forced`, and its previews
   [show the marker](../ui/usage.md#forced-prompt).
 - **Hidden tools, from Pi's live loadout.** Every time Usage opens, it reads

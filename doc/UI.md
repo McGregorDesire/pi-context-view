@@ -12,7 +12,7 @@ touches:
 | Document | Covers |
 | --- | --- |
 | This file | Frame, color, casing, descriptions, interaction, responsive rendering |
-| [ui/previews.md](ui/previews.md) | Labeled parts, restored extension lines, marker legend, repeated headings, marked JSON |
+| [ui/previews.md](ui/previews.md) | Labeled parts, extension lines, marker legend, repeated headings, marked JSON |
 | [ui/usage.md](ui/usage.md) | Context Usage: header, notices, map, map scale, legend, category preview |
 | [ui/injections.md](ui/injections.md) | Context Injections: contribution tree, injection preview |
 

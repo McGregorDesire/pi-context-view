@@ -81,7 +81,7 @@ test("Injections measures a forced prompt instead of the recorded sections", () 
 	assert.deepEqual(items.filter((item) => item.change !== undefined).map((item) => item.id), ["base-prompt"]);
 	// Sections Pi recorded but did not send must be neither counted nor attributed.
 	assert.doesNotMatch(items.map((item) => item.text).join("\n"), /Recorded preamble/);
-	assert.equal(items.some((item) => item.kind === "prompt-addition"), false);
+	assert.equal(base?.children, undefined);
 	// Tool declarations still reach the provider, whatever the forced text says.
 	assert.equal(items.find((item) => item.kind === "tool")?.id, "tool:npm:web:search");
 });
@@ -97,7 +97,8 @@ test("a forced prompt extending Pi's sections keeps the section parts and its ad
 		["Preamble", "Available Tools", "Guidelines", "Documentation", "Appended Prompt", "Current Dir",
 			"Extension Additions"],
 	);
-	assert.equal(items.find((item) => item.kind === "prompt-addition")?.text.trim(), "EXTRA INSTRUCTION");
+	assert.equal(base?.children?.at(-1)?.text.trim(), "EXTRA INSTRUCTION");
+	assert.match(base?.text ?? "", /EXTRA INSTRUCTION/);
 });
 
 /** Preview entries of every Usage category, keyed by category id, with `snapshot` applied to the session. */
@@ -167,11 +168,12 @@ test("Usage applies only tool changes under a forced prompt", () => {
 	assert.doesNotMatch([...previews.values()].join("\n"), /Request section/);
 });
 
-test("Usage keeps Pi's sections of an extending forced prompt and counts its addition under Extensions", () => {
+test("Usage keeps Pi's sections of an extending forced prompt and counts its addition in System Prompt", () => {
 	const session = createSession();
 	const previews = usagePreviews(session, forcedSnapshot(session, `${buildSystemPrompt(OPTIONS)}\n\nEXTRA INSTRUCTION`));
 	assert.match(previews.get("system-prompt") ?? "", /APPENDED TEXT/);
-	assert.match(previews.get("extensions") ?? "", /EXTRA INSTRUCTION/);
+	assert.match(previews.get("system-prompt") ?? "", /EXTRA INSTRUCTION/);
+	assert.equal(previews.has("extensions"), false);
 });
 
 test("Usage measures the forced prompt on a branch with no recorded system message", () => {

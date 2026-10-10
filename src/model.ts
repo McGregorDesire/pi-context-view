@@ -140,19 +140,16 @@ export interface JsonSpan {
 	readonly end: number;
 }
 
-/** A rendered prompt line counted by its owning tool, inserted only for prompt previews. */
-export interface InjectedReference {
-	/** Insertion offset in the containing item's or section's counted text, in prompt order. */
-	readonly offset: number;
-	/** Captured line including its leading line break; never additional counted text. */
-	readonly text: string;
-	/** Stable id of the item that counts this text. */
-	readonly itemId: string;
+/**
+ * An extension's line inside the text of a System Prompt part, annotated with
+ * its source in prompt previews. The range covers the line including its
+ * leading line break; the line counts like the rest of the part's text.
+ */
+export interface InjectedReference extends TextSpan {
 	readonly source: InjectionSource;
 	/**
 	 * Tool or slash command of `source` this text belongs to, e.g. `web_search`
-	 * or `/ask`. Qualifies the rendered source label only: `itemId` still names
-	 * the item that counts the text.
+	 * or `/ask`. Qualifies the rendered source label only.
 	 */
 	readonly tool?: string;
 	/**
@@ -185,7 +182,7 @@ export interface InjectionSection {
 	readonly change?: RequestChange;
 	/** Serialized JSON inside `text`, e.g. a tool's parameter schema. */
 	readonly jsonSpan?: JsonSpan;
-	/** Preview-only extension prompt lines; their owning tools count them instead. */
+	/** Extension lines inside `text`, annotated with their source in previews. */
 	readonly injectedReferences?: readonly InjectedReference[];
 }
 
@@ -217,7 +214,7 @@ export interface InjectionItem {
 	 * added lines, which the estimate counts.
 	 */
 	readonly changedLines?: readonly PayloadChangeLine[];
-	/** Preview-only extension prompt lines for a standalone System Prompt part child. */
+	/** Extension lines inside `text` of a standalone System Prompt part child. */
 	readonly injectedReferences?: readonly InjectedReference[];
 	/** Constituent sub-items (e.g. individual built-in tools or skills), largest first. */
 	readonly children?: readonly InjectionItem[];
@@ -365,7 +362,7 @@ function copyItem(item: InjectionItem): InjectionItem {
 	};
 }
 
-/** Own reference records and their nested provenance without adding their text to totals. */
+/** Own reference records and their nested provenance. */
 function copyInjectedReferences(
 	references: readonly InjectedReference[] | undefined,
 ): InjectedReference[] | undefined {

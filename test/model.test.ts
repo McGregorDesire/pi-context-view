@@ -97,7 +97,7 @@ test("buildSnapshot owns nested input data and computes the total", () => {
 
 test("buildSnapshot owns injected references on sections and standalone children", () => {
 	const source = { id: "tool-source:npm:web", label: "npm:web", native: false };
-	const reference = { offset: 12, text: "\n- Cite sources", itemId: "tool:npm:web:search", source };
+	const reference = { start: 12, end: 27, source, tool: "search" };
 	const references = [reference];
 	const child = { ...item("guidelines", "pi", "pi", true, 3), injectedReferences: references };
 	const input = {
@@ -106,15 +106,15 @@ test("buildSnapshot owns injected references on sections and standalone children
 		children: [child],
 	};
 	const snapshot = buildSnapshot([input]);
-	reference.offset = 0;
-	reference.text = "changed";
+	reference.start = 0;
+	reference.tool = "changed";
 	source.label = "changed";
 	references.length = 0;
 	const base = snapshot.groups[0]?.items[0];
 	for (const owned of [base?.sections?.[0]?.injectedReferences, base?.children?.[0]?.injectedReferences]) {
 		assert.equal(owned?.length, 1);
-		assert.equal(owned?.[0]?.offset, 12);
-		assert.equal(owned?.[0]?.text, "\n- Cite sources");
+		assert.equal(owned?.[0]?.start, 12);
+		assert.equal(owned?.[0]?.tool, "search");
 		assert.equal(owned?.[0]?.source.label, "npm:web");
 	}
 	assert.equal(snapshot.totalTokens, 3);

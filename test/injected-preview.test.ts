@@ -30,8 +30,8 @@ const LEGEND: Record<ContextMarker, { keyword: string; color: ThemeColor; senten
 	highlighted: {
 		keyword: "Highlighted",
 		color: "syntaxNumber",
-		sentence: "parts are injected by extensions into pi’s system prompt. They are excluded from the" +
-			" System Prompt token count and included in the injecting extension’s count.",
+		sentence: "parts are injected by extensions into pi’s system prompt. They are counted in the" +
+			" System Prompt token count.",
 	},
 	guess: {
 		keyword: "(guess)",
@@ -106,6 +106,8 @@ function plain(lines: readonly string[]): string {
 function assertAttribution(lines: readonly string[], theme: Theme, text = GUIDELINE): void {
 	assertLegend(lines, theme, ["highlighted"]);
 	assert.ok(plain(lines).includes(`- ${text}${ARROW}${SOURCE}:${TOOL}`));
+	// The annotation marks counted text in place; the line is never shown twice.
+	assert.equal(plain(lines).split(`- ${text}`).length, 2);
 	const rendered = lines.find((line) => line.includes(text));
 	assert.ok(rendered?.includes(theme.fg("syntaxNumber", `- ${text}`)));
 	assert.ok(rendered?.includes(theme.fg("borderMuted", ARROW)));
@@ -261,8 +263,9 @@ test("Injections shows attributed guidelines only after Enter, for parent and ch
 	view.handleInput("\u001b");
 	view.handleInput("\u001b[F"); // Last tool
 	view.handleInput("\r");
-	assert.match(plain(view.render(120)), /- Use search to verify claims/);
-	assert.doesNotMatch(plain(view.render(120)), /Highlighted parts|<-\u00A0npm:web/);
+	// The tool counts only its definition; System Prompt counts and shows its guideline.
+	assert.match(plain(view.render(120)), /Definition · \d+ tokens/);
+	assert.doesNotMatch(plain(view.render(120)), /verify claims|Highlighted parts|<-\u00A0npm:web/);
 });
 
 test("Injections attributes Available Tools snippets in the parent and standalone child", () => {
@@ -339,8 +342,10 @@ test("prompt additions render as guessed attributions with their own caveat", ()
 		sources: [{ source: "npm:web", path: "/pkgs/web/index.ts" }],
 	}));
 	const view = new InjectionsView(theme, { snapshot }, () => {}, () => 40);
-	// The addition is owned by its extension, never by pi's own prompt.
-	assert.match(plain(view.render(120)), /npm:web \.+ 9\n\s+└─ system prompt additions \.+ 9/);
+	// System Prompt counts the addition; no extension row counts it again.
+	const list = plain(view.render(120));
+	assert.match(list, /└─ Extension Additions \.+ 9\n/);
+	assert.doesNotMatch(list, /npm:web|system prompt additions/);
 	view.handleInput("j"); // System Prompt
 	view.handleInput("\r");
 
@@ -359,11 +364,10 @@ test("prompt additions render as guessed attributions with their own caveat", ()
 	assert.ok(plain(child).includes(`${addition.trim()}${ARROW}npm:web (guess)`));
 	assertLegend(child, theme, ["highlighted", "guess"]);
 
-	// Usage counts it under the contributing extension, not under System Prompt.
+	// Usage counts it in System Prompt too, not under the contributing extension.
 	const usage = computeUsage({ snapshot, messages: [] });
-	const extensions = usage.categories.find((category) => category.id === "extensions");
-	assert.deepEqual(extensions?.children?.map((entry) => entry.label), ["npm:web"]);
-	assert.equal(extensions?.tokens, collectPreviewEntries(extensions).reduce((sum, e) => sum + e.tokens, 0));
+	assert.equal(usage.categories.some((category) => category.id === "extensions"), false);
+	assert.equal(usage.categories.find((category) => category.id === "system-prompt")?.tokens, snapshot.totalTokens);
 });
 
 test("a guessed addition names the extension tool its text mentions", () => {
@@ -385,12 +389,12 @@ test("a guessed addition names the extension tool its text mentions", () => {
 
 test("reference text and source are sanitized before coloring and wrapping", () => {
 	const theme = createTheme();
+	const line = "\n- A\u001b[2JB\u001b]52;c;clipboard-secret\u0007\n  continuation\t界";
 	const lines = previewBodyLines(theme, {
-		text: "Guidelines:\n- Native rule",
+		text: `Guidelines:${line}\n- Native rule`,
 		injectedReferences: [{
-			offset: "Guidelines:".length,
-			text: "\n- A\u001b[2JB\u001b]52;c;clipboard-secret\u0007\n  continuation\t界",
-			itemId: "tool:unsafe",
+			start: "Guidelines:".length,
+			end: "Guidelines:".length + line.length,
 			source: { id: "unsafe", label: "npm:\u001b[31mweb\u001b[0m\r\nowner", native: false },
 			tool: "sea\u001b[31mrch\u0007",
 		}],
@@ -407,12 +411,12 @@ test("reference text and source are sanitized before coloring and wrapping", () 
 test("attribution wraps the preceding word and label together unless wider than the content", () => {
 	const theme = createTheme();
 	const label = "npm:@eko24ive/pi-ask";
+	const line = "\n- Ask the user before choosing between valid directions";
 	const content = {
-		text: "Guidelines:",
+		text: `Guidelines:${line}`,
 		injectedReferences: [{
-			offset: "Guidelines:".length,
-			text: "\n- Ask the user before choosing between valid directions",
-			itemId: "tool:ask",
+			start: "Guidelines:".length,
+			end: "Guidelines:".length + line.length,
 			source: { id: "ask", label, native: false },
 			tool: "ask_user",
 		}],
@@ -496,7 +500,7 @@ for (const target of ["injections-parent", "injections-child", "usage-single", "
 					sawVisible = true;
 				} else {
 					sawCollapsed = true;
-					assert.doesNotMatch(plain(lines), /injecting extension’s count/);
+					assert.doesNotMatch(plain(lines), /System Prompt token count/);
 					if (height >= 12 && width >= 60) assert.match(plain(lines), /Esc Back/);
 				}
 			}
@@ -512,11 +516,8 @@ for (const target of ["injections-parent", "injections-child", "usage-single", "
 test("the marker legend gives short content every row and never truncates on tiny terminals", () => {
 	const theme = createTheme();
 	const content = {
-		text: "Guidelines:",
-		injectedReferences: [{
-			offset: 11, text: "\n- Use search", itemId: "tool:search",
-			source: { id: "web", label: SOURCE, native: false },
-		}],
+		text: "Guidelines:\n- Use search",
+		injectedReferences: [{ start: 11, end: 24, source: { id: "web", label: SOURCE, native: false } }],
 	};
 	// At 120 columns the bullet occupies two wrapped lines and its preceding blank row
 	for (const contentLineCount of [1, 2, 21, 22, 23, 80]) {
@@ -631,7 +632,7 @@ test("a relocated block stays a counted System Prompt part, marked where it now 
 	assert.deepEqual(
 		rows.filter((row) => /Current Dir|Available Tools|Guidelines/.test(row))
 			.map((row) => row.replace(/^[\s│├└─]+/, "")),
-		["Current Dir \u2026 2", "Available Tools \u2026 5 · Moved", "Guidelines \u2026 8 · Moved"],
+		["Current Dir \u2026 2", "Available Tools \u2026 11 · Moved", "Guidelines \u2026 16 · Moved"],
 	);
 	const row = list.find((line) => plain([line]).includes("Guidelines"));
 	assert.ok(row?.includes(styledMarker(theme, "moved")), "a dim separator carries the keyword's fixed color");
@@ -645,14 +646,14 @@ test("a relocated block stays a counted System Prompt part, marked where it now 
 	view.handleInput("j"); // System Prompt
 	view.handleInput("\r");
 	const parent = plain(view.render(120));
-	assert.match(parent.replace(/\s+/g, " "), /Available Tools · 5 tokens · Moved/);
-	assert.match(parent.replace(/\s+/g, " "), /Guidelines · 8 tokens · Moved/);
+	assert.match(parent.replace(/\s+/g, " "), /Available Tools · 11 tokens · Moved/);
+	assert.match(parent.replace(/\s+/g, " "), /Guidelines · 16 tokens · Moved/);
 	assert.ok(parent.includes(`- ${SNIPPET_LINE}${ARROW}${SOURCE}:${TOOL}`));
 
 	view.handleInput("\u001b");
 	for (let step = 0; step < 4; step++) view.handleInput("j"); // Available Tools
 	view.handleInput("\r");
-	assert.match(plain(view.render(120)), /Available Tools\s+pi · 5 tokens · Moved/);
+	assert.match(plain(view.render(120)), /Available Tools\s+pi · 11 tokens · Moved/);
 	assert.ok(plain(view.render(120)).includes(`- ${SNIPPET_LINE}${ARROW}${SOURCE}:${TOOL}`));
 
 	for (const width of [30, 60, 80, 120]) {
@@ -673,8 +674,8 @@ test("Usage preserves moved parts, their estimates, and their marker across them
 	assert.doesNotMatch(plain(dashboard), /Read files|Moved/);
 	view.handleInput("\r");
 	const preview = view.render(120);
-	assert.match(plain(preview), /Available Tools · 5 tokens · Moved/);
-	assert.match(plain(preview), /Guidelines · 8 tokens · Moved/);
+	assert.match(plain(preview), /Available Tools · 11 tokens · Moved/);
+	assert.match(plain(preview), /Guidelines · 16 tokens · Moved/);
 	assertLegend(preview, theme, ["highlighted", "moved"]);
 	assert.ok(preview.some((line) => line.includes(styledMarker(theme, "moved"))));
 	const originalFg = theme.fg.bind(theme);
@@ -689,8 +690,7 @@ test("a tool preview shows its dropped prompt lines without claiming their token
 	const theme = createTheme();
 	const snapshot = createReplacedSnapshot();
 	const view = new InjectionsView(theme, { snapshot }, () => {}, () => 40);
-	view.handleInput("\u001b[F"); // last selectable row: the extension's prompt additions
-	view.handleInput("k"); // the extension tool above it
+	view.handleInput("\u001b[F"); // last selectable row: the extension tool
 	view.handleInput("\r");
 	const preview = plain(view.render(120)).replace(/\s+/g, " ");
 	assert.match(preview, new RegExp(`Available Tools · 0 tokens · Dropped - search: ${SNIPPET}`));

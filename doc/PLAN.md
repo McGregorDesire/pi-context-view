@@ -1,11 +1,13 @@
 ## `TODO`
 
-- [ ] **Count all prompt text in System Prompt** ([measurement.md](architecture/measurement.md#extension-prompt-additions), [UI draft](drafts/injections-redesign.md)):
+- [x] **Count all prompt text in System Prompt** ([measurement.md](architecture/measurement.md#extension-prompt-additions), [UI draft](drafts/injections-redesign.md)):
   - Replace the contract "Count an addition under its assigned source, never again under pi's own prompt" in both views: System Prompt counts every token of its text.
   - Extension prompt additions count in their System Prompt part; `Extension Additions` gets a real estimate instead of always reading 0.
   - Extension tools' `Available Tools` and `Guidelines` lines count in those System Prompt parts; an extension tool row counts only its definition.
   - Restored `<- source` lines stay preview annotations, now of counted text.
   - Update Usage categories and the `Highlighted` legend, which says extension text is excluded from the System Prompt count.
+    Decided: the `system prompt additions` rows and their Usage `Extensions` children are removed until the extension `system prompt` row item; an extension tool preview shows only `Definition` plus `Dropped` lines, like a built-in tool. `InjectedReference` now marks a `start`/`end` range in the part's text instead of an insertion; a dropped part's text holds only its extension lines, uncounted.
+    Verified on Pi 1.1.0: `pnpm check` (735 tests). Real-PTY run with a temporary extension that registers a tool with a snippet and guideline and appends a prompt addition: Injections counted `Extension Additions` (16) and the tool lines in System Prompt, the tool row counted only its definition (32), the preview annotated each line once with `<- ext.ts:smoke_tool`, and Usage showed no `Extensions` category.
 
 - [ ] **Improve Injection View Readability** ([UI draft](drafts/injections-redesign.md))
   - [ ] Right-align token values in the shared value column, so magnitudes line up.

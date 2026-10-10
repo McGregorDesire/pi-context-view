@@ -5,8 +5,8 @@ interaction rules live in the [UI specification](../UI.md).
 
 ## Labeled parts
 
-Content that decomposes into labeled parts — a tool's `Available Tools`,
-`Guidelines`, and `Definition`, the System Prompt's own blocks — renders every
+Content that decomposes into labeled parts — a tool's `Definition` and the
+prompt lines a replacement dropped, the System Prompt's blocks — renders every
 part under its own bold `syntaxKeyword` subheader followed by a muted
 ` · N tokens` share, with exactly two blank rows between parts. Replace any
 trailing blank rows of the preceding part with this separator; preserve blank
@@ -16,10 +16,9 @@ it. In Injections, a modified message's `Session` part and a deleted part keep
 reference text at 0 tokens; only the request version contributes to the parent.
 Show the applicable subheader even when `Definition` is the only captured
 part; omit parts with no captured text rather than rendering zero-token
-placeholders. In addition to those request-only change references, two kinds
-of part carry no counted text by design and still
-render at 0 tokens: `Extension Additions` whenever it hosts restored lines, and
-any part a `--system-prompt` replacement dropped, which keeps its subheader with
+placeholders. In addition to those request-only change references, one kind of
+part carries no counted text by design and still renders at 0 tokens: any part
+a `--system-prompt` replacement dropped, which keeps its subheader with
 the [`Dropped` marker](../UI.md#color-and-casing) after its estimate — even with
 an empty body, since the point is to show what the replacement gave up.
 
@@ -27,21 +26,21 @@ A moved block out of pi's normal order keeps its ordinary token share and
 adds the [`Moved` marker](../UI.md#color-and-casing) after it. This applies in
 both views, including the direct System Prompt Usage preview and standalone
 Injections part metadata. Its extension lines still render with their known
-owning-tool references; movement alone never guesses a rewriting extension's
+owning-tool annotations; movement alone never guesses a rewriting extension's
 identity, and its [legend bullet](#marker-legend) explains position only.
 
 Why `syntaxKeyword`: parts nest under item and entry headings that already carry
 `mdHeading`.
 
-## Restored extension lines
+## Extension lines
 
 The System Prompt `Available Tools`, `Guidelines`, and `Extension Additions`
-previews restore the text extensions contributed to those blocks in prompt
-order, alongside pi's own. A dropped block restores the extension lines pi would
+previews mark the text extensions contributed to those blocks, in prompt order
+alongside pi's own. A dropped block holds only the extension lines pi would
 have rendered into it and shows no pi-authored content at all, so it renders
 empty when no extension contributed to it; the tools themselves keep the same
 lines as their own dropped sections, unannotated like any other owning-tool
-preview. Each restored line uses `syntaxNumber` followed by a
+preview. Each extension line uses `syntaxNumber` followed by a
 `borderMuted` ` <- ` and the owning extension's source label in `mdLink` — fixed
 semantic theme colors, independent of category color overrides. A tool
 contributes at most one `Available Tools` snippet, and a shared guideline bullet
@@ -50,7 +49,7 @@ Built-in tool lines are pi's own and carry no annotation.
 
 When the line belongs to one tool or slash command of that extension, the label
 gains a `mdLinkUrl` `:<tool>` — colon included, e.g.
-`<- npm:pi-web:web_search` or `<- npm:@eko24ive/pi-ask:/ask`. Carved tool lines
+`<- npm:pi-web:web_search` or `<- npm:@eko24ive/pi-ask:/ask`. Tool lines
 always carry it; an `Extension Additions` block carries it only when its text
 names exactly one of that extension's registered names. An extension label
 without a qualifier means no single owner was identified, never that the
@@ -59,8 +58,8 @@ extension registered none.
 A source pi did not report, but this extension inferred from the injected text,
 carries a `dim` ` (guess)` after its label, once for the whole
 `extension:tool` label. `Extension Additions` is the only block with such owners
-today: carved tool lines name a source pi reported. A part that opens with a
-restored line drops its captured leading blank lines, as plain part text does.
+today: tool lines name a source pi reported. A part that opens with an
+extension line drops its captured leading blank lines, as plain part text does.
 
 Non-breaking spaces on both sides of the arrow join the preceding content word,
 arrow, and source label into one wrapping unit. Move that whole unit to the next
@@ -68,12 +67,12 @@ line when it fits the content width but not the remaining space. If the unit is
 wider than the content width, hard-wrap it to fit; this may split the label or
 leave the arrow at the end of a line.
 
-The annotations are preview-only: the part and System Prompt estimates still
-exclude these lines, while the tool preview keeps its counted `Available Tools`
-and `Guidelines` sections unchanged. Sanitize line text and source labels before
-applying colors, preserve styling through wrapping, and include annotations in
-preview scrolling and cap line counts. Never show raw lines in the overview list
-or dashboard.
+The annotations are preview-only and add no tokens: the part and System Prompt
+estimates count these lines like the rest of their text, except in a dropped
+part, and the tool preview counts only its `Definition`. Sanitize line text and
+source labels before applying colors, preserve styling through wrapping, and
+include annotations in preview scrolling and cap line counts. Never show raw
+lines in the overview list or dashboard.
 
 ## Marker legend
 
@@ -85,8 +84,7 @@ render in this order, each opening with the keyword in the fixed color that mark
 uses, followed by dim text:
 
 > - **Highlighted** parts are injected by extensions into pi’s system prompt.
->   They are excluded from the System Prompt token count and included in the
->   injecting extension’s count.
+>   They are counted in the System Prompt token count.
 > - **(guess)** sources are inferred from the injected text itself.
 > - **Dropped** parts were replaced by a custom system prompt and are counted
 >   nowhere.
@@ -109,7 +107,7 @@ A bullet renders only where its mark is visible on that frame:
 
 - `Highlighted` and `(guess)` follow injected-reference metadata, so native-only
   System Prompt and part previews, sibling parts without references, and
-  owning-tool previews show neither. Restored lines appear in the System Prompt
+  owning-tool previews show neither. Extension lines appear in the System Prompt
   preview of both views, including the direct single-entry Usage preview, in the
   standalone `Available Tools` and `Guidelines` children in Injections, and in
   multi-entry Usage streams and their full content levels.

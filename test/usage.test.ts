@@ -49,7 +49,6 @@ function snapshot(): InjectionSnapshot {
 	const extensionItems = [
 		item("web_search", "tool", 7, false),
 		mcpTool,
-		item("addition", "prompt-addition", 9, false),
 		item("initial-custom-message", "message", 99, false),
 	];
 	return {
@@ -146,7 +145,6 @@ test("computeUsage classifies snapshot components and live session messages with
 		computedAt: new Date("2026-07-11T13:00:00Z"),
 	});
 
-	// The prompt addition belongs to the extension that appended it, not to pi's prompt.
 	assert.equal(category(usage.categories, "system-prompt").tokens, 10);
 	assert.deepEqual(category(usage.categories, "built-in-tools").children?.map((entry) => entry.id), [
 		"item:bash",
@@ -169,10 +167,11 @@ test("computeUsage classifies snapshot components and live session messages with
 	assert.equal(category(usage.categories, "tool-output").tokens, 8);
 	assert.equal(category(usage.categories, "tool-result:read").tokens, 2);
 	assert.equal(findCategory(usage.categories, "tool-results"), undefined);
-	assert.equal(category(usage.categories, "extensions").tokens, 10);
+	// Extensions holds injected messages by customType; prompt additions count in System Prompt.
+	assert.equal(category(usage.categories, "extensions").tokens, 1);
 	assert.deepEqual(
 		category(usage.categories, "extensions").children?.map((entry) => [entry.label, entry.tokens]),
-		[["npm:test", 9], ["marker", 1]],
+		[["marker", 1]],
 	);
 	// Bash and summary estimates cover pi's LLM-transform text, not just command/output/summary.
 	assert.equal(category(usage.categories, "bash-executions").tokens, 6);
@@ -195,7 +194,6 @@ test("computeUsage orders prompt categories the way pi assembles a request", () 
 			["built-in-tools", "Built-in Tools"],
 			["custom-tools", "Custom Tools"],
 			["mcp-tools", "MCP Tools"],
-			["extensions", "Extensions"],
 		],
 	);
 });
@@ -312,7 +310,7 @@ test("computeUsage drops empty categories and aggregates duplicate tool/custom m
 	assert.deepEqual(toolOutput.children?.map((entry) => [entry.id, entry.tokens]), [["tool-result:read", 3]]);
 	assert.deepEqual(
 		category(usage.categories, "extensions").children?.map((entry) => [entry.id, entry.tokens]),
-		[["item:addition", 9], ["custom-message:marker", 3]],
+		[["custom-message:marker", 3]],
 	);
 	assert.equal(category(usage.categories, "tool-result:read").entries?.length, 2);
 	assert.equal(findCategory(usage.categories, "user-messages"), undefined);

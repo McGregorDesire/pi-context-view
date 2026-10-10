@@ -51,15 +51,15 @@ are marked Dropped.
 
 A section after one pi normally renders later gets typed `moved` metadata.
 This records position only: it does not prove who moved it or that its text is
-unchanged. Moved native text still counts under System Prompt, and extension
-tool lines keep their usual tool ownership. Never invent missing or withheld
-tool lines.
+unchanged. Moved text still counts under System Prompt, and extension tool
+lines keep their usual tool references. Never invent missing or withheld tool
+lines.
 
 Pi always renders a `cwd` section, so only a forced prompt can have no sections.
 Measure such a prompt as one undivided System Prompt part. Text shaped like
 pi's own blocks is not evidence of them there: it has no Moved, Dropped, or
-Extension Additions parts, and its tools keep only their definitions. A forced
-prompt that contains sections is measured like any other sectioned prompt.
+Extension Additions parts, and no tool line gets a reference. A forced prompt
+that contains sections is measured like any other sectioned prompt.
 
 ## Tool Ownership and Preview References
 
@@ -69,28 +69,31 @@ tools and prompt additions from such an extension are owned by its kind and
 entry path, and labelled by path against every extension that registered a
 tool or command.
 
-Separate a tool's complete prompt bullets only from the first `tools` and
-`rules` sections, including moved ones. Never match unrelated text or only a prefix
-of a longer bullet. Give each shared guideline bullet to the first tool that
-declares it in pi's active-tool order, so it counts once. Pi's own bullets stay
-in the base prompt.
+A tool item counts only its definition: name, description, and parameter
+schema. Pi renders the tool's snippet and guideline bullets into its prompt,
+so System Prompt counts them with the rest of its text.
 
-For each separated extension line, retain its original position, source, and
-owning tool as a typed preview reference. Keep that reference on the System
-Prompt section and standalone child from which the line was removed. This
-applies to both Available Tools snippets and Guidelines bullets.
+Match a tool's complete prompt bullets only in the first `tools` and `rules`
+sections, including moved ones. Never match unrelated text or only a prefix of
+a longer bullet. Give each shared guideline bullet to the first tool that
+declares it in pi's active-tool order, so only that tool is named. Pi's own
+bullets and built-in tool bullets get no reference.
 
-References restore prompt order for inspection. They add no counted text,
-characters, or tokens to the base item; the owning tool counts the content.
-Only exactly matched, rendered lines receive references, except for the
-explicit dropped-block case below.
+For each matched extension line, retain its range in the part's text, source,
+and owning tool as a typed preview reference. Keep that reference on the System
+Prompt section and standalone child that hold the line. This applies to both
+Available Tools snippets and Guidelines bullets.
+
+References name the source of counted text for inspection. They add no text,
+characters, or tokens. Only exactly matched, rendered lines receive
+references, except for the explicit dropped-block case below.
 
 ## Blocks Dropped by a Custom System Prompt
 
 When `--system-prompt` drops Available Tools, Guidelines, or Documentation,
 keep those parts in the model and mark them as dropped. They must contain no
-pi-authored counted text. They may contain preview references to extension
-lines that pi would otherwise have rendered.
+pi-authored text. Their text holds only the extension lines that pi would
+otherwise have rendered, with references like rendered lines.
 
 Each tool also keeps its dropped snippet and guideline sections. Every dropped
 part or section has zero tokens and contributes no counted text, characters,
@@ -113,9 +116,9 @@ For unwrapped gaps between or after XML sections:
   qualify. The qualifier changes only the display label.
 - Keep everything else unattributed.
 
-Count an addition under its assigned source, never again under pi's own prompt.
-System Prompt holds these additions only as references in its Extension
-Additions part.
+System Prompt counts every addition in its Extension Additions part, in prompt
+order. Each addition has a preview reference to its guessed source, or to
+`unattributed`; no extension item counts the text again.
 
 ## Totals and Structured Previews
 

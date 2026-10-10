@@ -36,10 +36,10 @@ interface MarkerLegend {
 const MARKER_LEGENDS: Record<ContextMarker, MarkerLegend> = {
 	highlighted: {
 		keyword: "Highlighted",
-		// Restored extension lines carry this color, so the bullet opens in it too.
+		// Extension lines carry this color, so the bullet opens in it too.
 		color: "syntaxNumber",
-		explanation: " parts are injected by extensions into pi’s system prompt. They are excluded from the" +
-			" System Prompt token count and included in the injecting extension’s count.",
+		explanation: " parts are injected by extensions into pi’s system prompt. They are counted in the" +
+			" System Prompt token count.",
 	},
 	guess: {
 		keyword: "(guess)",

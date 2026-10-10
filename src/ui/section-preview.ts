@@ -1,8 +1,8 @@
 /**
  * Shared preview body rendering for content that carries labeled parts, e.g. a
- * tool's prompt snippet, guideline bullets, and definition. Both the Injections
- * item preview and the Usage block stream present those parts the same way:
- * a bold subheader with its token share above each part. Pure string logic.
+ * tool's dropped prompt lines and definition. Both the Injections item preview
+ * and the Usage block stream present those parts the same way: a bold
+ * subheader with its token share above each part. Pure string logic.
  */
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { wrapTextWithAnsi } from "@earendil-works/pi-tui";
@@ -22,7 +22,7 @@ import {
 } from "./markers.ts";
 
 /**
- * Arrow introducing a restored line's source label. Non-breaking spaces bind
+ * Arrow introducing an extension line's source label. Non-breaking spaces bind
  * the preceding word, arrow, and label into one wrapping unit. Units wider
  * than the content width still hard-wrap, possibly just after the arrow.
  */
@@ -134,7 +134,7 @@ function changedLineRows(theme: Theme, lines: readonly PayloadChangeLine[], wrap
 }
 
 /**
- * Markers one preview renders: restored lines and their inferred owners come
+ * Markers one preview renders: extension lines and their inferred owners come
  * from reference metadata, while state markers follow the subheaders and
  * metadata rows that show them, whether or not that part carries references.
  */
@@ -164,7 +164,7 @@ function referenceParts(content: SectionedContent): readonly SectionedContent[] 
 	return content.sections?.length ? content.sections : [content];
 }
 
-/** Render referenced prompt lines locally; other content keeps the caller's JSON/skill transformations. */
+/** Render annotated extension lines locally; other content keeps the caller's JSON/skill transformations. */
 function contentBodyLines(
 	theme: Theme,
 	content: SectionedContent,
@@ -177,9 +177,10 @@ function contentBodyLines(
 	let text = "";
 	let offset = 0;
 	for (const reference of references) {
-		text += normalizePreviewText(content.text.slice(offset, reference.offset));
-		// A part that opens with a reference drops its captured lead, as plain text does.
-		const line = text.length === 0 ? reference.text.replace(/^\n+/, "") : reference.text;
+		text += normalizePreviewText(content.text.slice(offset, reference.start));
+		const captured = content.text.slice(reference.start, reference.end);
+		// A part that opens with an extension line drops its captured lead, as plain text does.
+		const line = text.trim().length === 0 ? captured.replace(/^\n+/, "") : captured;
 		text += theme.fg("syntaxNumber", normalizePreviewText(line));
 		text += theme.fg("borderMuted", SOURCE_ARROW);
 		text += theme.fg("mdLink", normalizeInlineText(reference.source.label));
@@ -187,7 +188,7 @@ function contentBodyLines(
 			text += theme.fg("mdLinkUrl", `:${normalizeInlineText(reference.tool)}`);
 		}
 		if (reference.attribution === "guess") text += guessMarker(theme);
-		offset = reference.offset;
+		offset = reference.end;
 	}
 	text += normalizePreviewText(content.text.slice(offset));
 	const body = withoutRepeatedHeading(text.replace(/^\n+/, ""), heading);
@@ -197,7 +198,7 @@ function contentBodyLines(
 
 /**
  * One body part, wrapped after dropping the lead its heading already carries:
- * the newline that separated a carved prompt line, and a first line repeating
+ * the newline that separated a prompt line, and a first line repeating
  * the heading itself, as a skill block opens with its own name.
  */
 function bodyLines(

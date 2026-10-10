@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { buildSystemPrompt } from "../node_modules/@earendil-works/pi-coding-agent/dist/core/system-prompt.js";
 import { analyzeSystemPrompt, type ToolSlice } from "../src/measure.ts";
+import type { InjectionItem } from "../src/model.ts";
 import { findPromptSections } from "../src/prompt-blocks.ts";
 
 const CWD = "/fixture";
@@ -11,13 +12,18 @@ const TOOL: ToolSlice = {
 	guidelines: ["Cite sources"], source: "npm:web",
 };
 
+/** The System Prompt part holding the unwrapped text extensions added around pi's sections. */
+function additionsPart(items: readonly InjectionItem[]): InjectionItem | undefined {
+	return items[0]?.children?.find((part) => part.kind === "prompt-addition");
+}
+
 test("XML sections after cwd remain named System Prompt parts, not guessed extension additions", () => {
 	const sections = { review: "Read npm:web guidance.", constraints: "Keep it small." };
 	const prompt = buildSystemPrompt({ cwd: CWD, sections });
 	// Even a later handler's sections, missing from our prepared options, are recognized.
 	for (const options of [{}, { sections }]) {
 		const items = analyzeSystemPrompt(prompt, options, [], { sources: [{ source: "npm:web", path: "/web.ts" }] });
-		assert.equal(items.some((item) => item.kind === "prompt-addition"), false);
+		assert.equal(additionsPart(items), undefined);
 		const base = items[0];
 		assert.deepEqual(base.children?.slice(-2).map((part) => [part.label, part.text]), Object.entries(sections));
 		assert.equal(base.sections?.reduce((sum, part) => sum + part.tokens, 0), base.tokens);
@@ -35,7 +41,7 @@ test("custom overrides of every generated section retain their actual text", () 
 	const parts = items[0].children ?? [];
 	for (const text of Object.values(sections)) assert.ok(parts.some((part) => part.text.trim() === text));
 	assert.doesNotMatch(items[0].text, /OLD ADDENDUM|<\/?(?:tools|rules|skills|cwd)>/);
-	assert.equal(items.some((item) => item.kind === "prompt-addition"), false);
+	assert.equal(additionsPart(items), undefined);
 	assert.deepEqual(items.find((item) => item.kind === "tool")?.sections?.map((part) => part.label), ["Definition"]);
 });
 
@@ -45,8 +51,9 @@ test("a custom prefix can restore selected native XML sections without marking t
 	const items = analyzeSystemPrompt(prompt, { customPrompt: "Custom prefix", sections }, [TOOL]);
 	assert.deepEqual(items[0].children?.filter((part) => part.dropped).map((part) => part.label), ["Guidelines"]);
 	const tool = items.find((item) => item.kind === "tool");
-	assert.equal(tool?.sections?.find((part) => part.label === "Available Tools")?.dropped, undefined);
-	assert.equal(tool?.sections?.find((part) => part.label === "Guidelines")?.tokens, 0);
+	// Only the dropped guideline stays on the tool; the restored snippet counts in System Prompt.
+	assert.deepEqual(tool?.sections?.map((part) => [part.label, part.dropped, part.tokens > 0]),
+		[["Guidelines", true, false], ["Definition", undefined, true]]);
 	assert.equal(items[0].sections?.find((part) => part.label === "Available Tools")?.injectedReferences?.length, 1);
 });
 
@@ -65,7 +72,7 @@ test("unwrapped gaps around custom sections remain additions without absorbing s
 	const prompt = buildSystemPrompt({ cwd: CWD, sections: { review: "Structured rule" } })
 		.replace("<review>", "First addition\n\n<review>") + "\n\nLast addition";
 	const items = analyzeSystemPrompt(prompt, {});
-	const addition = items.find((item) => item.kind === "prompt-addition");
+	const addition = additionsPart(items);
 	assert.ok(addition?.text.includes("First addition"));
 	assert.ok(addition?.text.includes("Last addition"));
 	assert.doesNotMatch(addition?.text ?? "", /Structured rule|<review>/);
@@ -74,7 +81,7 @@ test("unwrapped gaps around custom sections remain additions without absorbing s
 test("section-only state without cwd retains tag labels and trailing unwrapped text", () => {
 	const items = analyzeSystemPrompt("<review>\nOnly rule\n</review>\n\nExtra instruction", {});
 	assert.equal(items[0].children?.find((part) => part.label === "review")?.text, "Only rule");
-	assert.equal(items.find((item) => item.kind === "prompt-addition")?.text, "\n\nExtra instruction");
+	assert.equal(additionsPart(items)?.text, "\n\nExtra instruction");
 });
 
 test("a single custom section keeps its label and repeated tags remain additions", () => {
@@ -83,14 +90,15 @@ test("a single custom section keeps its label and repeated tags remain additions
 	assert.equal(only[0].sections?.[0]?.label, "review");
 	const repeated = analyzeSystemPrompt(`${prompt}\n\n<review>\nSecond rule\n</review>`, {});
 	assert.equal(repeated[0].children?.filter((part) => part.label === "review").length, 1);
-	assert.match(repeated.find((item) => item.kind === "prompt-addition")?.text ?? "", /Second rule/);
+	assert.match(additionsPart(repeated)?.text ?? "", /Second rule/);
 });
 
-test("custom tool-surface prose and fenced examples are not carved as tool bullets", () => {
+test("custom tool-surface prose and fenced examples are not annotated as tool bullets", () => {
 	const sections = { tools: "Example:\n```\n- search: Search the web\n```", rules: "Example:\n- Cite sources" };
 	const prompt = buildSystemPrompt({ cwd: CWD, sections });
 	const items = analyzeSystemPrompt(prompt, { sections }, [TOOL]);
 	assert.deepEqual(items.find((item) => item.kind === "tool")?.sections?.map((part) => part.label), ["Definition"]);
+	assert.equal(items[0].children?.some((part) => part.injectedReferences !== undefined), false);
 	assert.match(items[0].text, /Search the web/);
 });
 

@@ -81,16 +81,17 @@ Present the request's contributions in this order:
     and `Documentation`, each at 0 tokens with the
     [`Dropped` marker](../UI.md#color-and-casing) after its estimate, so the
     tree shows what the replacement gave up; a section the replacement kept is
-    an ordinary part instead. `Extension Additions` holds no
-    counted text of its own: it always reads 0 tokens and exists to present the
-    additions its owners count. Moved `Available Tools` and `Guidelines`
-    sections remain System Prompt children, at their actual prompt position
+    an ordinary part instead. System Prompt counts all its text: extension
+    tool lines in `Available Tools` and `Guidelines`, and the unwrapped text
+    extensions added around pi's sections in `Extension Additions`. Moved
+    `Available Tools` and `Guidelines` sections remain System Prompt
+    children, at their actual prompt position
     with a [`Moved` marker](../UI.md#color-and-casing). For example, sections
     relocated past `cwd` follow `Current Dir`, not `Preamble`.
     `Extension Additions` still consolidates all unwrapped additions at the end.
     A forced prompt without XML sections has no children: System Prompt is one
     undivided part holding the whole forced text, with no `Dropped`, `Moved`,
-    or `Extension Additions` parts, and each tool shows only its `Definition`.
+    or `Extension Additions` parts.
     Any forced prompt carries the
     [`Forced` marker](#request-only-changes) on System Prompt.
   - `Instruction Files (M)`, with one child per context file, abbreviating home
@@ -101,12 +102,10 @@ Present the request's contributions in this order:
   extension loaded from a path (`-e`, settings, or auto-discovery) is its own
   source, labelled like Pi's startup list: the shortest path tail no other such
   extension shares, without `/index.ts` (`hidden-tools.ts`, `my-ext`)
-  - one child per active tool
-  - `system prompt additions` when unwrapped text around pi's sections was
-    attributed to that source
+  - one child per active tool, counting only its definition: its prompt lines
+    count in System Prompt
   - injected messages identified by `customType` where available
-- `unattributed` for prompt additions no signal could attribute, and for
-  request-only changes to messages without a `customType`
+- `unattributed` for request-only changes to messages without a `customType`
 - `payload changes` for changes found only in the provider payload
   ([Payload changes](#payload-changes))
 
@@ -203,9 +202,8 @@ not guess from `model-only` exposure or name a candidate. Capture's observation
 limits are documented in
 [capture.md](../architecture/capture.md#hidden-tools).
 
-Within the `pi` group, keep the fixed semantic order above and sort remaining
-prompt additions by size. Children break down parent contributions and do not
-increase totals. Measurements and previews exclude XML transport wrappers and
+Within the `pi` group, keep the fixed semantic order above. Children break
+down parent contributions and do not increase totals. Measurements and previews exclude XML transport wrappers and
 section-introduction scaffolding; pi sends its `cwd` section with every
 request, so it is measured as the `Current Dir` part.
 
