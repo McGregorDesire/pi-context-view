@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { Theme, type ThemeColor } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
 
-import { type InjectionSnapshot, type InjectionGroup, type InjectionItem, PAYLOAD_CHANGES_SOURCE } from "../src/model.ts";
+import { AGGREGATE_SOURCE, type InjectionSnapshot, type InjectionGroup, type InjectionItem } from "../src/model.ts";
 import type { GuardResult } from "../src/snapshot.ts";
 import { InjectionsView } from "../src/ui/injections-view.ts";
 import { previewBodyLines } from "../src/ui/section-preview.ts";
@@ -41,10 +41,11 @@ function createTheme(): Theme {
 	);
 }
 
+/** A neutral leaf: the messages and payload-change rows have kinds of their own. */
 function item(id: string, sourceId: string, native: boolean, tokens: number): InjectionItem {
 	return {
 		id,
-		kind: "message",
+		kind: "base-prompt",
 		source: { id: sourceId, label: sourceId, native },
 		label: `${id} with a moderately long label for truncation checks`,
 		chars: tokens * 4,
@@ -1181,7 +1182,7 @@ test("InjectionsView explains a forced System Prompt in its status bar and previ
 	assert.ok(preview.includes(bullet), "the preview legend explains the marker");
 });
 
-test("InjectionsView previews a modification as Request and Session parts", () => {
+test("InjectionsView previews counted and zero-token reference parts with responsive diff headers", () => {
 	const view = new InjectionsView(createTheme(), { snapshot: changedSnapshot() }, () => {}, () => 40);
 	view.handleInput("\u001b[B");
 	view.handleInput("\u001b[B");
@@ -1428,7 +1429,7 @@ test("changed Injections frames reflow without raw text leaks or partial descrip
 	assert.doesNotMatch(returned, /deleted original/);
 });
 
-/** A snapshot with one built-in tool, two tools Pi hid and the tree leaves out, and a payload-change group. */
+/** A snapshot with one built-in tool, two tools Pi hid and the tree leaves out, and a payload-change row. */
 function guardedSnapshot(): InjectionSnapshot {
 	const base = (id: string, tokens: number): InjectionItem => ({ ...item(id, "pi", true, tokens), kind: "tool" });
 	const read: InjectionItem = { ...base("tool:builtin:read", 12), label: "read" };
@@ -1436,21 +1437,24 @@ function guardedSnapshot(): InjectionSnapshot {
 		...base("tool:builtin", 12), label: "Built-in Tools (1)", children: [read],
 		sections: [{ label: "read", text: read.text, tokens: 12 }],
 	};
-	const payloadItem = (id: string, label: string, change: "added" | "modified", lines: InjectionItem["changedLines"]) => ({
-		...item(id, "payload-changes", false, 4), source: PAYLOAD_CHANGES_SOURCE, label, change, changedLines: lines,
-		text: (lines ?? []).filter((line) => line.type === "added").map((line) => line.text).join("\n"),
-		diff: change === "added" ? { added: 4, removed: 0 } : { added: 3, removed: 2 },
-	});
-	const payloadItems = [
-		payloadItem("payload:0", "user message", "modified", [
-			{ type: "removed", text: "before the edit" },
-			{ type: "added", text: `after the edit ${"long ".repeat(30)}end` },
-		]),
-		payloadItem("payload:1", "system message", "added", [{ type: "added", text: "edit rule\u001b[2J" }]),
-	];
+	const payload: InjectionItem = {
+		...item("payload-changes", AGGREGATE_SOURCE.id, false, 8), kind: "payload-change", source: AGGREGATE_SOURCE,
+		label: "payload changes (3)", diff: { added: 7, removed: 5 },
+		sections: [
+			{ label: "user message", text: `after the edit ${"long ".repeat(30)}end`, tokens: 4,
+				diff: { added: 3, removed: 2 }, changedLines: [
+					{ type: "removed", text: "before the edit" },
+					{ type: "added", text: `after the edit ${"long ".repeat(30)}end` },
+				] },
+			{ label: "system message", text: "edit rule\u001b[2J", tokens: 4, diff: { added: 4, removed: 0 },
+				changedLines: [{ type: "added", text: "edit rule\u001b[2J" }] },
+			{ label: "write", text: "", tokens: 0, diff: { added: 0, removed: 3 }, toolDeclaration: true,
+				changedLines: [{ type: "removed", text: "Write files" }] },
+		],
+	};
 	const groups = [
 		group("pi", true, [builtin]),
-		{ ...group("payload-changes", false, payloadItems), source: PAYLOAD_CHANGES_SOURCE },
+		{ ...group(AGGREGATE_SOURCE.id, false, [payload]), source: AGGREGATE_SOURCE, diff: payload.diff },
 	];
 	return {
 		groups,
@@ -1463,7 +1467,9 @@ test("InjectionsView counts hidden tools and explains payload changes in its des
 	const plain = view.render(200).map(stripSgr);
 
 	assert.ok(!plain.some((line) => line.includes("Hidden")), "hidden tools carry no marker");
-	assert.ok(plain.some((line) => line.trim().startsWith("payload changes")), "payload changes form their own group");
+	const unattributed = plain.findIndex((line) => line.trim().startsWith("unattributed"));
+	assert.match(plain[unattributed + 1] ?? "", /^ {2}└─ payload changes \(3\) \.+ +8 {2}\+7 {2}-5$/,
+		"payload changes are one unattributed row");
 	const bullets = plain.filter((line) => line.startsWith("  - ")).map((line) => line.slice(4));
 	assert.deepEqual(bullets, [
 		"2 tools hidden by pi: bash, write.",
@@ -1517,17 +1523,23 @@ test("InjectionsView reports a partial payload comparison", () => {
 	assert.ok(!plain.some((line) => line.includes("were not checked")));
 });
 
-test("InjectionsView previews a payload change as colored changed lines with a hanging indent", () => {
+test("InjectionsView previews payload changes as one part per finding with colored changed lines", () => {
 	const theme = createTheme();
 	const view = new InjectionsView(theme, { snapshot: guardedSnapshot() }, () => {}, () => 60);
 	view.handleInput("\u001b[F");
-	view.handleInput("\u001b[A");
 	view.handleInput("\r");
 	const lines = view.render(60);
 	const plain = lines.map(stripSgr);
 
-	assert.match(plain.find((line) => line.includes("user message")) ?? "", /payload changes · 4 tokens · \+3 -2 $/,
-		"a payload change carries no change marker");
+	assert.match(plain[2] ?? "", /^payload changes \(3\) +unattributed · 8 tokens · \+7 -5 $/,
+		"payload changes carry no change marker");
+	assert.deepEqual(plain.filter((line) => / · \d+ tokens/.test(line)).slice(1), [
+		"  user message · 4 tokens · +3 -2", "  system message · 4 tokens · +4", "  tool:write · 0 tokens · -3",
+	], "one part per finding, in payload order");
+	const tool = lines.find((line) => stripSgr(line).startsWith("  tool:write")) ?? "";
+	assert.ok(tool.includes(theme.fg("dim", "tool:") + theme.fg("syntaxKeyword", theme.bold("write"))),
+		"a tool declaration reads apart from a tool call");
+	assert.match(plain[plain.indexOf("  tool:write · 0 tokens · -3") + 1] ?? "", /^ {2}- Write files$/);
 	const removed = plain.findIndex((line) => line === "  - before the edit");
 	assert.ok(removed >= 0);
 	assert.ok(lines[removed]?.includes(theme.fg("toolDiffRemoved", "- before the edit")));
@@ -1541,13 +1553,8 @@ test("InjectionsView previews a payload change as colored changed lines with a h
 	assert.ok(!plain.some((line) => /Added|Modified|Deleted|Request-Only/.test(line)));
 	assert.ok(plain.some((line) => line.startsWith("  - Payload changes appear only")));
 	assert.ok(!plain.some((line) => line.includes("hidden by pi")), "the hidden-tools note stays in the list");
-
-	view.handleInput("\u001b");
-	view.handleInput("\u001b[B");
-	view.handleInput("\r");
-	const system = view.render(60).map(stripSgr).join("\n");
-	assert.match(system, /\+ edit rule/);
-	assert.doesNotMatch(system, /\u001b\[2J/);
+	assert.ok(plain.includes("  + edit rule"));
+	assert.doesNotMatch(lines.join("\n"), /\u001b\[2J/);
 });
 
 test("payload-change and hidden-tool frames reflow without partial descriptions", () => {
@@ -1568,7 +1575,6 @@ test("payload-change and hidden-tool frames reflow without partial descriptions"
 	frames([1, 24, 60, 80, 120], /- 2 tools hidden by pi/, /Their sources are unknown\./);
 	height = 70;
 	view.handleInput("\u001b[F");
-	view.handleInput("\u001b[A");
 	view.handleInput("\r");
 	// Preview bodies keep a minimum wrap width, as for every other item
 	frames([24, 60, 80, 120], /- \+N -N Tokens added/, /Their sources are unknown\./);
@@ -1702,7 +1708,90 @@ test("InjectionsView explains saved and guessed editors, mixed changes, and diff
 test("InjectionsView describes payload findings as payload-only changes, with unknown editors", () => {
 	const view = new InjectionsView(createTheme(), { snapshot: guardedSnapshot() }, () => {}, () => 40);
 	view.handleInput("\u001b[F");
-	assert.deepEqual(statusBar(view.render(120)), ["Change: +4 only in the provider payload", "Changed By: Unknown"]);
+	assert.deepEqual(statusBar(view.render(120)), ["Change: +7 -5 only in the provider payload", "Changed By: Unknown"]);
+	view.handleInput("k");
+	assert.deepEqual(statusBar(view.render(120)), ["Change: +7 -5 only in the provider payload"],
+		"a group of payload changes alone keeps their phrase and names no editor");
+});
+
+test("InjectionsView prefixes tool rows outside Built-in Tools with a dim tool:", () => {
+	const theme = createTheme();
+	const source = { id: "tool-source:npm:web", label: "npm:web", native: false };
+	const search: InjectionItem = { ...item("tool:npm:web:web_search", source.id, false, 1_418), kind: "tool", source,
+		label: "web_search" };
+	const read: InjectionItem = { ...item("tool:builtin:read", "pi", true, 12), kind: "tool", label: "read" };
+	const builtin: InjectionItem = { ...item("tool:builtin", "pi", true, 12), kind: "tool", label: "Built-in Tools (1)",
+		children: [read] };
+	const snapshot: InjectionSnapshot = {
+		groups: [group("pi", true, [builtin]), { ...group(source.id, false, [search]), source }], totalTokens: 1_430,
+	};
+	const view = new InjectionsView(theme, { snapshot }, () => {}, () => 40);
+	const lines = view.render(80);
+	const plain = lines.map(stripSgr);
+
+	assert.ok(plain.some((line) => /^ {2}\u2514\u2500 tool:web_search \.+ 1,418$/.test(line)));
+	assert.ok(plain.some((line) => /^ {5}\u2514\u2500 read \.+ +12$/.test(line)), "built-in tools keep plain names");
+	const valueEdges = new Set(plain.filter((line) => /\d$/.test(line)).map((line) => line.length));
+	assert.equal(valueEdges.size, 1, "the prefix keeps the shared value column");
+	assert.ok(lines.some((line) =>
+		line.includes(theme.fg("dim", "\u2514\u2500 tool:") + theme.fg("muted", "web_search"))));
+	view.handleInput("\u001b[F");
+	const selected = view.render(80).find((line) => stripSgr(line).startsWith("\u2192")) ?? "";
+	assert.ok(selected.includes(theme.fg("dim", "\u2514\u2500 tool:") + theme.fg("accent", "web_search")),
+		"the prefix stays dim on selection, like the connectors");
+	for (const width of [12, 24, 60, 120]) {
+		assert.ok(view.render(width).every((line) => visibleWidth(line) <= width), `${width}: width`);
+	}
+});
+
+test("InjectionsView lists messages in one unattributed row and previews one part per message", () => {
+	const theme = createTheme();
+	const messages: InjectionItem = {
+		...item("messages", AGGREGATE_SOURCE.id, false, 12), kind: "message", source: AGGREGATE_SOURCE,
+		label: "messages (3)", requestOnly: true, diff: { added: 8, removed: 4 },
+		sections: [
+			{ label: "fixture-notes", text: "stored note", tokens: 3 },
+			{ label: "user", text: "edited prompt", tokens: 5, diff: { added: 4, removed: 1 }, change: "modified",
+				requestOnly: true },
+			{ label: "user \u00b7 session", text: "original prompt", tokens: 0 },
+			{ label: "user", text: "deleted prompt", tokens: 0, diff: { added: 0, removed: 3 }, change: "deleted",
+				requestOnly: true },
+			{ label: "fixture-add", text: "added note", tokens: 4, diff: { added: 4, removed: 0 }, change: "added",
+				requestOnly: true },
+		],
+	};
+	const snapshot: InjectionSnapshot = {
+		groups: [{ ...group(AGGREGATE_SOURCE.id, false, [messages]), source: AGGREGATE_SOURCE, diff: messages.diff }],
+		totalTokens: 12,
+	};
+	const view = new InjectionsView(theme, { snapshot }, () => {}, () => 40);
+	view.handleInput("j");
+	const list = view.render(100);
+	const plain = list.map(stripSgr);
+	assert.ok(plain.some((line) =>
+		/^\u2192 \u2514\u2500 messages \(3\) \.+ 12 {2}\+8 {2}-4 \u00b7 Request-Only$/.test(line)));
+	assert.deepEqual(statusBar(list), ["Change: +8 -4 only in this request", "Changed By: Unknown"],
+		"every message change is only in this request; none names its editor");
+	assert.doesNotMatch(plain.join("\n"), /stored note|edited prompt|fixture-notes/,
+		"raw text and customTypes wait for Enter");
+
+	view.handleInput("\r");
+	const preview = view.render(100).map(stripSgr);
+	assert.match(preview[2] ?? "", /^messages \(3\) +unattributed \u00b7 12 tokens \u00b7 \+8 -4 \u00b7 Request-Only $/);
+	assert.deepEqual(preview.filter((line) => / \u00b7 \d+ tokens/.test(line)).slice(1), [
+		"  fixture-notes \u00b7 3 tokens",
+		"  user \u00b7 5 tokens \u00b7 +4 -1 \u00b7 Request-Only",
+		"  user \u00b7 session \u00b7 0 tokens",
+		"  user \u00b7 0 tokens \u00b7 -3 \u00b7 Request-Only",
+		"  fixture-add \u00b7 4 tokens \u00b7 +4 \u00b7 Request-Only",
+	], "customType or role labels each part; a modification keeps its session original");
+	assert.ok(preview.includes("  original prompt"));
+	assert.ok(preview.includes("  deleted prompt"));
+	const legend = preview.join(" ").replace(/\s+/g, " ");
+	assert.ok(legend.includes("- +N -N Tokens extensions added or removed, compared with the session."));
+	assert.ok(legend.includes("- Request-Only Includes changes made only in this request"));
+	view.handleInput("\u001b");
+	assert.deepEqual(view.render(100), list, "Escape returns to the same row");
 });
 
 test("InjectionsView keeps payload attention states visible without the description", () => {

@@ -34,6 +34,8 @@ const DESCRIPTION_MIN_CONTENT_ROWS = 22;
 /** Prefix of a changed line, two columns wide: `+ ` only in the payload, `- ` only in the captured request. */
 const ADDED_LINE_PREFIX = "+ ";
 const REMOVED_LINE_PREFIX = "- ";
+/** Dim prefix of a tool declaration part, so it reads apart from a `tool call` part. */
+const TOOL_LABEL_PREFIX = "tool:";
 
 /** Raw preview content plus the labeled parts it decomposes into, when known. */
 export interface SectionedContent {
@@ -51,8 +53,6 @@ export interface SectionedContent {
 	readonly diff?: TokenDiff;
 	/** True when the request sent other content than the session keeps; only Injections measures it. */
 	readonly requestOnly?: boolean;
-	/** Changed lines of a payload change; rendered as a diff instead of the text. */
-	readonly changedLines?: readonly PayloadChangeLine[];
 }
 
 /** Space shared by uncapped preview content, its counter, and the marker legend. */
@@ -93,7 +93,8 @@ export function previewLegendLines(
 
 /**
  * Preview body lines for one item or entry: labeled parts under their
- * subheaders, or the raw text when no breakdown exists. The caller supplies
+ * subheaders, or the raw text when no breakdown exists. A payload change's
+ * part renders its changed lines instead of its text. The caller supplies
  * `wrapText` so each view keeps its own sanitizing, wrapping, indentation, and
  * choice of whether the marked JSON run is expanded at this level, and
  * `heading` so an undivided body can drop a line the heading already shows.
@@ -105,7 +106,6 @@ export function previewBodyLines(
 	wrapText: (text: string, jsonSpan: JsonSpan | undefined) => string[],
 	heading?: string,
 ): string[] {
-	if (content.changedLines !== undefined) return changedLineRows(theme, content.changedLines, wrapWidth);
 	const sections = content.sections ?? [];
 	if (sections.length === 0) return contentBodyLines(theme, content, wrapWidth, wrapText, heading);
 	const lines: string[] = [];
@@ -116,7 +116,9 @@ export function previewBodyLines(
 			lines.push("", "");
 		}
 		lines.push(...sectionHeaderLines(theme, section, wrapWidth));
-		lines.push(...contentBodyLines(theme, section, wrapWidth, wrapText, section.label));
+		lines.push(...(section.changedLines === undefined
+			? contentBodyLines(theme, section, wrapWidth, wrapText, section.label)
+			: changedLineRows(theme, section.changedLines, wrapWidth)));
 	}
 	return lines;
 }
@@ -245,12 +247,14 @@ function headingKey(text: string): string {
 
 /**
  * Bold subheader naming one part, its share of the parent estimate, its token
- * diff, a guessed owner, and its markers. A diff-only part has no share.
+ * diff, a guessed owner, and its markers. A diff-only part has no share, and a
+ * tool declaration's name follows a dim `tool:` prefix.
  * Parts use `syntaxKeyword` rather than the usual `mdHeading` subheader color,
  * because they nest under item and entry headings that already carry `mdHeading`.
  */
 function sectionHeaderLines(theme: Theme, section: InjectionSection, wrapWidth: number): string[] {
-	const label = theme.fg("syntaxKeyword", theme.bold(normalizeInlineText(section.label)));
+	const prefix = section.toolDeclaration === true ? theme.fg("dim", TOOL_LABEL_PREFIX) : "";
+	const label = prefix + theme.fg("syntaxKeyword", theme.bold(normalizeInlineText(section.label)));
 	const tokens = section.diffOnly === true
 		? ""
 		: theme.fg("muted", ` · ${section.tokens.toLocaleString("en-US")} tokens`);

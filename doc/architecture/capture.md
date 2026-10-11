@@ -190,7 +190,10 @@ extension that edited it.
 
 Neither `customType` nor `details` proves ownership: any extension can reuse
 them. `customType` disappears during provider conversion, so this attribution
-exists only in structured capture, never for payload changes.
+exists only in structured capture, never for payload changes. These fields
+remain capture metadata, not extension identities for grouping: Injections
+puts all custom messages and conversation changes in its shared `unattributed`
+row, as [views.md](views.md#injections) describes.
 
 ## Hidden Tools
 

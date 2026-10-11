@@ -62,6 +62,21 @@ edits and deletions, request-only line comparison, plain-text previews,
 terminal sanitization, theme invalidation, and width/height reflow. These are
 pure composition and render tests; real-PTY checks remain explicit opt-in.
 
+### Injections source and aggregate rows
+
+`model`, `system-prompt-rows`, `injections`, `injections-model`, and
+`injections-view` test the `pi` / extension / trailing `unattributed` source
+contract. Cases include unregistered tools sharing the unknown source,
+customType and cooperative provenance creating no source group, non-context
+`pi.share` entries, absent empty rows, deletion-only rows, and section-level
+changed-line ownership. Message parts preserve session order with additions
+following in capture order; payload parts preserve guard order. Counts exclude
+message deletions but include every payload finding; estimates and diffs sum
+without counting reference parts. Render checks cover dim `tool:` prefixes,
+value alignment, aggregate status, per-part token shares and markers,
+sanitization, preview return, narrow widths, and height reflow. Real-PTY checks
+remain explicit opt-in.
+
 ### Selected-row status bar
 
 `injections`, `system-prompt-rows`, `injections-model`, `status-bar`, and

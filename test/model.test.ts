@@ -16,7 +16,7 @@ function item(
 	sourceLabel: string,
 	native: boolean,
 	tokens: number,
-	kind: InjectionKind = "message",
+	kind: InjectionKind = "base-prompt",
 ): InjectionItem {
 	return {
 		id,
@@ -72,14 +72,26 @@ test("groupInjections orders pi items by provider payload section", () => {
 	);
 });
 
+test("groupInjections orders unattributed rows: tools, system prompt, messages, then payload changes", () => {
+	const [unattributed] = groupInjections([
+		item("payload-changes", "aggregate:extensions", "unattributed", false, 90, "payload-change"),
+		item("messages", "aggregate:extensions", "unattributed", false, 80, "message"),
+		item("system-prompt:aggregate:extensions", "aggregate:extensions", "unattributed", false, 0, "prompt-addition"),
+		item("tool:unattributed:grep", "aggregate:extensions", "unattributed", false, 1, "tool"),
+	]);
+	assert.deepEqual(unattributed?.items.map((entry) => entry.kind),
+		["tool", "prompt-addition", "message", "payload-change"]);
+});
+
 test("buildSnapshot owns nested input data and computes the total", () => {
-	const source = { id: "message-type:test", label: "test", native: false };
-	const sections = [{ label: "Definition", text: "hello world!", tokens: 3 }];
+	const source = { id: "aggregate:extensions", label: "unattributed", native: false };
+	const lines = [{ type: "added" as const, text: "hello world!" }];
+	const sections = [{ label: "user message", text: "hello world!", tokens: 3, changedLines: lines }];
 	const input: InjectionItem = {
-		id: "message:test:0",
-		kind: "message",
+		id: "payload-changes",
+		kind: "payload-change",
 		source,
-		label: "message",
+		label: "payload changes (1)",
 		chars: 12,
 		tokens: 3,
 		text: "hello world!",
@@ -88,10 +100,15 @@ test("buildSnapshot owns nested input data and computes the total", () => {
 	const snapshot = buildSnapshot([input]);
 
 	source.label = "changed";
-	sections[0]!.label = "changed";
+	const section = sections[0];
+	const line = lines[0];
+	assert.ok(section && line);
+	section.label = "changed";
+	line.text = "changed";
 
-	assert.equal(snapshot.groups[0]?.source.label, "test");
-	assert.equal(snapshot.groups[0]?.items[0]?.sections?.[0]?.label, "Definition");
+	assert.equal(snapshot.groups[0]?.source.label, "unattributed");
+	assert.equal(snapshot.groups[0]?.items[0]?.sections?.[0]?.label, "user message");
+	assert.equal(snapshot.groups[0]?.items[0]?.sections?.[0]?.changedLines?.[0]?.text, "hello world!");
 	assert.equal(snapshot.totalTokens, 3);
 });
 

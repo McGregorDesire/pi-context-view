@@ -133,20 +133,31 @@ Present the request's contributions in this order:
     paths and preview labels stay unchanged.
   - Skills (K), with one content-only child per skill
   - Built-in Tools (N), with one child per active built-in tool
-- each extension/tool source, labelled by its package (`npm:pi-web`). An
-  extension loaded from a path (`-e`, settings, or auto-discovery) is its own
-  source, labelled like Pi's startup list: the shortest path tail no other such
-  extension shares, without `/index.ts` (`hidden-tools.ts`, `my-ext`)
+- each identified extension, largest total first, labelled by its package
+  (`npm:pi-web`). An extension loaded from a path (`-e`, settings, or
+  auto-discovery) is its own source, labelled like Pi's startup list: the
+  shortest path tail no other such extension shares, without `/index.ts`
+  (`hidden-tools.ts`, `my-ext`)
   - one child per active tool, counting only its definition: its prompt lines
-    count in System Prompt
+    count in System Prompt. A dim `tool:` prefix (`tool:web_search`) stays dim
+    on selection and participates in label width and value-column alignment.
+    Tools under `Built-in Tools (N)` keep plain names.
   - [`system prompt`](#system-prompt-rows) when that source contributed prompt
     lines, showing only their `+N`/`-N`, with no value or children
-  - injected messages identified by `customType` where available
-- `unattributed` for prompt changes with an unknown source, saved or
-  request-only, in one [`system prompt`](#system-prompt-rows) row, and for
-  request-only changes to messages without a `customType`
-- `payload changes` for changes found only in the provider payload
-  ([Payload changes](#payload-changes))
+- one trailing `unattributed` group for content from an unknown extension:
+  - tools whose extension is no longer registered, with the same dim `tool:`
+    prefix, never another group labelled `unattributed`
+  - one [`system prompt`](#system-prompt-rows) row for prompt changes with an
+    unknown source, saved or request-only
+  - one `messages (N)` row for all custom messages and request-only message
+    changes, with no child rows
+  - one [`payload changes (N)`](#payload-changes) row for findings from the
+    provider payload, with no child rows
+
+A custom message's `customType` labels only its preview part, never a source
+group. It does not identify an extension, even when cooperative provenance is
+present. Pi adds no custom messages to the context: `pi.share` is a session and
+export entry only, not a context message. Empty sources have no group.
 
 ### System prompt rows
 
@@ -175,10 +186,11 @@ changes is request-only. Source ownership never identifies an unknown editor.
 ### Request-only changes
 
 Changes from all `context` handlers and earlier `context_with_system` handlers
-stay in place in the tree. Each changed row shows its [token diff](#token-diffs)
-after the tokens the request sent: an added message reads `10 +10`, a deleted
-part `0 -466`, and a modified one can show both columns. Two change markers
-follow the diff columns:
+mark the affected prompt parts and tools in place; message changes share one
+row. Each changed row shows its [token diff](#token-diffs) after the tokens the
+request sent: an added contribution reads `10 +10`, a deleted part `0 -466`,
+and a modified one can show both columns. Two change markers follow the diff
+columns:
 
 | Marker         | Color     | Row                                                                                  |
 | -------------- | --------- | ------------------------------------------------------------------------------------ |
@@ -190,12 +202,13 @@ the session or exists only in this request. It marks request-only additions,
 edits, and deletions, alone or mixed with saved changes, so a request-only
 edit that folds into a saved `+N` still shows. Saved extension text, such as
 an extension tool's lines in `Available Tools`, keeps its `+N` without the
-marker. One rule covers every row, so it also marks extension tool and message
-rows, though their numbers already imply it. It never marks:
+marker. One rule covers every row, so it also marks extension tool rows and
+`messages (N)` when any message changed, though their numbers already imply
+it. It never marks:
 
 - **Parent rows and groups**, such as System Prompt, `Instruction Files (M)`,
   and `Built-in Tools (N)`; `Forced` likewise never marks parts.
-- **Payload changes**: they are not in the captured request, and their group
+- **Payload changes**: they are not in the captured request, and their row
   name says so.
 
 Pi never saves a forced prompt, so every System Prompt part, instruction file,
@@ -203,11 +216,14 @@ or skill whose forced text differs from the session's version carries
 `Request-Only`, such as text appended in `Extension Additions`. System Prompt
 itself carries only `Forced`.
 
-- **Messages.** An added or modified custom message sits under its
-  `customType` source with the `message` label; any other message sits under
-  `unattributed` with a `<role> message` label, such as `user message`. A
-  deleted message uses the `customType` of the session message it removed. A
-  modified or deleted session custom message replaces its unchanged row.
+- **Messages.** All custom messages and request-only conversation changes
+  form one `messages (N)` row under `unattributed`. `N` counts the messages the
+  request sent, excluding deletions and zero-token session-reference parts.
+  Its value sums the sent messages' estimates; its diff sums their changes
+  against the session. A modified or deleted session custom message replaces
+  its unchanged part, never counting it twice. Parts follow session order,
+  with modifications and deletions in place; additions have no captured
+  position and follow in capture order. Unchanged ordinary history is absent.
 - **System Prompt.** A changed section changes its part, at its position in the
   request prompt. The recorded layout also identifies inline XML, unwrapped,
   and empty sections. Pi renders changed plain content before the first section, so
@@ -265,14 +281,17 @@ Marker field names use their markers' fixed colors. `Change` replaces the list's
   `only in this request; not in the session` instead.
 - `saved in the session, with an edit only in this request` for a leaf whose
   saved extension text also has a request-only edit folded into its diff.
-- `only in this request` on a parent, group, or diff-only row whose changes
-  are all request-only; `, partly only in this request` after the diff when
-  some are saved and some request-only.
-- `only in the provider payload` for payload-change rows and their group.
+- `only in this request` on `messages (N)`, or a parent, group, or diff-only
+  row whose changes are all request-only; `, partly only in this request`
+  after the diff when some are saved and some request-only.
+- `only in the provider payload` for `payload changes (N)` and a group whose
+  counted changes are payload-only. Mixed request and payload changes use
+  `only in this request`, since the session keeps neither.
 
 Parents and groups summarize only the rows they count, including removals of
-session-only children. Their bars omit `Changed By`; diff-only rows count in
-neither their groups nor totals. An editor is never inferred from a source
+session-only children. Their bars omit `Changed By`; the leaf `messages (N)`
+and `payload changes (N)` rows show `Unknown`. Diff-only rows count in neither
+their groups nor totals. An editor is never inferred from a source
 group, tool name, customType, or section tag. Exactly matched tool lines and
 guessed additions name editors only on saved prompt parts. Any request-only
 edit has an unknown editor, even if the edited part keeps a known extension's
@@ -332,22 +351,27 @@ exactly; diff-only `system prompt` rows repeat these changes without a value:
 Payload changes are payload differences the structured capture cannot
 explain: they come from `context_with_system` handlers after this extension,
 or from `before_provider_request` handlers before it. They carry no structure
-or source, so they cannot stay in place. The `payload changes` group, after
-`unattributed`, lists one row per finding:
+or source, so they cannot stay in place. One `payload changes (N)` row under
+`unattributed`, after `messages (N)`, holds every finding without child rows.
+`N` counts all findings, including deletions: it counts changes, not messages
+sent. A guard with no findings adds no row.
+
+Each finding has one preview part, in the guard's order:
 
 - A changed message part: `system message`, `user message`,
   `assistant message`, `tool call`, or `tool result`.
-- A tool declaration the payload added, removed, or describes differently: the
-  tool name. A removal Pi did not report in `hiddenTools` is a deleted
-  payload change (`0 -N`), not a [hidden tool](#hidden-tools).
+- A tool declaration the payload added, removed, or describes differently:
+  `tool:<name>`, with the prefix dim so it reads apart from a `tool call`.
+  A removal Pi did not report in `hiddenTools` is a deleted payload change
+  (`0 -N`), not a [hidden tool](#hidden-tools).
 
-Each row's [token diff](#token-diffs) compares the lines the payload added
-with the lines it removed from the captured request. The guard keeps only the
-changed lines, so a row's estimate counts the lines the payload added, and a
-deleted row reads 0 tokens. These estimates count
-toward the group and `TOTAL (Prompt, Tools, Injections)`. Rows sort like other
-source groups and carry no change marker. While the group is shown, the
-description carries a dim bullet:
+Each part's [token diff](#token-diffs) compares the lines the payload added
+with the lines it removed from the captured request. The guard keeps only
+changed lines, so a part's estimate counts the added lines and a deleted part
+reads 0 tokens. The row sums these estimates and diffs; they count toward
+`unattributed` and `TOTAL (Prompt, Tools, Injections)`. Neither the row nor its
+parts carry `Request-Only`. While the row is shown, the description carries a
+dim bullet:
 
 ```text
 - Payload changes appear only in the provider payload. Their sources are unknown.
@@ -470,20 +494,36 @@ no `Added`, `Modified`, or `Deleted` markers: the diff and the estimate tell
 those changes apart, and `Request-Only` tells that the session does not keep
 them. The `+N -N` legend bullet names the base: pi's default prompt for pi's
 items, the session for extension tools and messages, and the captured request
-for payload changes. A changed message previews both versions:
+for payload changes.
 
-- A **modified** message renders a `Request` part with the counted request
-  version and a `Session` part with the session original at 0 tokens.
-- A **deleted** message renders the session original undivided; the header
-  reads 0 tokens.
+The messages preview header reads
+`messages (N) … unattributed · N tokens · +N -N`, followed by `Request-Only`
+when any message changed. Its parts use the message's `customType` or literal
+role (`user`, `assistant`, `toolResult`, and so on), then muted `· N tokens`,
+the message's diff, and `Request-Only` when changed. Session-backed parts stay
+in conversation order, including deletions; additions follow in capture order.
+
+- A **modified** message shows the counted request version first, followed by
+  a `<label> · session` reference part at 0 tokens, with no diff or marker.
+- A **deleted** message shows its session original at 0 tokens in its part,
+  with its removal diff and `Request-Only`; it is excluded from the row's `N`.
+
+User-prompt numbering and word-level diff bodies remain deferred to the
+Message preview PLAN item. Until then, both message versions are plain content
+with their existing marked JSON expansion.
 
 A deleted System Prompt part or tool previews the session text it removed, at 0
 tokens. A modified System Prompt part or tool shows only the request version.
 
-A payload change previews its changed lines in payload order, without labeled
-parts. A line only in the payload opens with `+ ` in `toolDiffAdded`; a line
-only in the captured request opens with `- ` in `toolDiffRemoved`. The whole line takes
-that color, and wrapped continuation lines hang under its text.
+The payload preview header reads
+`payload changes (N) … unattributed · N tokens · +N -N`. Each finding renders
+under a labeled part subheader with its estimate and diff, in the guard's
+order, including deletions at 0 tokens. Tool declaration labels carry a dim
+`tool:` prefix. Findings have no captured position, so they have no user-prompt
+number. A line only in the payload opens with `+ ` in `toolDiffAdded`; a line
+only in the captured request opens with `- ` in `toolDiffRemoved`. The whole
+line takes that color, and wrapped continuation lines hang under its text.
+Word-level highlighting remains deferred to the later preview work.
 
 After the legend bullets of its markers, a payload-change preview repeats the
 payload-changes bullet. Descriptions collapse under the rules in

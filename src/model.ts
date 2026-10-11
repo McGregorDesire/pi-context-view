@@ -8,25 +8,20 @@ import type { PayloadChangeLine } from "./snapshot.ts";
 
 export const PI_SOURCE_ID = "pi";
 export const AGGREGATE_SOURCE_ID = "aggregate:extensions";
-export const PAYLOAD_CHANGES_SOURCE_ID = "payload-changes";
 
 /** Everything pi itself assembles: its prompt, context files, skills, and built-in tools. */
 export const PI_SOURCE: InjectionSource = { id: PI_SOURCE_ID, label: "pi", native: true };
 
-/** Contributions no available signal attributes to one extension. */
+/**
+ * Content from an extension that cannot be identified: prompt changes of
+ * unknown source, unregistered tools, custom messages, request-only message
+ * changes, and payload changes. Pi adds no custom messages to the context
+ * (its `pi.share` custom type is a session entry only), so they all come
+ * from some extension.
+ */
 export const AGGREGATE_SOURCE: InjectionSource = {
 	id: AGGREGATE_SOURCE_ID,
 	label: "unattributed",
-	native: false,
-};
-
-/**
- * Payload differences the structured capture cannot explain: no structure and
- * no source, so they are grouped instead of staying in place.
- */
-export const PAYLOAD_CHANGES_SOURCE: InjectionSource = {
-	id: PAYLOAD_CHANGES_SOURCE_ID,
-	label: "payload changes",
 	native: false,
 };
 
@@ -78,11 +73,6 @@ function pathSegments(path: string): string[] {
 	return segments;
 }
 
-/** Source of a custom-role message: its customType, since the actual injector is unknowable. */
-export function messageTypeSource(customType: string): InjectionSource {
-	return { id: `message-type:${customType}`, label: customType, native: false };
-}
-
 /** Shared name of pi's own prompt; Usage and Injections must present it identically. */
 export const SYSTEM_PROMPT_LABEL = "System Prompt";
 
@@ -125,7 +115,11 @@ export type ChangeEditor =
 	| { readonly type: "extension"; readonly source: InjectionSource; readonly attribution?: "guess" }
 	| { readonly type: "unknown" };
 
-/** What kind of context data an injection item is. */
+/**
+ * What kind of context data an injection item is. Injections lists all
+ * messages in one `message` row and all payload changes in one
+ * `payload-change` row, each with one labeled part per message or finding.
+ */
 export type InjectionKind =
 	| "base-prompt"
 	| "append-prompt"
@@ -133,7 +127,8 @@ export type InjectionKind =
 	| "skills"
 	| "tool"
 	| "prompt-addition"
-	| "message";
+	| "message"
+	| "payload-change";
 
 /** Who contributed one or more injection items. */
 export interface InjectionSource {
@@ -185,7 +180,7 @@ export interface InjectedReference extends TextSpan {
 export interface InjectionSection {
 	/** Section name rendered as a preview subheader. */
 	readonly label: string;
-	/** Slice of the parent item's text; sections concatenate back to it, except when dropped. */
+	/** Preview text; zero-token dropped, deleted, and session-reference parts do not add to the item's text. */
 	readonly text: string;
 	/** Share of the parent estimate; sections sum exactly to the item total. A diff-only part has no share. */
 	readonly tokens: number;
@@ -203,12 +198,22 @@ export interface InjectionSection {
 	readonly change?: RequestChange;
 	/** Tokens this part gained and lost against its base; absent when unchanged. */
 	readonly diff?: TokenDiff;
-	/** True when the child row this part stands for is request-only; see `InjectionItem.requestOnly`. */
+	/** True when the message or child row this part stands for is request-only; see `InjectionItem.requestOnly`. */
 	readonly requestOnly?: boolean;
 	/** True for a part of a diff-only item: its subheader shows the diff without a token share. */
 	readonly diffOnly?: boolean;
 	/** Present when the part's diff belongs to an owner inferred from the text itself. */
 	readonly attribution?: "guess";
+	/**
+	 * True when the part is a tool declaration a payload change touched: its
+	 * label carries a `tool:` prefix, so it reads apart from a `tool call` part.
+	 */
+	readonly toolDeclaration?: boolean;
+	/**
+	 * Changed lines of a payload change, in payload order, rendered instead of
+	 * `text`. `text` holds only the added lines, which the share counts.
+	 */
+	readonly changedLines?: readonly PayloadChangeLine[];
 	/** Serialized JSON inside `text`, e.g. a tool's parameter schema. */
 	readonly jsonSpan?: JsonSpan;
 	/** Extension lines inside `text`, annotated with their source in previews. */
@@ -269,11 +274,6 @@ export interface InjectionItem {
 	 * adds to neither its group nor the total.
 	 */
 	readonly diffOnly?: boolean;
-	/**
-	 * Changed lines of a payload change, in payload order. `text` holds only the
-	 * added lines, which the estimate counts.
-	 */
-	readonly changedLines?: readonly PayloadChangeLine[];
 	/** Extension lines inside `text` of a standalone System Prompt part child. */
 	readonly injectedReferences?: readonly InjectedReference[];
 	/** Constituent sub-items (e.g. individual built-in tools or skills), largest first. */
@@ -366,12 +366,12 @@ export interface ContextUsageSnapshot {
 
 /**
  * Group measured items by source. Pi-native components come first, extension
- * sources follow by total size, then the unattributable aggregate, and payload
- * changes come last.
+ * sources follow by total size, and the unattributable aggregate comes last.
  * Items inside each group follow the order pi assembles them into a request
  * (base prompt, appended prompt, context files, skills, built-in tools, other
- * tools, then everything else by size). Returned objects own all nested data;
- * later mutation of the input cannot change the groups.
+ * tools), then a `system prompt` row, messages, and payload changes. Returned
+ * objects own all nested data; later mutation of the input cannot change the
+ * groups.
  */
 export function groupInjections(items: readonly InjectionItem[]): InjectionGroup[] {
 	const groups = new Map<string, MutableGroup>();
@@ -431,10 +431,10 @@ function copyItem(item: InjectionItem): InjectionItem {
 		editors: item.editors?.map((editor) =>
 			editor.type === "extension" ? { ...editor, source: { ...editor.source } } : { ...editor }),
 		injectedReferences: copyInjectedReferences(item.injectedReferences),
-		changedLines: item.changedLines?.map((line) => ({ ...line })),
 		sections: item.sections?.map((section) => ({
 			...section,
 			diff: copyTokenDiff(section.diff),
+			changedLines: section.changedLines?.map((line) => ({ ...line })),
 			jsonSpan: copyJsonSpan(section.jsonSpan),
 			injectedReferences: copyInjectedReferences(section.injectedReferences),
 		})),
@@ -462,8 +462,8 @@ function copyJsonSpan(span: JsonSpan | undefined): JsonSpan | undefined {
 /**
  * Order items within a group by the order pi assembles them into a request:
  * base prompt, appended prompt, context files, skills, built-in tools, other
- * tools, an extension's `system prompt` row, and finally everything else by
- * size descending.
+ * tools, then a `system prompt` row, messages, and payload changes. Items of
+ * one rank follow by size descending.
  */
 function compareItems(a: InjectionItem, b: InjectionItem): number {
 	const rankDelta = itemRank(a) - itemRank(b);
@@ -486,12 +486,14 @@ function itemRank(item: InjectionItem): number {
 			return item.id === "tool:builtin" ? 4 : 5;
 		case "prompt-addition":
 			return 6;
-		default:
+		case "message":
 			return 7;
+		case "payload-change":
+			return 8;
 	}
 }
 
-/** Order groups: pi-native first, then extensions by size, the aggregate, and payload changes last. */
+/** Order groups: pi-native first, then extensions by size, and the aggregate last. */
 function compareGroups(a: InjectionGroup, b: InjectionGroup): number {
 	const rankDelta = groupRank(a.source) - groupRank(b.source);
 	if (rankDelta !== 0) return rankDelta;
@@ -501,6 +503,5 @@ function compareGroups(a: InjectionGroup, b: InjectionGroup): number {
 /** Fixed display rank by source kind; extension sources share one rank. */
 function groupRank(source: InjectionSource): number {
 	if (source.native) return 0;
-	if (source.id === AGGREGATE_SOURCE_ID) return 2;
-	return source.id === PAYLOAD_CHANGES_SOURCE_ID ? 3 : 1;
+	return source.id === AGGREGATE_SOURCE_ID ? 2 : 1;
 }

@@ -4,10 +4,11 @@ import { test } from "node:test";
 import type { InjectionSnapshot, InjectionItem } from "../src/model.ts";
 import { buildInjectionRows, collectItemsById, ListNavigator, PreviewScroller } from "../src/ui/injections-model.ts";
 
+/** A neutral leaf: the messages and payload-change rows have kinds of their own. */
 function item(id: string, sourceId: string, native: boolean, tokens: number): InjectionItem {
 	return {
 		id,
-		kind: "message",
+		kind: "base-prompt",
 		source: { id: sourceId, label: sourceId, native },
 		label: id,
 		chars: tokens * 4,
@@ -196,4 +197,39 @@ test("row status leaves diff-only changes out of groups and shows them as saved 
 			assert.equal(row.editors, undefined, "a diff-only row explains accounting instead of repeating its source");
 		}
 	}
+});
+
+test("unattributed message and payload rows are leaves with unknown editors, and extension tools carry tool:", () => {
+	const unattributed = { id: "aggregate:extensions", label: "unattributed", native: false };
+	const tool: InjectionItem = { ...item("tool:unattributed:grep", unattributed.id, false, 5), kind: "tool",
+		label: "grep" };
+	const messages: InjectionItem = { ...item("messages", unattributed.id, false, 9), kind: "message",
+		label: "messages (2)", requestOnly: true, diff: { added: 4, removed: 6 } };
+	const saved: InjectionItem = { ...messages, id: "saved", requestOnly: undefined, diff: undefined };
+	const payload: InjectionItem = { ...item("payload-changes", unattributed.id, false, 3), kind: "payload-change",
+		label: "payload changes (2)", diff: { added: 3, removed: 1 } };
+	const builtin: InjectionItem = { ...item("tool:builtin", "pi", true, 4), kind: "tool",
+		children: [{ ...item("tool:builtin:read", "pi", true, 4), kind: "tool", label: "read" }] };
+	const rows = buildInjectionRows({ groups: [
+		{ source: builtin.source, items: [builtin], totalTokens: 4 },
+		{ source: unattributed, items: [tool, messages, payload], totalTokens: 17 },
+	], totalTokens: 21 }).filter((row) => row.kind === "item" || row.kind === "group");
+	assert.deepEqual(rows.map((row) => [row.label, row.kind === "item" ? row.labelPrefix : undefined, row.scope]), [
+		["pi", undefined, undefined],
+		["tool:builtin", undefined, undefined],
+		["read", undefined, undefined],
+		["unattributed", undefined, "request"],
+		["grep", "tool:", undefined],
+		["messages (2)", undefined, "request"],
+		["payload changes (2)", undefined, "payload"],
+	], "every message change is only in this request; payload changes only in the payload");
+	for (const row of rows.slice(-2)) {
+		assert.deepEqual(row.kind === "item" ? row.editors : undefined, [{ type: "unknown" }]);
+	}
+	const unchanged = buildInjectionRows({ groups: [
+		{ source: unattributed, items: [saved], totalTokens: 9 },
+	], totalTokens: 9 });
+	const savedRow = unchanged.find((row) => row.kind === "item");
+	assert.deepEqual([savedRow?.scope, savedRow?.editors], [undefined, undefined],
+		"an unchanged messages row has no change or editor status");
 });

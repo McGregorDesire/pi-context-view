@@ -5,7 +5,7 @@
 import type { ExtensionCommandContext, Theme } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
-import { type InjectionItem, type InjectionSnapshot, PAYLOAD_CHANGES_SOURCE_ID, type TokenDiff } from "../model.ts";
+import type { InjectionItem, InjectionSnapshot, TokenDiff } from "../model.ts";
 import type { GuardResult } from "../snapshot.ts";
 import { normalizeInlineText, normalizePreviewText } from "../text.ts";
 import {
@@ -521,7 +521,7 @@ export class InjectionsView {
 	/** Unstyled hierarchy label used to keep the value column stable while scrolling. */
 	private plainRowLabel(row: Exclude<InjectionRow, { readonly kind: "separator" }>): string {
 		const label = normalizeInlineText(row.label);
-		return row.kind === "item" ? `${this.treePrefix(row)}${label}` : label;
+		return row.kind === "item" ? `${this.treePrefix(row)}${row.labelPrefix ?? ""}${label}` : label;
 	}
 
 	/** Themed hierarchy label with connectors intentionally dim even on selection. */
@@ -535,7 +535,8 @@ export class InjectionsView {
 		if (row.kind === "group" || row.kind === "total") {
 			return theme.bold(theme.fg(selected ? "accent" : "text", label));
 		}
-		const prefix = theme.fg("dim", this.treePrefix(row));
+		// The tool prefix stays dim on selection, like the connectors
+		const prefix = theme.fg("dim", `${this.treePrefix(row)}${row.labelPrefix ?? ""}`);
 		const item = this.itemsById.get(row.itemId);
 		if (item?.kind === "context-file" && item.children === undefined) {
 			label = shortenInstructionPath(label, Math.max(0, width - visibleWidth(prefix)));
@@ -701,7 +702,7 @@ function diffColumnsWidth(columns: InjectionColumns): number {
  * change, and the session for everything else.
  */
 function previewDiffBase(item: InjectionItem): DiffBase {
-	if (item.source.id === PAYLOAD_CHANGES_SOURCE_ID) return "captured-request";
+	if (item.kind === "payload-change") return "captured-request";
 	// A `system prompt` row splits pi's prompt changes by source
 	return item.source.native || item.diffOnly === true ? "default-prompt" : "session";
 }
@@ -746,7 +747,7 @@ function hiddenToolsNote(tools: readonly string[]): string | undefined {
 	return `${tools.length} ${tools.length === 1 ? "tool" : "tools"} hidden by pi: ${names}.`;
 }
 
-/** The note that explains payload changes further, after the marker legend, when any of `items` is one. */
+/** The note that explains payload changes further, after the marker legend, when any of `items` holds them. */
 function findingNotes(items: readonly InjectionItem[]): string[] {
-	return items.some((item) => item.source.id === PAYLOAD_CHANGES_SOURCE_ID) ? [PAYLOAD_CHANGES_NOTE] : [];
+	return items.some((item) => item.kind === "payload-change") ? [PAYLOAD_CHANGES_NOTE] : [];
 }

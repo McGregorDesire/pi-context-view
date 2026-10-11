@@ -81,7 +81,9 @@ select `--context` and send their marker prompts (`XYZZY_CONTEXT_DELETE` and
 
 Run `./scripts/demo-injections.sh --payload --no-session`, send an ordinary
 prompt, then open `/context injections`. `payload-changes` produces one of each change in
-`payload changes` on the first real request, each row with its `+N`/`-N` diff:
+one `payload changes (N)` row under `unattributed` on the first real request.
+Enter shows one labeled part per finding, each with its `+N`/`-N` diff; the row
+sums them. `N` includes deletions:
 
 | Change   | Preview                                                                |
 | -------- | ---------------------------------------------------------------------- |
@@ -91,7 +93,8 @@ prompt, then open `/context injections`. `payload-changes` produces one of each 
 
 The fixture seeds the modification and deletion originals in `context`, with
 an unchanged separator to keep them distinct in the payload diff. These are
-request-only additions under `unattributed`, not saved history.
+request-only additions in the `messages (N)` row under `unattributed`, not
+saved history.
 `before_provider_request` edits them and adds a message, leaving real prompts
 unchanged. It supports OpenAI Completions, OpenAI Responses, and Anthropic Messages.
 
@@ -112,13 +115,17 @@ Run `./scripts/demo-injections.sh --message --no-session`, open
 | `agent-start-message` | `before_agent_start`  | no change: a saved message, no diff         | same as before                             |
 | `system-add-message`  | `context_with_system` | addition, `context-view-fixture-system-add` | edited after monitor: added user message   |
 
-Pi saves one `agent-start-message` per run under
-`context-view-fixture-agent-message`, without a diff. After the probe
-and one prompt, the group has two messages.
+Pi saves one `agent-start-message` per run without a diff. It joins the
+`messages (N)` row under `unattributed`; its preview part is labelled
+`context-view-fixture-agent-message`, not a source group. After the probe and
+one prompt, two saved messages are shown. Before the monitor,
+`system-add-message` adds one request-only part, so the row reads `messages (3)`
+after the prompt and carries `Request-Only`.
 
 With `--after`, `system-add-message` is absent from the probe. After a real
-prompt, it appears in `payload changes`: provider conversion turns the custom
-message into a user message, losing its `customType`.
+prompt, it appears as a `user message` part in the `payload changes (N)` row
+under `unattributed`: provider conversion loses its `customType`.
+The messages row then reads `messages (2)`, with no diff.
 
 ## Optional codemode hidden-tools demo
 
@@ -144,8 +151,9 @@ they remain callable through codemode scripts. With the default tool selection,
 Tool-selection arguments can change that set.
 
 `--payload` without codemode reports its manual `write` removal as a deleted
-tool (`0 -N`) under `payload changes`, not a hidden tool. Its normal tool row and Usage count
-remain unchanged.
+`tool:write` part (`0 -N`) in the `payload changes (N)` preview, not a hidden
+tool. The finding counts toward `N` even though its estimate is zero. Its normal
+tool row and Usage count remain unchanged.
 
 ## Comparison with v0.6.0
 

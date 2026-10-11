@@ -160,8 +160,9 @@ test("#11: a captured tool the payload drops that Pi did not hide is a deleted p
 		type: "payload-tool-change", change: "deleted", name: "write", lines: [{ type: "removed", text: "write description" }],
 	}]);
 	const items = injectionItems(session, snapshot);
-	const changes = items.filter((item) => item.source.id === "payload-changes");
-	assert.deepEqual(changes.map((item) => [item.label, item.kind, item.change, item.tokens]), [["write", "tool", "deleted", 0]]);
+	const changes = items.find((item) => item.kind === "payload-change");
+	assert.deepEqual(changes?.sections?.map((part) => [part.label, part.toolDeclaration, part.tokens, part.diff]),
+		[["write", true, 0, { added: 0, removed: 5 }]], "the deletion removes the 5-token captured description");
 	const builtins = items.find((item) => item.id === "tool:builtin");
 	assert.equal(builtins?.label, "Built-in Tools (1)");
 	assert.deepEqual(builtins.children?.map((item) => [item.label, item.change]), [["write", undefined]]);

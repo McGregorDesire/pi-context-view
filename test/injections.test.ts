@@ -77,10 +77,21 @@ function itemsById(snapshot: InjectionSnapshot): Map<string, InjectionItem> {
 	return items;
 }
 
-/** `group / label · tokens · change` lines for message items. */
+/** The one row that holds every message, if any. */
+function messagesRow(snapshot: InjectionSnapshot): InjectionItem | undefined {
+	return snapshot.groups.flatMap((group) => group.items).find((item) => item.kind === "message");
+}
+
+/** The one row that holds every payload change, if any. */
+function payloadRow(snapshot: InjectionSnapshot): InjectionItem | undefined {
+	return snapshot.groups.flatMap((group) => group.items).find((item) => item.kind === "payload-change");
+}
+
+/** `group / part · tokens · change` lines for the parts of every message row. */
 function describeMessages(snapshot: InjectionSnapshot): string[] {
 	return snapshot.groups.flatMap((group) => group.items.filter((item) => item.kind === "message")
-		.map((item) => `${group.source.label} / ${item.label} · ${item.tokens}${item.change ? ` · ${item.change}` : ""}`));
+		.flatMap((item) => (item.sections ?? []).map((part) =>
+			`${group.source.label} / ${part.label} · ${part.tokens}${part.change ? ` · ${part.change}` : ""}`)));
 }
 
 /** A user message as a request carries it. */
@@ -104,12 +115,15 @@ test("the composition replays the recorded prompt and tools and lists session cu
 	assert.deepEqual(items.get("base-prompt")?.children?.map((child) => child.label),
 		["Preamble", "Available Tools", "Documentation", "Current Dir"]);
 	assert.equal(items.get("tool:builtin")?.label, "Built-in Tools (2)");
-	assert.deepEqual(describeMessages(snapshot), ["fixture-notes / message · 3"], "user prompts are not injections");
+	assert.deepEqual(describeMessages(snapshot), ["unattributed / fixture-notes · 3"], "user prompts are not injections");
+	assert.deepEqual([messagesRow(snapshot)?.label, messagesRow(snapshot)?.tokens], ["messages (1)", 3]);
+	assert.deepEqual(snapshot.groups.map((group) => group.source.label), ["pi", "unattributed"],
+		"a customType forms no group of its own");
 	assert.ok([...items.values()].every((item) => item.change === undefined));
 	assert.equal(snapshot.totalTokens, snapshot.groups.reduce((sum, group) => sum + group.totalTokens, 0));
 });
 
-test("conversation changes stay in place with their markers", () => {
+test("conversation changes form one unattributed messages row, in session order, then additions", () => {
 	const { session, entries } = createSession();
 	const added: RequestMessage = {
 		role: "custom", customType: "fixture-add", content: "added note", display: false, timestamp: 5,
@@ -127,26 +141,72 @@ test("conversation changes stay in place with their markers", () => {
 		],
 	}));
 
-	assert.deepEqual(describeMessages(snapshot).sort(), [
-		"fixture-add / message · 3 · added",
-		"fixture-notes / message · 6 · modified",
-		"unattributed / user message · 0 · deleted",
-		"unattributed / user message · 4 · added",
-		"unattributed / user message · 5 · modified",
-	], "the modified session custom message replaces its unchanged row");
+	assert.deepEqual(describeMessages(snapshot), [
+		"unattributed / fixture-notes · 6 · modified",
+		"unattributed / fixture-notes · session · 0",
+		"unattributed / user · 0 · deleted",
+		"unattributed / user · 5 · modified",
+		"unattributed / user · session · 0",
+		"unattributed / fixture-add · 3 · added",
+		"unattributed / user · 4 · added",
+	], "a modified or deleted message takes its session original's place; additions follow");
 
-	const items = [...itemsById(snapshot).values()];
-	const messages = items.filter((item) => item.kind === "message");
-	assert.ok(messages.every((item) => (item.requestOnly === true) === (item.change !== undefined)),
-		"every changed message is request-only");
-	const modified = items.find((item) => item.change === "modified" && item.label === "user message");
-	assert.deepEqual(modified?.sections?.map((part) => [part.label, part.text, part.tokens]), [
-		["Request", "edited second prompt", 5],
-		["Session", "second prompt", 0],
-	]);
-	const deleted = items.find((item) => item.change === "deleted");
-	assert.equal(deleted?.text, "first prompt", "a deletion previews the session original");
-	assert.equal(deleted?.sections, undefined);
+	const row = messagesRow(snapshot);
+	assert.deepEqual([row?.label, row?.tokens, row?.requestOnly], ["messages (4)", 18, true],
+		"N counts the sent messages, leaving the deletion out");
+	assert.equal(row?.text, ["rewritten stored note", "edited second prompt", "added note", "added user text"]
+		.join("\n\n"));
+	const parts = row?.sections ?? [];
+	assert.ok(parts.every((part) => (part.requestOnly === true) === (part.change !== undefined)),
+		"every changed message is request-only; a session part is not");
+	assert.deepEqual(parts.slice(3, 5).map((part) => [part.label, part.text, part.tokens]), [
+		["user", "edited second prompt", 5],
+		["user · session", "second prompt", 0],
+	], "a modification shows its counted request version, then the session original");
+	assert.equal(parts[2]?.text, "first prompt", "a deletion previews the session original");
+});
+
+test("custom entries are not messages, and message provenance never creates an extension group", () => {
+	const session = SessionManager.inMemory("/tmp/project");
+	session.appendMessage(user("ordinary prompt"));
+	session.appendCustomEntry("pi.share", { url: "https://example.test/session" });
+	const unchanged = buildInjectionsSnapshot(input(session));
+	assert.equal(messagesRow(unchanged), undefined, "ordinary history and non-context entries add no messages row");
+	assert.deepEqual(unchanged.groups.map((group) => group.source.label), ["pi"], "empty sources have no group");
+
+	const message: RequestMessage = {
+		role: "custom", customType: "fixture-web", content: "added note", display: false, timestamp: 6,
+		details: { source: "npm:web", reason: "search context" },
+	};
+	const added = buildInjectionsSnapshot(input(session, { conversation: [{
+		type: "added", message, attribution: { customType: "fixture-web", provenance: { source: "npm:web" } },
+	}] }));
+	assert.deepEqual(added.groups.map((group) => group.source.label), ["pi", "unattributed"]);
+	assert.deepEqual(messagesRow(added)?.sections?.map((part) => [part.label, part.text]),
+		[["fixture-web", "added note"]]);
+});
+
+test("deletion-only messages and payload findings retain their rows and parts at zero tokens", () => {
+	const session = SessionManager.inMemory("/tmp/project");
+	const entryId = session.appendCustomMessageEntry("fixture-notes", "stored note", false);
+	const snapshot = buildInjectionsSnapshot(input(session, { conversation: [{
+		type: "deleted", entryId, attribution: { customType: "fixture-notes" },
+	}] }, complete([{
+		type: "payload-tool-change", change: "deleted", name: "write", lines: [{ type: "removed", text: "Write files" }],
+	}])));
+	const messages = messagesRow(snapshot);
+	const payload = payloadRow(snapshot);
+	assert.deepEqual([messages?.label, messages?.tokens, messages?.text, messages?.diff],
+		["messages (0)", 0, "", { added: 0, removed: 3 }], "a deletion is not a sent message");
+	assert.deepEqual(messages?.sections?.map((part) => [part.label, part.text, part.tokens]),
+		[["fixture-notes", "stored note", 0]], "the original stays available after Enter");
+	assert.deepEqual([payload?.label, payload?.tokens, payload?.text, payload?.diff],
+		["payload changes (1)", 0, "", { added: 0, removed: 3 }], "a deletion is still a finding");
+	assert.deepEqual(payload?.sections?.[0]?.changedLines, [{ type: "removed", text: "Write files" }]);
+	assert.deepEqual(snapshot.groups.at(-1)?.diff, { added: 0, removed: 6 });
+	assert.equal(snapshot.groups.at(-1)?.totalTokens, 0);
+	assert.equal(messages?.children, undefined);
+	assert.equal(payload?.children, undefined);
 });
 
 test("system changes apply to the measured prompt and tools and mark what they touched", () => {
@@ -253,7 +313,7 @@ test("Injections uses the snapshot's leaf after later edits, branching, and tool
 	session.appendMessage(user("another branch"));
 	const snapshot = buildInjectionsSnapshot({ ...captured, entries: session.getEntries() });
 	const items = itemsById(snapshot);
-	assert.equal(items.get("message:fixture-notes:0")?.text, "stored note");
+	assert.equal(messagesRow(snapshot)?.sections?.[0]?.text, "stored note");
 	assert.equal(items.get("base-prompt:current-dir")?.text, "/tmp/project");
 	assert.equal(items.get("tool:builtin")?.label, "Built-in Tools (2)");
 });
@@ -308,9 +368,9 @@ test("raw session and redacted request images keep their original size markers i
 	const snapshot = buildInjectionsSnapshot(input(session, { conversation: [
 		{ type: "modified", entryId: id, message: request, attribution: {} },
 	] }));
-	const changed = itemsById(snapshot).get("change:0");
-	assert.match(changed?.sections?.[0]?.text ?? "", /<2.0KB omitted>/);
-	assert.match(changed?.sections?.[1]?.text ?? "", /<1000B omitted>/);
+	const parts = messagesRow(snapshot)?.sections?.filter((part) => part.label.startsWith("user"));
+	assert.match(parts?.[0]?.text ?? "", /<2.0KB omitted>/);
+	assert.match(parts?.[1]?.text ?? "", /<1000B omitted>/);
 	assert.ok(!JSON.stringify(snapshot).includes("x".repeat(1_000)));
 	assert.ok(Array.isArray(raw.content));
 	assert.ok(raw.content[0]?.type === "image");
@@ -323,7 +383,7 @@ function complete(findings: GuardFinding[]): { guard: GuardResult } {
 	return { guard: { status: "complete", dispatch, findings } };
 }
 
-test("payload changes form the last group and count only the lines the payload added", () => {
+test("payload changes form the last unattributed row and count only the lines the payload added", () => {
 	const { session } = createSession();
 	const snapshot = buildInjectionsSnapshot(input(session, {
 		conversation: [{ type: "added", message: user("added user text"), attribution: {} }],
@@ -339,24 +399,29 @@ test("payload changes form the last group and count only the lines the payload a
 		{ type: "payload-tool-change", change: "deleted", name: "bash", lines: [{ type: "removed", text: "Run commands" }] },
 	])));
 
-	assert.deepEqual(snapshot.groups.map((group) => group.source.label),
-		["pi", "fixture-notes", "unattributed", "payload changes"]);
+	assert.deepEqual(snapshot.groups.map((group) => group.source.label), ["pi", "unattributed"]);
+	assert.deepEqual(snapshot.groups.at(-1)?.items.map((item) => item.label), ["messages (2)", "payload changes (5)"],
+		"N counts every finding, deletions included");
 	assert.equal(itemsById(snapshot).get("tool:builtin:bash")?.change, undefined, "a payload removal does not stay in place");
-	const changes = snapshot.groups.at(-1);
-	assert.deepEqual(changes?.items.map((item) => [item.label, item.kind, item.tokens, item.change]), [
-		["edit_tool", "tool", 3, "added"],
-		["bash", "tool", 0, "deleted"],
-		["user message", "message", 6, "added"],
-		["system message", "message", 3, "modified"],
-		["tool result", "message", 0, "deleted"],
-	], "tools come first, then messages by size");
-	assert.equal(changes?.totalTokens, 12);
-	assert.ok(changes?.items.every((item) => item.requestOnly === undefined), "payload changes are not request-only");
-	const modified = changes?.items.find((item) => item.change === "modified");
+	const changes = payloadRow(snapshot);
+	assert.deepEqual(changes?.sections?.map((part) => [part.label, part.tokens, part.toolDeclaration === true]), [
+		["user message", 6, false],
+		["system message", 3, false],
+		["tool result", 0, false],
+		["edit_tool", 3, true],
+		["bash", 0, true],
+	], "one part per finding, in the guard's order");
+	assert.equal(changes?.tokens, 12);
+	assert.equal(changes?.children, undefined, "the row has no child rows");
+	assert.ok([changes, ...(changes?.sections ?? [])].every((part) => part?.requestOnly === undefined),
+		"payload changes are not request-only");
+	const modified = changes?.sections?.[1];
 	assert.equal(modified?.text, "new rule!", "the counted text holds only the added lines");
 	assert.deepEqual(modified?.changedLines, [
 		{ type: "removed", text: "old rule" }, { type: "added", text: "new rule!" },
 	]);
+	assert.equal(snapshot.groups.at(-1)?.totalTokens, (messagesRow(snapshot)?.tokens ?? 0) + 12,
+		"payload changes count toward the group");
 	assert.equal(snapshot.totalTokens, snapshot.groups.reduce((sum, group) => sum + group.totalTokens, 0));
 });
 
@@ -376,7 +441,7 @@ test("tools Pi hid are left out and their names are retained for the description
 	assert.equal(items.get("tool:unattributed:grep"), undefined, "hiding wins over the structured addition");
 	assert.deepEqual(snapshot.hiddenTools, ["bash", "grep"], "a hidden name the request did not declare is left out");
 	assert.deepEqual(buildInjectionsSnapshot(input(session)).hiddenTools, []);
-	assert.ok(snapshot.groups.every((group) => group.source.label !== "payload changes"));
+	assert.equal(payloadRow(snapshot), undefined, "a guard without findings adds no row");
 });
 
 test("only compared channels contribute findings; a pending guard has none", () => {
@@ -387,9 +452,9 @@ test("only compared channels contribute findings; a pending guard has none", () 
 	const partial = buildInjectionsSnapshot(input(session, {}, {
 		guard: { status: "incomplete", reason: "Message channel failed.", findings: [finding] },
 	}));
-	assert.equal(partial.groups.at(-1)?.source.label, "payload changes");
+	assert.equal(partial.groups.at(-1)?.items.at(-1)?.label, "payload changes (1)");
 	const pending = buildInjectionsSnapshot(input(session, {}, { guard: { status: "pending" } }));
-	assert.ok(pending.groups.every((group) => group.source.label !== "payload changes"));
+	assert.equal(payloadRow(pending), undefined);
 });
 
 // ============================================================================
@@ -688,20 +753,24 @@ test("tool and message rows compare with the session; deletions remove the sessi
 		],
 		system: [{ type: "tool", name: "grep", declaration: grep }, { type: "tool", name: "bash", declaration: null }],
 	}));
-	const messages = snapshot.groups.flatMap((group) => group.items).filter((item) => item.kind === "message");
+	const messages = messagesRow(snapshot);
 
-	assert.deepEqual(messages.map((item) => [item.label, item.change, item.tokens, item.diff]), [
-		["message", undefined, 3, undefined],
-		["message", "added", 3, { added: 3, removed: 0 }],
-		["user message", "modified", 5, { added: 1, removed: 0 }],
-		["user message", "deleted", 0, { added: 0, removed: 3 }],
+	assert.deepEqual(messages?.sections?.map((part) => [part.label, part.change, part.tokens, part.diff]), [
+		["fixture-notes", undefined, 3, undefined],
+		["user", "deleted", 0, { added: 0, removed: 3 }],
+		["user", "modified", 5, { added: 1, removed: 0 }],
+		["user \u00b7 session", undefined, 0, undefined],
+		["fixture-add", "added", 3, { added: 3, removed: 0 }],
 	], "the modification reconciles with the 4-token session prompt");
+	assert.deepEqual(messages?.diff, { added: 4, removed: 3 }, "the row sums its messages' diffs");
 	const items = itemsById(snapshot);
-	assert.deepEqual(items.get("tool:unattributed:grep")?.diff, { added: items.get("tool:unattributed:grep")?.tokens,
-		removed: 0 });
+	const grepTokens = items.get("tool:unattributed:grep")?.tokens ?? 0;
+	assert.deepEqual(items.get("tool:unattributed:grep")?.diff, { added: grepTokens, removed: 0 });
 	assert.deepEqual(items.get("tool:builtin:bash")?.diff, { added: 0, removed: 13 });
-	assert.deepEqual(snapshot.groups.find((group) => group.source.id === AGGREGATE_SOURCE_ID)?.diff,
-		{ added: 1, removed: 3 });
+	const unattributed = snapshot.groups.find((group) => group.source.id === AGGREGATE_SOURCE_ID);
+	assert.deepEqual(unattributed?.items.map((item) => item.label), ["grep", "messages (3)"],
+		"an unregistered tool joins unattributed");
+	assert.deepEqual(unattributed?.diff, { added: grepTokens + 4, removed: 3 });
 });
 
 test("a payload change compares its added lines with the captured request's removed lines", () => {
@@ -713,14 +782,15 @@ test("a payload change compares its added lines with the captured request's remo
 		{ type: "payload-change", change: "added", part: "user", lines: [{ type: "added", text: "XYZZY edit line" }] },
 		{ type: "payload-tool-change", change: "deleted", name: "bash", lines: [{ type: "removed", text: "Run commands" }] },
 	])));
-	const changes = snapshot.groups.at(-1);
+	const changes = payloadRow(snapshot);
 
-	assert.deepEqual(changes?.items.map((item) => [item.label, item.tokens, item.diff]), [
-		["bash", 0, { added: 0, removed: 3 }],
-		["user message", 4, { added: 4, removed: 0 }],
+	assert.deepEqual(changes?.sections?.map((part) => [part.label, part.tokens, part.diff]), [
 		["system message", 3, { added: 2, removed: 1 }],
+		["user message", 4, { added: 4, removed: 0 }],
+		["bash", 0, { added: 0, removed: 3 }],
 	]);
 	assert.deepEqual(changes?.diff, { added: 6, removed: 4 });
+	assert.deepEqual(snapshot.groups.at(-1)?.diff, { added: 6, removed: 4 });
 });
 
 test("a forced prompt without sections compares with pi's whole default prompt", () => {

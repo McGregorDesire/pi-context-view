@@ -60,34 +60,41 @@
     - Shorten the default explanations while keeping detailed explanations available.
     Decided: use `Request Probe` instead of `Latest Request` for probes; request-origin and `Payload` labels are muted, with dim payload values and separators, without bold or warning highlighting. Right-align `Payload: pending`, `not checked`, or `partly checked` when it fits, otherwise wrap it below the header. Complete comparisons add no status. Hidden-tool counts and names stay only in the description, as requested. Keep full detailed notes in the collapsible description, with a shorter opening sentence and no new key. Compact short-terminal frames keep origin, payload status, and the degraded reason before the selected row and its full bar whenever physically possible.
     Verified on Pi 1.1.0: `pnpm check` (798 tests). No real-PTY run.
-  - [ ] **Injections source contract** ([injections.md](ui/injections.md#contribution-tree)):
+  - [x] **Injections source contract** ([injections.md](ui/injections.md#contribution-tree)):
     - Top-level groups are `pi`, one group per extension, then `unattributed` for content from an extension that cannot be identified.
     - Custom messages leave their `customType` groups and move to `unattributed`; `customType` labels only the message's preview part.
     - `payload changes` moves under `unattributed`; see **One row for payload changes**.
     - Extension tool rows carry a dim `tool:` prefix (`tool:web_search`), so they read apart from the fixed rows `system prompt`, `messages (N)`, and `payload changes (N)`. Tools under `Built-in Tools (N)` keep plain names, since their group already names them.
     - Describe `unattributed` as content from an unknown extension: pi adds no custom messages to the context (`pi.share` is a session entry only).
-  - [ ] **One row for messages** ([injections.md](ui/injections.md#request-only-changes)):
+    Decided: unregistered recorded tools and their prompt references also use the shared `unattributed` source, never a second group with that label. Group order is `pi`, identified extensions by size, then `unattributed`; within the latter, tools, `system prompt`, messages, and payload changes. The dim `tool:` prefix is render-only and stays dim on selection.
+    Verified on Pi 1.1.0: `pnpm check` (804 tests). No real-PTY run.
+  - [x] **One row for messages** ([injections.md](ui/injections.md#request-only-changes)):
     - `unattributed` holds one `messages (N)` row for all custom messages and request-only message changes.
     - `N` counts the messages the request sent; deleted messages are left out, like tools in `Built-in Tools (N)`.
     - The row shows its messages' summed `+N`/`-N` against the session after its value.
+    Decided: one leaf row with labeled preview parts, using customType or role. Session-backed parts stay in baseline order, modifications and deletions in place, then additions in capture order because they carry no position. Modified messages temporarily show their counted request part followed by `<label> · session` at 0 tokens. Deleted messages stay in the preview at 0 tokens but not in `N`; session references do not count either. The row and changed message parts carry `Request-Only`; its status says `only in this request` with `Changed By: Unknown`. User-prompt numbering and word-level previews remain in the next item.
+    Verified on Pi 1.1.0: `pnpm check` (804 tests). No real-PTY run.
   - [ ] **Message preview** ([injections.md](ui/injections.md#injection-preview)):
     - The header reads `messages (N)` with `unattributed · N tokens` and the row's `+N`/`-N`.
     - One [labeled part](ui/previews.md#labeled-parts) per message in conversation order, including deleted messages at 0 tokens.
     - The part label is the `customType` of a custom message, or the role of any other message, followed by muted `· user prompt #N · N tokens` and the message's `+N`/`-N`.
     - `user prompt #N` counts user prompts up to the message over the whole branch, not only the compacted projection, so numbers stay the same after compaction. Request-only additions take the number of the request's prompt; a message before the first prompt shows no number.
-    - A modified message shows a word-level diff of its session and request versions instead of `Request` and `Session` parts. Its estimate counts the request version.
-  - [ ] **One row for payload changes** ([injections.md](ui/injections.md#payload-changes)):
+    - A modified message shows a word-level diff of its session and request versions instead of the interim request and zero-token session parts. Its estimate counts the request version.
+    - Add word-level highlighting to payload-finding parts in the same preview work; their labeled layout is already implemented.
+  - [x] **One row for payload changes** ([injections.md](ui/injections.md#payload-changes)):
     - `unattributed` holds one `payload changes (N)` row without child rows, like `messages (N)`.
     - `N` counts all findings, deletions included: the row lists changes, so a deletion-only finding still counts.
     - The row shows its findings' summed `+N`/`-N` against the captured request after its value.
-    - The preview shows one labeled part per finding in payload order: the message part (`user message`) or the tool name with the dim `tool:` prefix, so it reads apart from a `tool call`, then muted `· N tokens` and the finding's `+N`/`-N`, then its word-level diff. Findings carry no position, so parts have no `user prompt #N`.
+    - The preview shows one labeled part per finding in payload order: the message part (`user message`) or the tool name with the dim `tool:` prefix, so it reads apart from a `tool call`, then muted `· N tokens` and the finding's `+N`/`-N`. Findings carry no position, so parts have no `user prompt #N`.
+    Decided: parts preserve guard order, including deletions at 0 tokens; added lines back the estimate, and both added and removed lines remain in the preview. The row and its parts carry no `Request-Only`, and the status says `only in the provider payload` with `Changed By: Unknown`. Keep the existing colored `+`/`-` lines for now; word-level highlighting is deferred to the Message preview work above, as requested.
+    Verified on Pi 1.1.0: `pnpm check` (804 tests). No real-PTY run.
 
 
 ## `Backlog`
 
 - [ ] **Injections grouping by content or source** ([injections.md](ui/injections.md#contribution-tree)):
   - Offer By Content and By Source groupings of the same latest-request snapshot.
-  - By Content uses the existing category names; By Source groups contributions under `pi`, each extension, and `unattributed`, keeping `payload changes` separate when present.
+  - By Content uses the existing category names; By Source groups contributions under `pi`, each extension, and `unattributed`, with its `payload changes (N)` row when present.
   - Or introduce more tabs: "System Prompt", "Extensions", "unattributed", "Diff View".
   - Show capturing type in the header, aligned to the right: "Last Req", "Probe", ...
   - Switching grouping changes presentation only, not capture, token accounting, or preview content.

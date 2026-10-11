@@ -2,11 +2,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { analyzeSystemPrompt } from "../src/measure.ts";
+import { analyzeSystemPrompt, UNREGISTERED_TOOL_SOURCE } from "../src/measure.ts";
 import {
 	AGGREGATE_SOURCE,
 	buildSnapshot,
-	extensionSource,
 	type InjectionItem,
 	type InjectionSnapshot,
 	PI_SOURCE,
@@ -96,11 +95,19 @@ test("a replacement's dropped lines create no system prompt row", () => {
 	assert.deepEqual(buildSystemPromptRows(parts, parts), []);
 });
 
-test("an unregistered recorded tool's prompt lines have no extension owner", () => {
-	const source = extensionSource({ source: "unattributed" });
-	const text = "\n- old_tool: Old snippet";
-	const part = { ...item("tools", text, 6),
-		injectedReferences: [{ start: 0, end: text.length, source, tool: "old_tool" }] };
+test("an unregistered recorded tool and its prompt lines belong to unattributed", () => {
+	const items = analyzeSystemPrompt("Base prompt\n\n<tools>\n- old_tool: Old snippet\n</tools>", {}, [{
+		name: "old_tool", description: "Old tool", parametersJson: "{}", snippet: "Old snippet", guidelines: [],
+		source: UNREGISTERED_TOOL_SOURCE,
+	}]);
+	const tools = items.find((entry) => entry.id === "base-prompt")?.children
+		?.find((part) => part.label === "Available Tools");
+	assert.ok(tools);
+	assert.deepEqual(items.find((entry) => entry.kind === "tool")?.source, AGGREGATE_SOURCE,
+		"the tool joins the unattributed group instead of forming its own");
+	assert.deepEqual(tools.injectedReferences?.map((reference) => [reference.source, reference.tool]),
+		[[AGGREGATE_SOURCE, "old_tool"]]);
+	const part = { ...tools, diff: { added: 6, removed: 0 } };
 	const rows = buildSystemPromptRows([prompt([part])], [prompt([part])]);
 	assert.deepEqual(rows.map((row) => [row.source, row.diff]), [
 		[AGGREGATE_SOURCE, { added: 6, removed: 0 }],

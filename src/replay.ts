@@ -12,6 +12,7 @@ import {
 	type PromptOptionsSlice,
 	SYSTEM_PROMPT_ITEM_ID,
 	type ToolSlice,
+	UNREGISTERED_TOOL_SOURCE,
 } from "./measure.ts";
 import { buildSnapshot, type InjectionItem, type InjectionSnapshot, type RequestChange } from "./model.ts";
 import type { PromptSourceSlice } from "./prompt-additions.ts";
@@ -215,7 +216,7 @@ export function replayedToolSlices(
 			parametersJson: JSON.stringify(tool.parameters),
 			snippet: snippetLine?.slice(`- ${tool.name}: `.length),
 			guidelines: normalizeGuidelines(metadata?.promptGuidelines),
-			source: metadata?.sourceInfo.source ?? "unattributed",
+			source: metadata?.sourceInfo.source ?? UNREGISTERED_TOOL_SOURCE,
 			sourcePath: metadata?.sourceInfo.path,
 		};
 	});

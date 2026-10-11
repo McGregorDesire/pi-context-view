@@ -291,15 +291,12 @@ suite("structured edits", { concurrency: true }, () => {
 
 			await runtime.session.prompt("/context injections");
 			const rows = treeRows(await runtime.renderView());
+			// The saved message, the context addition, and before the monitor the context_with_system addition
 			assert.deepEqual(
-				rows.slice(rows.indexOf(POINT_AGENT_START_TYPE), rows.indexOf("TOTAL (Prompt, Tools, Injections)")),
-				[
-					POINT_AGENT_START_TYPE, "message",
-					...(before ? [`${POINT_SYSTEM_TYPE} +`, "message + · Request-Only"] : []),
-					"unattributed +", "user message + · Request-Only",
-					"payload changes +", "user message +",
-				],
+				rows.slice(rows.indexOf("unattributed +"), rows.indexOf("TOTAL (Prompt, Tools, Injections)")),
+				["unattributed +", `messages (${before ? 3 : 2}) + · Request-Only`, "payload changes (1) +"],
 			);
+			assert.ok(!rows.includes(POINT_AGENT_START_TYPE), "a customType forms no group of its own");
 			assert.deepEqual(runtime.errors, []);
 		});
 
@@ -309,8 +306,7 @@ suite("structured edits", { concurrency: true }, () => {
 			const factories = position === "before" ? [...fixtures, monitorSlot] : [monitorSlot, ...fixtures];
 			const runtime = await createRuntime(t, provider, { factories });
 			const before = position === "before";
-			const added = [`${SYSTEM_ADD_MESSAGE_TYPE} +`, "message + · Request-Only"];
-			/** Rows of the fixtures' groups in the rendered Injections view, after pi's own rows. */
+			/** Rows of the fixtures' messages in the rendered Injections view, after pi's own rows. */
 			const fixtureRows = async () => {
 				await runtime.session.prompt("/context injections");
 				const rows = treeRows(await runtime.renderView());
@@ -318,13 +314,14 @@ suite("structured edits", { concurrency: true }, () => {
 			};
 
 			// The probe saves one copy; a probe has no payload, so a payload change cannot show yet
-			assert.deepEqual(await fixtureRows(), [...(before ? added : []), AGENT_START_MESSAGE_TYPE, "message"]);
+			assert.deepEqual(await fixtureRows(), before
+				? ["unattributed +", "messages (2) + · Request-Only"]
+				: ["unattributed", "messages (1)"]);
 			assert.equal(provider.requests.length, 0);
 			await runtime.session.prompt("prompt");
-			assert.deepEqual(await fixtureRows(), [
-				AGENT_START_MESSAGE_TYPE, "message", "message",
-				...(before ? added : ["payload changes +", "user message +"]),
-			]);
+			assert.deepEqual(await fixtureRows(), before
+				? ["unattributed +", "messages (3) + · Request-Only"]
+				: ["unattributed +", "messages (2)", "payload changes (1) +"]);
 
 			const snapshots = await runtime.settled({ payloadChanges: true });
 			const addition = [`added ${SYSTEM_ADD_MESSAGE_TYPE}: ${SYSTEM_ADD_MESSAGE_TEXT}`];
@@ -447,21 +444,25 @@ suite("Injections composition", { concurrency: true }, () => {
 			activeToolNames: [],
 		});
 
-		const marked = composition.groups.flatMap((group) => group.items.flatMap((item) => [item, ...(item.children ?? [])]))
+		const items = composition.groups.flatMap((group) => group.items);
+		const marked = items.flatMap((item) => [item, ...(item.children ?? [])])
 			.filter((item) => item.change !== undefined)
 			.map((item) => `${item.source.label} / ${item.label}: ${item.change}`);
-		assert.deepEqual(marked.sort(), [
-			`${CONTEXT_ADD_TYPE} / message: added`,
+		const messages = items.find((item) => item.kind === "message");
+		const markedMessages = (messages?.sections ?? []).filter((part) => part.change !== undefined)
+			.map((part) => `${messages?.source.label} / ${part.label}: ${part.change}`);
+		assert.deepEqual([...marked, ...markedMessages].sort(), [
+			`unattributed / ${CONTEXT_ADD_TYPE}: added`,
 			"pi / Documentation: deleted",
 			"pi / Preamble: modified",
 			...Object.keys(SECTION_PATCH_SECTIONS).map((name) => `pi / ${name}: added`),
 			...Object.keys(SECTION_DELETE_SECTIONS).map((name) => `pi / ${name}: deleted`),
-			"unattributed / user message: modified",
+			"unattributed / user: modified",
 		].sort());
-		const modified = composition.groups.flatMap((group) => group.items).find((item) => item.change === "modified");
-		assert.deepEqual(modified?.sections?.map((part) => [part.label, part.text]), [
-			["Request", `${CONTEXT_MODIFY_PREFIX} original text`],
-			["Session", JSON.stringify([{ type: "text", text: "original text" }])],
+		const modified = messages?.sections?.findIndex((part) => part.change === "modified") ?? -1;
+		assert.deepEqual(messages?.sections?.slice(modified, modified + 2).map((part) => [part.label, part.text]), [
+			["user", `${CONTEXT_MODIFY_PREFIX} original text`],
+			["user · session", JSON.stringify([{ type: "text", text: "original text" }])],
 		]);
 	});
 

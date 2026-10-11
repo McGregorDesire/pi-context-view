@@ -12,21 +12,36 @@ part under its own bold `syntaxKeyword` subheader followed by a muted
 trailing blank rows of the preceding part with this separator; preserve blank
 rows inside its body and leave captured text and token estimates unchanged.
 Part shares reconcile exactly with the item or entry estimate and never add to
-it. In Injections, a modified message's `Session` part and a deleted part keep
-reference text at 0 tokens; only the request version contributes to the parent.
+it. In Injections, a modified message's `<label> · session` part and a deleted
+part keep reference text at 0 tokens; only the request version contributes to
+the row. The `messages (N)` and `payload changes (N)` rows each use labeled
+parts, without child rows, for every message or finding.
 Show the applicable subheader even when `Definition` is the only captured
 part; omit parts with no captured text rather than rendering zero-token
-placeholders. In addition to those request-only change references, one kind of
-part carries no counted text by design and still renders at 0 tokens: any part
+placeholders. Message and payload-finding parts stay even when empty: their
+count and changes still matter. In addition to those request-only change
+references, one kind of part carries no counted text by design and still renders
+at 0 tokens: any part
 a `--system-prompt` replacement dropped, which keeps its subheader with
 the [`Dropped` marker](../UI.md#color-and-casing) after its estimate — even with
 an empty body, since the point is to show what the replacement gave up.
 
 In Injections, a part that stands for a child row — a System Prompt part, an
-instruction file, a skill, a built-in tool — also carries the row's
-[`+N`/`-N` diff](injections.md#token-diffs) after its share, behind a dim
-` · `, and its [`Request-Only` marker](injections.md#request-only-changes)
+instruction file, a skill, a built-in tool — or stands for a message also
+carries its [`+N`/`-N` diff](injections.md#token-diffs) after its share, behind a
+dim ` · `, and its [`Request-Only` marker](injections.md#request-only-changes)
 among its markers: `Current Dir · 31 tokens · +14 · Request-Only`.
+Message labels are the `customType` or role; a modified message's zero-token
+session-reference part has no diff or marker. User-prompt numbering and
+word-level diff bodies are deferred.
+
+Each payload finding's part carries its estimate and diff against the captured
+request, with no `Request-Only`. Its body shows the retained changed lines
+instead of only the counted added text, including removed lines of a deletion.
+A tool declaration subheader adds a dim `tool:` before its bold tool name, so
+it reads apart from a `tool call`. These parts retain the guard's order, never
+sorting by token size. Word-level highlighting is deferred; changed lines
+keep their existing full-line diff colors and hanging indent.
 
 Diff-only Injections [`system prompt` rows](injections.md#system-prompt-rows)
 and their parts have no token estimate. Part subheaders show only their diffs,

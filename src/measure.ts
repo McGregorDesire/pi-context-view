@@ -10,6 +10,7 @@
  * Prompt counts all of its text, extension lines included.
  */
 import {
+	AGGREGATE_SOURCE,
 	BUILT_IN_TOOLS_LABEL,
 	type ExtensionProvenance,
 	extensionSource,
@@ -50,6 +51,9 @@ const PREAMBLE_BLOCK = { id: "base-prompt:preamble", label: "Preamble" };
 
 /** Id of the System Prompt item, which holds pi's whole prompt. */
 export const SYSTEM_PROMPT_ITEM_ID = "base-prompt";
+
+/** `ToolSlice.source` of a recorded tool no extension registers now: its owner is unknown. */
+export const UNREGISTERED_TOOL_SOURCE = "unattributed";
 
 /** Known XML section names retain the existing semantic ids and labels. */
 const SECTION_PARTS: Readonly<Record<string, { id: string; label: string }>> = {
@@ -98,7 +102,7 @@ export interface ToolSlice {
 	snippet?: string;
 	/** Guideline bullets rendered into the prompt's Guidelines section. */
 	guidelines: string[];
-	/** Provenance, e.g. "builtin" or "npm:pi-web-providers". */
+	/** Provenance, e.g. "builtin", "npm:pi-web-providers", or `UNREGISTERED_TOOL_SOURCE`. */
 	source: string;
 	/** Entry path of the owning extension; tells path extensions (`cli`, `local`) apart. */
 	sourcePath?: string;
@@ -446,9 +450,13 @@ function createDeletedToolItem(tool: ToolSlice, source: InjectionSource): Inject
 	return { ...createToolItem(id, source, tool.name, [definition]), change: "deleted" };
 }
 
-/** Owner of a tool: pi for a built-in, otherwise its extension labelled against the roster. */
+/**
+ * Owner of a tool: pi for a built-in, `unattributed` for an unregistered
+ * tool, otherwise its extension labelled against the roster.
+ */
 function toolSource(tool: ToolSlice, roster: readonly ExtensionProvenance[]): InjectionSource {
 	if (tool.source === "builtin") return PI_SOURCE;
+	if (tool.source === UNREGISTERED_TOOL_SOURCE) return AGGREGATE_SOURCE;
 	return extensionSource({ source: tool.source, path: tool.sourcePath }, roster);
 }
 

@@ -67,7 +67,9 @@ Use `ToolInfo.sourceInfo` for tool ownership. A package source (`npm:`, `git:`)
 identifies its extension. The path kinds `cli`, `local`, and `auto` do not, so
 tools and prompt additions from such an extension are owned by its kind and
 entry path, and labelled by path against every extension that registered a
-tool or command.
+tool or command. A recorded tool with no currently registered implementation
+belongs to the shared `unattributed` source, never a second group with that
+label. Its prompt references use the same unknown source.
 
 A tool item counts only its definition: name, description, and parameter
 schema. Pi renders the tool's snippet and guideline bullets into its prompt,
@@ -166,6 +168,36 @@ them. Other changed leaves default to unknown in the row model. The selected
 row's status bar uses this metadata, never the affected source group, tool name,
 customType, or section name, to name an editor. Parents and groups omit editors,
 and diff-only rows explain their accounting instead.
+
+## Messages and Payload Changes
+
+Injections groups every custom message and request-only conversation change
+under the same `unattributed` source, regardless of `customType` or cooperative
+provenance. Neither identifies an extension. Pi adds no custom context messages:
+`pi.share` is a session/export entry only. Usage still classifies custom messages
+by `customType`; its categories and message accounting are unchanged.
+
+One `messages (N)` item holds labeled sections, not child items. `N` counts
+messages sent, excluding deletions and session-reference parts. Message
+estimates use Pi's `estimateTokens`; the row sums the counted sections. Each
+changed message's content-only preview compares with its session original, and
+the row sums those diffs. Modified messages retain a zero-token session section
+following their counted request section; deleted messages retain the original
+at zero tokens. Only sent text contributes to the item's counted text and
+characters. The row and changed message sections carry `requestOnly`.
+
+One `payload changes (N)` item of kind `payload-change` holds one section per
+guard finding, in guard order. `N` counts every finding, deletions included.
+Each section's estimate counts only added lines using chars/4; its diff compares
+those lines with the removed captured-request lines. The row sums the section
+estimates and diffs. Sections keep both sets of lines for previews, and typed
+`toolDeclaration` metadata distinguishes tool names from message-part labels.
+Neither the row nor its sections are request-only. Its estimate and diff count
+toward `unattributed` and the total; this is not a payload-size estimate.
+
+Both items disappear when there are no messages or findings to show. Their
+labeled preview contract lives in
+[ui/injections.md](../ui/injections.md#injection-preview).
 
 ## Totals and Structured Previews
 

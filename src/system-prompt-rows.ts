@@ -13,7 +13,6 @@ import {
 	AGGREGATE_SOURCE,
 	AGGREGATE_SOURCE_ID,
 	type ChangeEditor,
-	extensionSource,
 	type InjectionItem,
 	type InjectionSection,
 	type InjectionSource,
@@ -23,9 +22,6 @@ import {
 
 /** Label of every `system prompt` row; lower case, like the other rows under a source. */
 const SYSTEM_PROMPT_ROW_LABEL = "system prompt";
-
-/** An unregistered recorded tool has no extension provenance, even when its snippet is known. */
-const UNATTRIBUTED_TOOL_SOURCE_ID = extensionSource({ source: "unattributed" }).id;
 
 /**
  * One diff-only `system prompt` row per extension with lines in the System
@@ -289,9 +285,12 @@ function extensionLines(items: readonly InjectionItem[]): Map<string, string> {
 	return lines;
 }
 
-/** Whether a reference has no extension provenance, rather than a known or guessed owner. */
+/**
+ * Whether a reference has no extension provenance, rather than a known or
+ * guessed owner, such as an unregistered recorded tool's snippet.
+ */
 function isUnattributedSource(source: InjectionSource): boolean {
-	return source.id === AGGREGATE_SOURCE_ID || source.id === UNATTRIBUTED_TOOL_SOURCE_ID;
+	return source.id === AGGREGATE_SOURCE_ID;
 }
 
 /** The diff-only row of one draft: no estimate, the sum of its parts' diffs. */

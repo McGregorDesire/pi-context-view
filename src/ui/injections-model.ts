@@ -7,7 +7,6 @@ import {
 	type ChangeEditor,
 	type InjectionItem,
 	type InjectionSnapshot,
-	PAYLOAD_CHANGES_SOURCE_ID,
 	type RequestChange,
 	sumTokenDiffs,
 	type TokenDiff,
@@ -15,6 +14,9 @@ import {
 
 /** Editor of every change no extension line explains. */
 const UNKNOWN_EDITOR: ChangeEditor = { type: "unknown" };
+
+/** Prefix of a tool row outside `Built-in Tools (N)`, whose group does not name it a tool. */
+const TOOL_LABEL_PREFIX = "tool:";
 
 /**
  * Where a row's changes live, one status-bar phrase each:
@@ -25,7 +27,8 @@ const UNKNOWN_EDITOR: ChangeEditor = { type: "unknown" };
  *   request-edit     a leaf changed only in this request; the session keeps the original
  *   request-new      a leaf only this request has
  *   payload          only in the provider payload
- * Aggregates are parents, groups, and `system prompt` rows.
+ * Aggregates are parents, groups, and the `system prompt`, `messages (N)`,
+ * and `payload changes (N)` rows.
  */
 export type ChangeScope =
 	| "saved"
@@ -51,6 +54,8 @@ export type InjectionRow =
 	| {
 		readonly kind: "item";
 		readonly label: string;
+		/** Dim prefix before the label: `tool:` on a tool row outside `Built-in Tools (N)`. */
+		readonly labelPrefix?: string;
 		readonly tokens: number;
 		/** One for items and two for constituent sub-items. */
 		readonly depth: 1 | 2;
@@ -72,7 +77,7 @@ export type InjectionRow =
 		readonly diffOnly?: boolean;
 		/** Where the row's changes live; absent when it has none. */
 		readonly scope?: ChangeScope;
-		/** Who made a changed leaf row's change; absent on aggregates and unchanged rows. */
+		/** Who made a changed leaf row's change; absent on parents, groups, diff-only rows, and unchanged rows. */
 		readonly editors?: readonly ChangeEditor[];
 		/** Stable preview target id from the snapshot. */
 		readonly itemId: string;
@@ -119,6 +124,8 @@ export function buildInjectionRows(snapshot: InjectionSnapshot): InjectionRow[] 
 			rows.push({
 				kind: "item",
 				label: item.label,
+				// Built-in tools are pi's children of Built-in Tools (N)
+				...(item.kind === "tool" && !item.source.native ? { labelPrefix: TOOL_LABEL_PREFIX } : {}),
 				tokens: item.tokens,
 				depth: 1,
 				isLast: isLastItem,
@@ -172,12 +179,14 @@ function rowStatus(item: InjectionItem): { scope?: ChangeScope; editors?: readon
  * Where one item's changes live. A parent combines its children and the
  * removal of children only the session has, which is request-only. A
  * `system prompt` row combines its saved and request-only changes like a
- * parent. A forced prompt without parts exists only in this request.
+ * parent. Every message change is only in this request, so the messages row
+ * has no saved ones. A forced prompt without parts exists only in this request.
  */
 function itemScope(item: InjectionItem): ChangeScope | undefined {
 	const children = item.children ?? [];
 	if (children.length > 0) return combineScopes(children.map(itemScope), removesChildren(item, children));
-	if (item.source.id === PAYLOAD_CHANGES_SOURCE_ID) return "payload";
+	if (item.kind === "payload-change") return "payload";
+	if (item.kind === "message") return item.requestOnly === true ? "request" : undefined;
 	if (item.diffOnly === true) {
 		if (item.requestOnly !== true) return item.diff === undefined ? undefined : "saved";
 		return item.savedChange === true ? "partly" : "request";
@@ -198,8 +207,8 @@ function removesChildren(parent: InjectionItem, children: readonly InjectionItem
 
 /**
  * One aggregate scope: saved, request-only, or partly both. Payload changes
- * share no group with other changes; mixed with them, they count as
- * request-only, since the session keeps neither.
+ * mixed with other changes count as request-only, since the session keeps
+ * neither.
  */
 function combineScopes(scopes: ReadonlyArray<ChangeScope | undefined>, request = false): ChangeScope | undefined {
 	let saved = false;

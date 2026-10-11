@@ -3,8 +3,9 @@
  * the snapshot's leaf, rebuilt when the view opens, with the snapshot's
  * request-only changes marked and hidden tools left out, plus the payload
  * guard's payload changes. Every contribution carries the tokens it gained and
- * lost against its base. Reads the snapshot and current Pi data only; imports
- * no capture or probe module.
+ * lost against its base. Messages and payload changes each form one
+ * `unattributed` row. Reads the snapshot and current Pi data only; imports no
+ * capture or probe module.
  */
 import { getCurrentSystemMessage } from "@earendil-works/pi-ai";
 import {
@@ -27,10 +28,8 @@ import {
 	buildSnapshot,
 	type InjectedReference,
 	type InjectionItem,
+	type InjectionSection,
 	type InjectionSnapshot,
-	type InjectionSource,
-	messageTypeSource,
-	PAYLOAD_CHANGES_SOURCE,
 	type RequestChange,
 	sumTokenDiffs,
 	type TokenDiff,
@@ -94,8 +93,9 @@ export interface InjectionsInput {
 
 /**
  * Build the Injections tree of one request: its replayed prompt and tools,
- * custom messages, and changes, with the guard's payload changes in their own
- * group. The tools Pi hid are left out; their names supply the description note.
+ * then one row for custom messages and message changes and one for the
+ * guard's payload changes. The tools Pi hid are left out; their names supply
+ * the description note.
  */
 export function buildInjectionsSnapshot(input: InjectionsInput): InjectionSnapshot {
 	const baseline = readProjection(input.entries, input.snapshot.leafId, input.filterMessages);
@@ -206,83 +206,111 @@ function withToolChange(tool: ToolSlice, change: RequestChange | undefined): Too
 // Messages
 // ============================================================================
 
+/** A conversation change that references the session message it replaces or removes. */
+type EntryChange = Extract<ConversationChange, { readonly type: "modified" | "deleted" }>;
+
+/** Preview parts of one message and whether the request sent it. */
+interface MessageParts {
+	readonly sections: readonly InjectionSection[];
+	readonly sent: boolean;
+}
+
 /**
- * Items for the session's custom messages and every conversation change. A
- * modified or deleted message takes the place of its unchanged session row.
+ * One `messages (N)` row for the session's custom messages and every
+ * conversation change, or none without either. Its parts follow the session's
+ * order, a modified or deleted message in place of its session original, then
+ * additions, which carry no position, in capture order. `N` counts the
+ * messages the request sent, so deletions are left out.
  */
 function measureMessages(
 	changes: readonly ConversationChange[],
 	baseline: readonly ProjectedMessage[],
 ): InjectionItem[] {
-	const consumed = new Set<ProjectedMessage>();
-	/** The first unconsumed conversation message of an entry; an entry rarely holds more than one. */
-	const take = (entryId: string): RequestMessage | undefined => {
-		const found = baseline.find((candidate) => candidate.entryId === entryId
-			&& candidate.message.role !== "system" && !consumed.has(candidate));
-		if (found !== undefined) consumed.add(found);
-		return found?.message;
-	};
-	const changed = changes.map((change, index) => changeItem(`change:${index}`, change, take));
-
-	const occurrences = new Map<string, number>();
-	const unchanged: InjectionItem[] = [];
-	for (const entry of baseline) {
-		if (consumed.has(entry) || entry.message.role !== "custom") continue;
-		const customType = entry.message.customType;
-		const occurrence = occurrences.get(customType) ?? 0;
-		occurrences.set(customType, occurrence + 1);
-		unchanged.push(messageItem(`message:${customType}:${occurrence}`, entry.message, messageTypeSource(customType)));
+	const targets = new Map<ProjectedMessage, EntryChange>();
+	const unplaced: ConversationChange[] = [];
+	for (const change of changes) {
+		// An entry rarely holds more than one conversation message; take the first one not yet changed
+		const target = change.type === "added" ? undefined : baseline.find((candidate) =>
+			candidate.entryId === change.entryId && candidate.message.role !== "system" && !targets.has(candidate));
+		if (target === undefined || change.type === "added") unplaced.push(change);
+		else targets.set(target, change);
 	}
-	return [...unchanged, ...changed];
+	const messages: MessageParts[] = [];
+	for (const entry of baseline) {
+		const change = targets.get(entry);
+		if (change !== undefined) messages.push(changedMessageParts(change, entry.message));
+		else if (entry.message.role === "custom") messages.push({ sections: [messageSection(entry.message)], sent: true });
+	}
+	messages.push(...unplaced.map((change) => changedMessageParts(change, undefined)));
+	return messages.length === 0 ? [] : [createMessagesItem(messages)];
+}
+
+/** The one messages row: the sent messages' estimates and diffs, and every message's parts. */
+function createMessagesItem(messages: readonly MessageParts[]): InjectionItem {
+	const sections = messages.flatMap((message) => message.sections);
+	const text = messages.filter((message) => message.sent)
+		.map((message) => message.sections[0]?.text ?? "").join("\n\n");
+	const diff = sumTokenDiffs(sections.map((section) => section.diff));
+	return {
+		id: "messages",
+		kind: "message",
+		source: AGGREGATE_SOURCE,
+		label: `messages (${messages.filter((message) => message.sent).length})`,
+		chars: text.length,
+		tokens: sections.reduce((sum, section) => sum + section.tokens, 0),
+		text,
+		sections,
+		...diffField(diff),
+		...(sections.some((section) => section.requestOnly === true) ? { requestOnly: true } : {}),
+	};
 }
 
 /**
- * One conversation change as a marked, request-only item with its token diff
- * against the session; deletions read 0 tokens and preview the session original.
+ * Parts of one conversation change, request-only, with its token diff against
+ * the session. A modification shows its counted request version, then the
+ * session original at 0 tokens; a deletion reads 0 tokens and shows the
+ * session original. `original` is undefined when the change has no session
+ * message in the baseline.
  */
-function changeItem(
-	id: string,
-	change: ConversationChange,
-	take: (entryId: string) => RequestMessage | undefined,
-): InjectionItem {
-	const source = change.attribution.customType === undefined
-		? AGGREGATE_SOURCE
-		: messageTypeSource(change.attribution.customType);
+function changedMessageParts(change: ConversationChange, original: RequestMessage | undefined): MessageParts {
 	switch (change.type) {
 		case "added": {
-			const item = messageItem(id, change.message, source, true);
-			return { ...item, change: "added", requestOnly: true, ...diffField(measureTokenDiff(undefined, item)) };
+			const section = messageSection(change.message, true);
+			const diff = measureTokenDiff(undefined, section);
+			return { sections: [{ ...section, change: "added", requestOnly: true, ...diffField(diff) }], sent: true };
 		}
 		case "modified": {
-			const item = messageItem(id, change.message, source, true);
-			const original = take(change.entryId);
-			if (original === undefined) return { ...item, change: "modified", requestOnly: true };
-			const session = messagePreview(original);
-			const diff = measureTokenDiff({ text: session.text, tokens: estimateTokens(original) }, item);
+			const request = { ...messageSection(change.message, true), change: "modified" as const, requestOnly: true };
+			if (original === undefined) return { sections: [request], sent: true };
+			const session = messageSection(original);
+			const diff = measureTokenDiff(session, request);
 			return {
-				...item,
-				change: "modified",
-				requestOnly: true,
-				...diffField(diff),
-				sections: [
-					{ label: "Request", text: item.text, tokens: item.tokens, jsonSpan: item.jsonSpan },
-					{ label: "Session", text: session.text, tokens: 0, jsonSpan: session.jsonSpan },
-				],
+				sections: [{ ...request, ...diffField(diff) }, { ...session, label: `${session.label} · session`, tokens: 0 }],
+				sent: true,
 			};
 		}
 		case "deleted": {
-			const original = take(change.entryId);
+			const deleted = { change: "deleted" as const, requestOnly: true };
 			if (original === undefined) {
-				return {
-					id, kind: "message", source, label: "message", chars: 0, tokens: 0, text: "",
-					change: "deleted", requestOnly: true,
-				};
+				return { sections: [{ label: change.attribution.customType ?? "message", text: "", tokens: 0, ...deleted }],
+					sent: false };
 			}
-			const item = messageItem(id, original, source);
-			const diff = measureTokenDiff(item, { text: "", tokens: 0 });
-			return { ...item, chars: 0, tokens: 0, change: "deleted", requestOnly: true, ...diffField(diff) };
+			const session = messageSection(original);
+			const diff = measureTokenDiff(session, { text: "", tokens: 0 });
+			return { sections: [{ ...session, tokens: 0, ...deleted, ...diffField(diff) }], sent: false };
 		}
 	}
+}
+
+/** One message as a preview part: labeled by its customType or role, with its content-only preview. */
+function messageSection(message: RequestMessage, redacted = false): InjectionSection {
+	const { text, jsonSpan } = messagePreview(message, redacted);
+	return {
+		label: message.role === "custom" ? message.customType : message.role,
+		text,
+		tokens: estimateTokens(message),
+		...(jsonSpan === undefined ? {} : { jsonSpan }),
+	};
 }
 
 // ============================================================================
@@ -290,44 +318,41 @@ function changeItem(
 // ============================================================================
 
 /**
- * One item per payload change, in the payload-changes group. The guard keeps only the
- * changed lines, so each item counts the lines the payload added; a deletion
- * reads 0 tokens. Its token diff compares the added lines with the removed
- * ones, the lines of the captured request.
+ * One `payload changes (N)` row with one part per finding, in the guard's
+ * order, or none without findings. `N` counts every finding, deletions
+ * included. The guard keeps only the changed lines, so each part counts the
+ * lines the payload added, and a deletion reads 0 tokens. Its token diff
+ * compares the added lines with the removed ones, the lines of the captured
+ * request.
  */
 function measurePayloadChanges(findings: readonly GuardFinding[]): InjectionItem[] {
-	return findings.map((finding, index): InjectionItem => {
+	if (findings.length === 0) return [];
+	const sections = findings.map((finding): InjectionSection => {
 		const text = finding.lines.filter((line) => line.type === "added").map((line) => line.text).join("\n");
 		const removed = finding.lines.filter((line) => line.type === "removed").map((line) => line.text).join("\n");
 		const base = removed.length === 0 ? undefined : { text: removed, tokens: textTokens(removed) };
+		const tokens = textTokens(text);
 		return {
-			id: `payload:${index}`,
-			kind: finding.type === "payload-change" ? "message" : "tool",
-			source: PAYLOAD_CHANGES_SOURCE,
 			label: finding.type === "payload-change" ? PAYLOAD_CHANGE_LABELS[finding.part] : finding.name,
-			chars: text.length,
-			tokens: textTokens(text),
 			text,
-			change: finding.change,
-			...diffField(measureTokenDiff(base, { text, tokens: textTokens(text) })),
+			tokens,
+			...diffField(measureTokenDiff(base, { text, tokens })),
+			...(finding.type === "payload-tool-change" ? { toolDeclaration: true } : {}),
 			changedLines: finding.lines,
 		};
 	});
-}
-
-/** A measured message with its content-only preview. */
-function messageItem(id: string, message: RequestMessage, source: InjectionSource, redacted = false): InjectionItem {
-	const { text, jsonSpan } = messagePreview(message, redacted);
-	return {
-		id,
-		kind: "message",
-		source,
-		label: message.role === "custom" ? "message" : `${message.role} message`,
+	const text = sections.map((section) => section.text).filter((part) => part.length > 0).join("\n");
+	return [{
+		id: "payload-changes",
+		kind: "payload-change",
+		source: AGGREGATE_SOURCE,
+		label: `payload changes (${findings.length})`,
 		chars: text.length,
-		tokens: estimateTokens(message),
+		tokens: sections.reduce((sum, section) => sum + section.tokens, 0),
 		text,
-		jsonSpan,
-	};
+		sections,
+		...diffField(sumTokenDiffs(sections.map((section) => section.diff))),
+	}];
 }
 
 // ============================================================================

@@ -41,15 +41,20 @@ The command also keeps the TUI-only guard. `openInjections()` and
    `getSystemPromptOptions().customPrompt` preserves Dropped markers for
    `--system-prompt`. Other live prompt options do not replace recorded
    sections.
-4. Keep session-backed custom messages. Replace their rows when modified or
-   deleted. Add every request-only conversation change under its `customType`
-   source or `unattributed`; unchanged ordinary conversation stays out of the
-   tree.
+4. Combine session-backed custom messages and every request-only conversation
+   change in one `messages (N)` row under `unattributed`. Session-backed parts
+   follow baseline order, with modifications and deletions in place; additions
+   and changes with no matched entry follow in capture order. Unchanged
+   ordinary conversation stays out of the tree. `N` counts only sent messages,
+   excluding deletions and session-reference parts.
 
-Added and modified rows count their request version. Deleted rows count zero.
-A modified message previews `Request` and `Session` parts: only Request counts;
-a deletion previews its session original. Message previews use the
-content-only extraction in `src/message-preview.ts`. Snapshot images already
+Added and modified message parts count their request version; deleted parts
+count zero. The row sums their estimates and token diffs against the session,
+with no child rows. A modified message previews its counted request part,
+then a `<label> · session` part at zero tokens; a deletion previews its session
+original at zero. A customType or role labels each part, never a source group.
+User-prompt numbering and word-level preview bodies remain deferred. Message
+previews use the content-only extraction in `src/message-preview.ts`. Snapshot images already
 hold size markers; session originals are redacted on extraction. Neither
 source's opaque signature bytes reach a preview.
 
@@ -98,10 +103,12 @@ part, or tool. Pi never saves a forced prompt, so under one, every prompt part,
 instruction file, or skill whose text differs from the session's version is
 request-only too. Generated instruction-file and skill children compare their
 text with the session even without a forced prompt: a section patch marks
-only their parent aggregate. Parents, the System Prompt item, and payload changes never
-are. Sections that mirror child rows copy the flag, so previews mark the same
-parts as the list. An extension's `system prompt` row compares its attributed
-lines with the session's, rather than inheriting the containing part's flag;
+only their parent aggregate. The `messages (N)` row is request-only when any
+of its message parts changed. Parents, the System Prompt item, and payload
+changes never are. Sections that mirror child rows copy the flag, and changed
+message parts carry it too, so previews mark the same content as the list.
+An extension's `system prompt` row compares its attributed lines with the
+session's, rather than inheriting the containing part's flag;
 the unattributed row is request-only when any of its changes is.
 
 System Prompt parts and diff-only rows also carry `InjectionItem.savedChange`
@@ -128,11 +135,23 @@ The snapshot also supplies hidden tools and payload changes:
   alphabetically, sanitized and wrapped. There are no rows, markers, or
   candidate labels. A fallback without a snapshot uses Pi's live hidden set.
 - **Payload changes.** [Payload guard](payload-guard.md) findings of each
-  compared channel form a separate `payload changes` group after
-  `unattributed`. They have no entry reference or attribution. An item keeps the finding's changed lines for
-  its preview; its text and estimate hold only the added lines, so a deletion
-  counts zero. Tool removals Pi did not hide belong here. Item kinds are
-  `message` and `tool`.
+  compared channel form one `payload changes (N)` row under `unattributed`,
+  after messages. `N` counts every finding, deletions included. It has kind
+  `payload-change` and no child rows. One section per finding retains its
+  changed lines in guard order; its text and estimate hold only the added
+  lines, so a deletion counts zero. The item sums these estimates and diffs
+  against the captured request. Tool removals Pi did not hide belong here;
+  typed section metadata distinguishes a tool declaration from a message part.
+  Sections render their colored changed lines; word-level highlighting remains
+  deferred.
+
+Top-level sources are `pi`, identified extensions by size, then one
+`unattributed` group for content from an unknown extension. Unregistered tools,
+unknown prompt changes, custom messages, conversation changes, and payload
+changes all share this group. `customType` and cooperative provenance do not
+identify an extension for grouping. Pi's `pi.share` is a session/export entry,
+not a context custom message. Rendering rules, including the dim `tool:` prefix,
+live in [ui/injections.md](../ui/injections.md#contribution-tree).
 
 Probe snapshots carry the warning specified in
 [ui/injections.md](../ui/injections.md#latest-request). Pending and incomplete
