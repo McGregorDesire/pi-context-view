@@ -1697,6 +1697,29 @@ test("InjectionsView separates the fixed total from the list counter and selecte
 	}
 });
 
+test("InjectionsView fills the terminal height with empty rows between the bar and the description", () => {
+	let height = 50;
+	const view = new InjectionsView(createTheme(), { snapshot: changedSnapshot() }, () => {}, () => height);
+	view.handleInput("j");
+	for (const width of [60, 80, 120]) {
+		for (height of [50, 40, 16, 50]) {
+			const plain = view.render(width).map(stripSgr);
+			assert.equal(plain.length, height, `${width}x${height}: the frame fills the terminal`);
+			const hints = plain.findIndex((line) => line.includes("Navigate · Enter Preview"));
+			assert.equal(hints, height - 3, `${width}x${height}: hints and the border stay at the bottom`);
+			if (height === 16) continue;
+			const description = plain.findIndex((line) => line.startsWith("  Injections into"));
+			assert.ok(description >= 0 && plain.slice(description, hints - 1).every((line) => line !== ""),
+				`${width}x${height}: the description ends one blank row above the hints`);
+			let barEnd = plain.findIndex((line) => line.startsWith("    Change:"));
+			while (plain[barEnd + 1]?.startsWith("    ")) barEnd++;
+			assert.ok(description - barEnd > 2, `${width}x${height}: a short list leaves filler rows`);
+			assert.ok(plain.slice(barEnd + 1, description).every((line) => line === ""),
+				`${width}x${height}: only empty rows separate the bar and the description`);
+		}
+	}
+});
+
 test("InjectionsView keeps the full wrapped bar when descriptions collapse or the frame must compact", () => {
 	let height = 50;
 	const view = new InjectionsView(createTheme(), {
@@ -1710,7 +1733,7 @@ test("InjectionsView keeps the full wrapped bar when descriptions collapse or th
 		for (height of [13, 16, 24, 50]) {
 			const frame = view.render(width);
 			const plain = frame.map(stripSgr);
-			assert.ok(frame.length <= height, `${width}x${height}: height`);
+			assert.equal(frame.length, height, `${width}x${height}: height`);
 			assert.ok(frame.every((line) => visibleWidth(line) <= width), `${width}x${height}: width`);
 			assert.equal(statusBar(frame).join(" "), expected, `${width}x${height}: the bar never collapses or clips`);
 			assert.ok(plain.some((line) => line.startsWith("→")), "the selected row stays visible");

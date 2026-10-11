@@ -218,11 +218,13 @@ export class InjectionsView {
 		const total = this.totalLine(width);
 		lines.push("", total);
 		if (statusLines.length > 0) lines.push("", ...statusLines);
-		if (descriptionLines.length > 0) lines.push("", ...descriptionLines);
 		const hints = this.fit(hintRow(theme, [
 			[STEP_KEY_HINT, "Navigate"], ["Enter", "Preview"], ["Esc", "Close"],
 		]), width);
-		lines.push("", hints, "", border);
+		const tail = [...(descriptionLines.length > 0 ? ["", ...descriptionLines] : []), "", hints, "", border];
+		// Fill the terminal so the overlay hides the chat, keeping the list, total, and bar together
+		while (lines.length + tail.length < terminalRows) lines.push("");
+		lines.push(...tail);
 
 		const fittedLines = lines.length <= terminalRows ? lines : compactListLines({
 			border, header: this.headerLines(width, true), warnings: warningLines,
@@ -664,14 +666,15 @@ interface CompactListInput {
 /**
  * When even a one-row list cannot fit, remove spare spacing and the title.
  * Keep capture status, degraded reasons, the selected row, the total, and the
- * bar between borders; add hints only if they fit. Below that physical minimum,
- * clip content.
+ * bar between borders; add hints only if they fit, after empty rows that fill
+ * the remaining height. Below that physical minimum, clip content.
  */
 function compactListLines(input: CompactListInput): string[] {
 	const { border, header, warnings, selected, total, status, hints, terminalRows } = input;
-	const lines = [border, ...header, ...warnings, ...(selected === undefined ? [] : [selected]), total, ...status, border];
-	if (lines.length + 1 <= terminalRows) lines.splice(lines.length - 1, 0, hints);
-	return fitToTerminalHeight(lines, terminalRows, border);
+	const lines = [border, ...header, ...warnings, ...(selected === undefined ? [] : [selected]), total, ...status];
+	const tail = lines.length + 2 <= terminalRows ? [hints, border] : [border];
+	while (lines.length + tail.length < terminalRows) lines.push("");
+	return fitToTerminalHeight([...lines, ...tail], terminalRows, border);
 }
 
 /**

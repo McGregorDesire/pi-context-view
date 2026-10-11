@@ -251,7 +251,9 @@ The selected row's status bar sits above the description, outside the scrollable
 list and its counter. The fixed `TOTAL (Prompt, Tools, Injections)` row sits
 between the list (and counter when visible) and the bar, with exactly one empty
 row above and below the total in the normal frame. Do not pad a short list with
-unused viewport rows. The bar changes with selection and returns unchanged after
+unused viewport rows; instead, fill the terminal height with empty rows between
+the bar and the description, so the description, hints, and bottom border sit
+at the bottom. The bar changes with selection and returns unchanged after
 a preview. It shows only relevant change or state details, never
 raw text, the row's source, or its location. Compact capture status stays in the header and
 degraded warning, with detailed explanations in the view-wide description,
@@ -306,7 +308,8 @@ instead of collapsing. The bar never collapses with the description or because
 of a resize. If the normal frame cannot fit even one list row, remove spare
 blank rows and the title. Wrap the origin label and payload status together,
 joined by a dim ` · `, and keep the degraded reason, selected row, fixed total,
-and full bar whenever physically possible. Add hints only when they fit. Below
+and full bar whenever physically possible. Add hints only when they fit, after
+empty rows that fill the remaining height. Below
 that minimum, keep both borders and clip content. Height-only resizing restores the regular
 frame.
 
