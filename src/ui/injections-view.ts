@@ -52,7 +52,7 @@ import { DEFAULT_WHEEL_SCROLL_LINES, parseWheelDirection, readWheelScrollLines }
  */
 const LIST_FIXED_LINE_COUNT = 8;
 const PREVIEW_FIXED_LINE_COUNT = 8;
-const LIST_DESCRIPTION = "Injections into the model context of the latest request, with token estimates.";
+const LIST_DESCRIPTION = "Injections into the model context, with token estimates.";
 const PAYLOAD_CHANGES_NOTE = "Payload changes appear only in the provider payload. Their sources are unknown.";
 /** Where a diff-only row's changes count, in place of its preview estimate. */
 const DIFF_ONLY_NOTE = "counted in System Prompt";
@@ -222,7 +222,7 @@ export class InjectionsView {
 		lines.push("", hints, "", border);
 
 		const fittedLines = lines.length <= terminalRows ? lines : compactListLines({
-			border, header: headerLines[0], warnings: warningLines,
+			border, header: this.headerLines(width, true), warnings: warningLines,
 			selected: listLines[this.navigator.selected - this.navigator.offset],
 			status: statusLines, hints, terminalRows,
 		});
@@ -381,16 +381,27 @@ export class InjectionsView {
 		);
 	}
 
-	/** Keep title/label together when possible; give the narrow label its own breathing room. */
-	private headerLines(width: number): string[] {
+	/** Keep capture origin and payload attention visible, wrapping below the title rather than omitting status. */
+	private headerLines(width: number, compact = false): string[] {
 		const theme = this.theme;
-		const title = theme.fg("accent", theme.bold("Context Injections"));
 		const separator = theme.fg("dim", " · ");
-		// Runtime remains unimplemented, so only the Latest Request label is shown.
-		const tabs = theme.fg("mdHeading", theme.bold("[Latest Request]"));
-		const combined = `${title}${separator}${tabs}`;
-		if (visibleWidth(combined) <= width) return [this.fit(combined, width)];
-		return [this.fit(title, width), "", this.fit(tabs, width)];
+		const probe = this.input.probe === true;
+		const label = theme.fg("muted", probe ? "[Request Probe]" : "[Latest Request]");
+		const payloadState = payloadCheckStatus(this.input.guard);
+		const status = payloadState === undefined ? ""
+			: theme.fg("muted", "Payload") + theme.fg("dim", `: ${payloadState}`);
+		// An emergency frame drops the title, never the origin or payload attention
+		if (compact) return wrapTextWithAnsi(`${label}${status === "" ? "" : separator + status}`, Math.max(1, width));
+		const title = theme.fg("accent", theme.bold("Context Injections"));
+		const combined = `${title}${separator}${label}`;
+		const lines = visibleWidth(combined) <= width
+			? [combined]
+			: [this.fit(title, width), "", ...wrapTextWithAnsi(label, Math.max(1, width))];
+		if (status === "") return lines;
+		if (lines.length === 1 && visibleWidth(combined) + visibleWidth(status) < width) {
+			return [this.spread(combined, status, width)];
+		}
+		return [...lines, ...wrapDescriptionLines(theme, status, "dim", width)];
 	}
 
 	/** Render the current hierarchy viewport against one stable, nearby value column. */
@@ -627,7 +638,7 @@ export class InjectionsView {
 /** Parts of an emergency list frame, in which the bar has priority over frame spacing. */
 interface CompactListInput {
 	readonly border: string;
-	readonly header?: string;
+	readonly header: readonly string[];
 	readonly warnings: readonly string[];
 	readonly selected?: string;
 	readonly status: readonly string[];
@@ -636,16 +647,14 @@ interface CompactListInput {
 }
 
 /**
- * When the normal frame cannot fit even a one-row list, keep the selected
- * row and full bar between borders. Add warnings, hints, and one header row
- * only while they fit. Below that physical minimum, clip content as usual.
+ * When even a one-row list cannot fit, remove spare spacing and the title.
+ * Keep capture status, degraded reasons, the selected row, and its bar between
+ * borders; add hints only if they fit. Below that physical minimum, clip content.
  */
 function compactListLines(input: CompactListInput): string[] {
 	const { border, header, warnings, selected, status, hints, terminalRows } = input;
-	const lines = [border, ...(selected === undefined ? [] : [selected]), ...status, border];
-	if (lines.length + warnings.length <= terminalRows) lines.splice(1, 0, ...warnings);
+	const lines = [border, ...header, ...warnings, ...(selected === undefined ? [] : [selected]), ...status, border];
 	if (lines.length + 1 <= terminalRows) lines.splice(lines.length - 1, 0, hints);
-	if (header !== undefined && lines.length + 1 <= terminalRows) lines.splice(1, 0, header);
 	return fitToTerminalHeight(lines, terminalRows, border);
 }
 
@@ -695,6 +704,18 @@ function previewDiffBase(item: InjectionItem): DiffBase {
 	if (item.source.id === PAYLOAD_CHANGES_SOURCE_ID) return "captured-request";
 	// A `system prompt` row splits pi's prompt changes by source
 	return item.source.native || item.diffOnly === true ? "default-prompt" : "session";
+}
+
+/** Compact payload attention state; a complete comparison and a fallback without a request need none. */
+function payloadCheckStatus(guard: GuardResult | undefined): string | undefined {
+	switch (guard?.status) {
+		case "pending":
+			return "pending";
+		case "incomplete":
+			return guard.findings === undefined ? "not checked" : "partly checked";
+		default:
+			return undefined;
+	}
 }
 
 /**

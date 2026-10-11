@@ -5,6 +5,7 @@ import { Theme, type ThemeColor } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
 
 import { type InjectionSnapshot, type InjectionGroup, type InjectionItem, PAYLOAD_CHANGES_SOURCE } from "../src/model.ts";
+import type { GuardResult } from "../src/snapshot.ts";
 import { InjectionsView } from "../src/ui/injections-view.ts";
 import { previewBodyLines } from "../src/ui/section-preview.ts";
 
@@ -122,8 +123,7 @@ test("InjectionsView follows pi selector styling and cursor alignment", () => {
 	assert.equal(lines[headerIndex + 1], "");
 	assert.equal(stripSgr(lines[headerIndex] ?? "").indexOf("Context Injections"), 0);
 	assert.equal(stripSgr(lines[tabIndex] ?? ""), "Context Injections · [Latest Request]");
-	// Chalk emits bold SGR only on capable terminals, so derive the environment-specific nested style.
-	assert.ok((lines[tabIndex] ?? "").includes(theme.fg("mdHeading", theme.bold("[Latest Request]"))));
+	assert.ok((lines[tabIndex] ?? "").includes(theme.fg("muted", "[Latest Request]")));
 	// Runtime stays hidden until the runtime-inspection roadmap step.
 	assert.ok(!lines.some((line) => stripSgr(line).includes("RUNTIME")));
 	assert.ok(!lines.some((line) => stripSgr(line).includes("Runtime Logging:")));
@@ -382,7 +382,7 @@ test("InjectionsView wraps narrow descriptions instead of truncating them", () =
 	assert.ok(descriptionLines.every((line) => line.startsWith("  ")));
 	assert.equal(
 		descriptionLines.map((line) => line.trim()).join(" "),
-		"Injections into the model context of the latest request, with token estimates.",
+		"Injections into the model context, with token estimates.",
 	);
 	assert.doesNotMatch(descriptionLines.join("\n"), /…/);
 });
@@ -1351,7 +1351,8 @@ test("InjectionsView describes a probe snapshot and notes an unavailable payload
 	const lines = new InjectionsView(theme, input, () => {}, () => 40).render(120);
 	const plain = lines.map(stripSgr);
 
-	const header = plain.findIndex((line) => line === "Context Injections · [Latest Request]");
+	const header = plain.findIndex((line) => line.startsWith("Context Injections · [Request Probe]"));
+	assert.match(plain[header] ?? "", /Payload: not checked$/);
 	assert.match(plain[header + 2] ?? "", /^→ pi/);
 	const description = plain.findIndex((line) => line.includes("Injections into the model context"));
 	const probeNote = lines[description + 1] ?? "";
@@ -1369,10 +1370,11 @@ test("InjectionsView describes a probe snapshot and notes an unavailable payload
 	assert.ok(pendingLines.some((line) => line.includes("Payload changes are not checked yet")));
 	assert.ok(!pendingLines.some((line) => line.includes("request probe")));
 
-	// Both notes belong to the description and collapse with it
+	// Detailed notes collapse with the description, but compact capture status stays
 	const short = new InjectionsView(theme, input, () => {}, () => 16).render(120).map(stripSgr);
 	assert.ok(!short.some((line) => line.includes("Payload changes")));
 	assert.ok(!short.some((line) => line.includes("request probe")));
+	assert.ok(short.some((line) => line.includes("[Request Probe]") && line.endsWith("Payload: not checked")));
 });
 
 test("InjectionsView wraps the probe bullet and collapses and restores it with the description", () => {
@@ -1701,4 +1703,181 @@ test("InjectionsView describes payload findings as payload-only changes, with un
 	const view = new InjectionsView(createTheme(), { snapshot: guardedSnapshot() }, () => {}, () => 40);
 	view.handleInput("\u001b[F");
 	assert.deepEqual(statusBar(view.render(120)), ["Change: +4 only in the provider payload", "Changed By: Unknown"]);
+});
+
+test("InjectionsView keeps payload attention states visible without the description", () => {
+	const dispatch = { provider: "fixture", api: "fixture", model: "fixture" };
+	const finding = { type: "payload-change", change: "added", part: "user", lines: [] } as const;
+	const cases: [GuardResult | undefined, string | undefined][] = [
+		[{ status: "pending" }, "pending"],
+		[{ status: "incomplete", reason: "No payload." }, "not checked"],
+		[{ status: "incomplete", reason: "One channel failed.", findings: [] }, "partly checked"],
+		[{ status: "incomplete", reason: "One channel failed.", findings: [finding] }, "partly checked"],
+		[{ status: "complete", dispatch, findings: [] }, undefined],
+		[{ status: "complete", dispatch, findings: [finding] }, undefined],
+		[undefined, undefined],
+	];
+	for (const [guard, state] of cases) {
+		const theme = createTheme();
+		const view = new InjectionsView(theme, { snapshot: guardedSnapshot(), guard }, () => {}, () => 12);
+		const lines = view.render(120);
+		const header = lines.find((line) => stripSgr(line).startsWith("Context Injections")) ?? "";
+		assert.ok(header.includes(theme.fg("muted", "[Latest Request]")));
+		assert.doesNotMatch(lines.map(stripSgr).join("\n"), /Injections into|hidden by pi|No payload|channel failed/);
+		if (state === undefined) {
+			assert.equal(stripSgr(header), "Context Injections · [Latest Request]");
+		} else {
+			assert.ok(header.endsWith(theme.fg("muted", "Payload") + theme.fg("dim", `: ${state}`)));
+			assert.equal(visibleWidth(header), 120, "payload status is right-aligned");
+		}
+		assert.doesNotMatch(stripSgr(header), /Hidden|hidden|bash|write/);
+	}
+});
+
+test("InjectionsView keeps request origins muted and complete payload status quiet", () => {
+	const theme = createTheme();
+	for (const probe of [true, false]) {
+		const view = new InjectionsView(theme, {
+			snapshot: snapshot(2), probe,
+			guard: { status: "complete", dispatch: { provider: "fixture", api: "fixture", model: "fixture" }, findings: [] },
+		}, () => {}, () => 16);
+		const header = view.render(90)[2] ?? "";
+		const label = probe ? "[Request Probe]" : "[Latest Request]";
+		assert.equal(stripSgr(header), `Context Injections · ${label}`);
+		assert.ok(header.includes(theme.fg("muted", label)));
+		assert.ok(header.includes(theme.fg("dim", " · ")));
+		assert.doesNotMatch(stripSgr(header), /Payload/);
+	}
+});
+
+test("InjectionsView moves payload status below a narrow header and wraps instead of dropping it", () => {
+	const theme = createTheme();
+	const view = new InjectionsView(theme, {
+		snapshot: snapshot(2), probe: true,
+		guard: { status: "incomplete", reason: "One channel failed.", findings: [] },
+	}, () => {}, () => 120);
+	const at = (width: number) => view.render(width).map(stripSgr);
+	const wide = at(90);
+	assert.equal(wide[2], "Context Injections · [Request Probe]".padEnd(90 - "Payload: partly checked".length)
+		+ "Payload: partly checked");
+	const inline = "Context Injections · [Request Probe] Payload: partly checked";
+	assert.equal(at(visibleWidth(inline))[2], inline, "one separating space is enough for an inline status");
+	assert.equal(at(visibleWidth(inline) - 1)[3], "  Payload: partly checked",
+		"an exact overlap moves status below the header");
+	const below = at(50);
+	assert.deepEqual(below.slice(2, 5), [
+		"Context Injections · [Request Probe]", "  Payload: partly checked", "",
+	]);
+	const split = at(24);
+	assert.deepEqual(split.slice(2, 7), [
+		"Context Injections", "", "[Request Probe]", "  Payload: partly", "  checked",
+	]);
+	for (const width of [1, 8, 16, 24, 36, 37, 50, 60, 80, 120]) {
+		const lines = at(width);
+		assert.ok(lines.every((line) => visibleWidth(line) <= width), `${width}: width`);
+		const selected = lines.findIndex((line) => line.startsWith("→"));
+		const heading = lines.slice(2, selected).filter((line) => line.trim().length > 0);
+		const headingText = heading.join("").replace(/\s+/g, "");
+		assert.ok(headingText.includes("[RequestProbe]"), `${width}: origin is not omitted`);
+		assert.ok(headingText.includes("Payload:partlychecked"), `${width}: payload status is not omitted`);
+	}
+});
+
+test("InjectionsView preserves capture status through scrolling, preview return, and height-only resize", () => {
+	let height = 60;
+	const view = new InjectionsView(createTheme(), {
+		snapshot: snapshot(16), probe: true,
+		guard: { status: "incomplete", reason: "No provider payload was observed for this request." },
+	}, () => {}, () => height);
+	for (const width of [24, 60, 80, 120]) {
+		view.handleInput("\u001b[H");
+		height = 120;
+		const full = view.render(width).map(stripSgr);
+		assert.ok(full.some((line) => line.includes("Injections into")));
+		assert.match(full.join(" ").replace(/\s+/g, " "), /Captured by a request probe/);
+		const selected = full.findIndex((line) => line.startsWith("→"));
+		const header = full.slice(2, selected);
+		for (height of [12, 16, 24]) {
+			view.handleInput("\u001b[H");
+			const collapsed = view.render(width).map(stripSgr);
+			assert.ok(!collapsed.some((line) => line.includes("Injections into")));
+			view.handleInput("\u001b[F");
+			const scrolled = view.render(width).map(stripSgr);
+			for (const frame of [collapsed, scrolled]) {
+				const selected = frame.findIndex((line) => line.startsWith("→"));
+				assert.ok(selected >= 0);
+				assert.match(frame.slice(1, selected).join(" ").replace(/\s+/g, " "),
+					/\[Request Probe\].*Payload: not checked/);
+				if (frame[2]?.startsWith("Context Injections")) {
+					assert.deepEqual(frame.slice(2, 2 + header.length), header);
+				}
+				assert.ok(frame.length <= height);
+			}
+		}
+		height = 120;
+		view.handleInput("\u001b[H");
+		assert.deepEqual(view.render(width).map(stripSgr), full);
+		view.handleInput("j");
+		const beforePreview = view.render(width);
+		view.handleInput("\r");
+		assert.doesNotMatch(view.render(width).map(stripSgr).join("\n"), /Request Probe|Payload: not checked/);
+		view.handleInput("\u001b");
+		assert.deepEqual(view.render(width), beforePreview);
+	}
+});
+
+test("InjectionsView keeps compact capture status and the selected bar when the frame compacts", () => {
+	let height = 50;
+	const view = new InjectionsView(createTheme(), {
+		snapshot: changedSnapshot(), probe: true, guard: { status: "pending" },
+	}, () => {}, () => height);
+	view.handleInput("j");
+	view.handleInput("j");
+	for (const width of [24, 60, 80, 120]) {
+		for (height of [14, 16, 24, 50]) {
+			const lines = view.render(width);
+			const plain = lines.map(stripSgr);
+			assert.ok(lines.length <= height);
+			assert.ok(lines.every((line) => visibleWidth(line) <= width));
+			assert.match(plain.join(" ").replace(/\s+/g, " "), /\[Request Probe\].*Payload: pending/);
+			assert.ok(plain.some((line) => line.startsWith("→")));
+			assert.equal(statusBar(lines).join(" "),
+				"Change: +3 -1,234 only in this request; the session keeps the original Changed By: Unknown");
+		}
+	}
+});
+
+test("InjectionsView retains the sanitized degraded reason in a compact descriptionless frame", () => {
+	let height = 60;
+	const reason = "Silent probe unavailable: no model is selected. Extension additions were not observed.";
+	const view = createView(16, `${reason}\u001b[2J`, () => height);
+	for (const width of [24, 60, 80, 120]) {
+		for (height of [12, 16, 24]) {
+			const lines = view.render(width);
+			const plain = lines.map(stripSgr);
+			assert.ok(lines.length <= height);
+			assert.ok(lines.every((line) => visibleWidth(line) <= width));
+			assert.doesNotMatch(lines.join("\n"), /\u001b\[2J/);
+			assert.ok(!plain.some((line) => line.includes("Injections into")));
+			assert.ok(plain.join(" ").replace(/\s+/g, " ").includes(reason));
+			assert.ok(plain.some((line) => line.includes("[Latest Request]")));
+			assert.ok(plain.some((line) => line.startsWith("→")));
+		}
+	}
+});
+
+test("InjectionsView rebuilds persistent capture colors after theme invalidation", () => {
+	const theme = createTheme();
+	const view = new InjectionsView(theme, {
+		snapshot: snapshot(16), probe: true, guard: { status: "pending" },
+	}, () => {}, () => 16);
+	const before = view.render(80);
+	assert.strictEqual(view.render(80), before, "unchanged renders reuse the cache");
+	const originalFg = theme.fg.bind(theme);
+	theme.fg = (color, text) => originalFg(color === "muted" || color === "dim" ? "syntaxFunction" : color, text);
+	view.invalidate();
+	const header = view.render(80)[2] ?? "";
+	assert.ok(header.includes(theme.fg("muted", "[Request Probe]")));
+	assert.ok(header.endsWith(theme.fg("muted", "Payload") + theme.fg("dim", ": pending")));
+	assert.notEqual(header, before[2]);
 });

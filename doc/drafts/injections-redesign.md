@@ -53,7 +53,7 @@ Context Injections · [Latest Request]
     Change: +14 only in this request; the session keeps the original
     Changed By: Unknown
 
-  Injections into the model context of the latest request, with token estimates.
+  Injections into the model context, with token estimates.
   - 1 tool hidden by pi: bash.
 
   ↑↓/jk Navigate · Enter Preview · Esc Close
@@ -106,8 +106,9 @@ Context Injections · [Latest Request]
 
 ### Header status
 
+Implemented contract: [Context Injections header](../ui/injections.md).
 The header stays visible when the description collapses. The right side lists
-only what needs attention, joined by a dim ` · `:
+payload status only when it needs attention:
 
 | State                         | Header                                                              |
 | ----------------------------- | ------------------------------------------------------------------- |
@@ -116,14 +117,18 @@ only what needs attention, joined by a dim ` · `:
 | Payload comparison pending    | `Context Injections · [Latest Request]` … `Payload: pending`        |
 | Payload comparison incomplete | `Context Injections · [Latest Request]` … `Payload: partly checked` |
 
-`[Request Probe]` and the payload states use `warning`. At 90 columns, a probe header reads:
+Request-origin and `Payload` labels use `muted`; payload values and separators
+use `dim`, without bold or warning highlighting. At 90 columns, a probe header reads:
 
 ```text
-Context Injections · [Request Probe]                  Payload: not checked
+Context Injections · [Request Probe]                                  Payload: not checked
 ```
 
 The description keeps the full explanations: probe, payload reason, hidden
-tool names. They collapse with it.
+tool counts and names. They collapse with it; hidden tools have no header status.
+Narrow headers wrap status below the title without dropping it, and the degraded
+reason stays visible. The short default description does not repeat the header's
+request origin. No details key is added.
 
 ### Status bar
 
@@ -310,8 +315,3 @@ payload changes (2)                                       unattributed · 12 tok
 
 ──────────────────────────────────────────────────────────────────────────────────────────
 ```
-
-## Open questions
-
-- **Header status wording.** `Payload: not checked`, `pending`, and
-  `partly checked` are placeholders.

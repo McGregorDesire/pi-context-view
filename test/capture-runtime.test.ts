@@ -480,7 +480,8 @@ suite("Injections composition", { concurrency: true }, () => {
 			assert.equal(responses, 0, "after_provider_response sentinel stays silent for the probe");
 			assert.equal(provider.requests.length, 0);
 			const probe = await runtime.renderView();
-			assert.ok(probe.includes("Context Injections · [Latest Request]"));
+			assert.ok(probe.some((line) => line.startsWith("Context Injections · [Request Probe]")));
+			assert.ok(probe.some((line) => line.endsWith("Payload: not checked")));
 			assert.ok(probe.some((line) => line.includes("Captured by a request probe")));
 			assert.ok(probe.some((line) => line.includes("Payload changes were not checked")));
 

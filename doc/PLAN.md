@@ -54,10 +54,12 @@
     - Keep view-wide capture status separate from selected-row details.
     Decided: one field per line, indented four columns with muted field names and dim values; wrapped continuations hang two columns deeper. An unchanged row reserves one empty line; changed rows reserve only their own wrapped height. All list marker-legend bullets move into the bar; previews keep their full legends. Known and guessed editors are shown only for saved prompt lines; request-only editors stay Unknown, never inferred from the affected source. Parents and groups summarize where their counted changes live without repeating editors. When even a one-row list cannot fit, compact the frame to keep the selected row and full bar whenever physically possible.
     Verified on Pi 1.1.0: `pnpm check` (791 tests). No real-PTY run.
-  - [ ] **Keep Injections capture status visible** ([injections.md](ui/injections.md#latest-request)):
-    - Show compact status near the header for Latest Request versus Request Probe, pending or incomplete payload comparison, and hidden-tool count.
+  - [x] **Keep Injections capture status visible** ([injections.md](ui/injections.md#latest-request)):
+    - Show compact status near the header for Latest Request versus Request Probe and pending or incomplete payload comparison.
     - Keep this status visible when the description collapses; keep the degraded-capture reason visible too.
     - Shorten the default explanations while keeping detailed explanations available.
+    Decided: use `Request Probe` instead of `Latest Request` for probes; request-origin and `Payload` labels are muted, with dim payload values and separators, without bold or warning highlighting. Right-align `Payload: pending`, `not checked`, or `partly checked` when it fits, otherwise wrap it below the header. Complete comparisons add no status. Hidden-tool counts and names stay only in the description, as requested. Keep full detailed notes in the collapsible description, with a shorter opening sentence and no new key. Compact short-terminal frames keep origin, payload status, and the degraded reason before the selected row and its full bar whenever physically possible.
+    Verified on Pi 1.1.0: `pnpm check` (798 tests). No real-PTY run.
   - [ ] **Injections source contract** ([injections.md](ui/injections.md#contribution-tree)):
     - Top-level groups are `pi`, one group per extension, then `unattributed` for content from an extension that cannot be identified.
     - Custom messages leave their `customType` groups and move to `unattributed`; `customType` labels only the message's preview part.

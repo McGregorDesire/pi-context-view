@@ -10,16 +10,45 @@ Its header is:
 Context Injections · [Latest Request]
 ```
 
-`Latest Request` uses the active `mdHeading` treatment. Runtime inspection is
-roadmap-only, so no Runtime label, switching key, or Runtime status renders
-until that step lands. If the combined header does not fit (below 37 columns),
-put title and label on separate lines with one empty row before and after the
-label.
+`[Latest Request]` and a silent probe's `[Request Probe]` label use `muted`,
+without bold. Runtime inspection is roadmap-only, so no Runtime label, switching
+key, or Runtime status renders until that step lands.
+
+Compact payload status uses a `muted` `Payload` label with a `dim` colon and
+value, without bold or warning highlighting. It is right-aligned on the header
+when the complete title, origin label, and status fit with at least one
+separating space:
+
+| Comparison | Status |
+| --- | --- |
+| Pending | `Payload: pending` |
+| Incomplete, nothing compared | `Payload: not checked` |
+| Incomplete, one channel compared, even with no findings | `Payload: partly checked` |
+| Complete, with or without findings | None |
+| Absent, such as a degraded fallback without a request | None |
+
+The compact status and origin label never collapse with the description. If
+status cannot fit beside the complete header, move it below the header and wrap
+it with a two-space indent, without ellipsizing or dropping it. If title and
+origin cannot fit together (below 37 columns for Latest Request, 36 for Request
+Probe), put them on separate lines with one empty row before the label and one
+after the whole header block. Wrap the origin label too if necessary. At 90
+columns, a standard probe reads:
+
+```text
+Context Injections · [Request Probe]                                  Payload: not checked
+```
+
+Hidden-tool counts and names stay in the description, never the header. The
+precise degraded-capture reason stays wrapped below the header. On exceptionally
+short terminals the [compact frame](#selected-row-status-bar) omits the title and
+spare spacing, not capture status or the degraded reason, whenever physically
+possible.
 
 The list description reads:
 
 ```text
-Injections into the model context of the latest request, with token estimates.
+Injections into the model context, with token estimates.
 ```
 
 ## Latest request
@@ -45,10 +74,11 @@ wrapped bullet with only `request probe` in `warning` color; the rest is dim:
 - Captured by a request probe with an empty prompt. Prompt-dependent injections may be missing.
 ```
 
-The bullet collapses with the rest of the description block. The payload guard
-compares tool declarations and message text with the provider payload. While
-that comparison is pending or incomplete, the description block carries one dim
-guard-status bullet with the reason:
+The bullet collapses with the rest of the description block, while the header's
+`Request Probe` label stays. The payload guard compares tool declarations and
+message text with the provider payload. While that comparison is pending or
+incomplete, its compact header status stays visible and the description block
+keeps one detailed dim guard-status bullet with the reason:
 
 | Guard                        | Bullet                                                            |
 | ---------------------------- | ----------------------------------------------------------------- |
@@ -204,8 +234,9 @@ provider-payload size.
 The selected row's status bar sits above the description, outside the scrollable
 list and its counter. It changes with selection and returns unchanged after a
 preview. It shows only relevant change or state details, never raw text, the
-row's source, or its location. Capture status stays in the view-wide description
-and degraded warning, separate from selected-row details.
+row's source, or its location. Compact capture status stays in the header and
+degraded warning, with detailed explanations in the view-wide description,
+separate from selected-row details.
 
 Each field occupies its own line: four-space indent, `muted` field names, `dim`
 values, and six-space hanging continuation lines. `+N` uses `toolDiffAdded` and
@@ -251,9 +282,11 @@ A row with no change and no state marker leaves one empty reserved line. A
 changed row reserves only its own wrapped fields, reducing the list viewport
 instead of collapsing. The bar never collapses with the description or because
 of a resize. If the normal frame cannot fit even one list row, remove spare
-blank rows and reduce the header and hints, keeping the selected row and the
-full bar whenever physically possible; below that minimum, keep both borders
-and clip content. Height-only resizing restores the regular frame.
+blank rows and the title. Wrap the origin label and payload status together,
+joined by a dim ` · `, and keep the degraded reason, selected row, and full bar
+whenever physically possible. Add hints only when they fit. Below that minimum,
+keep both borders and clip content. Height-only resizing restores the regular
+frame.
 
 ### Token diffs
 
@@ -386,12 +419,15 @@ like other list labels.
 The list description survives scrolling, per the floor in
 [Descriptions](../UI.md#descriptions); the `(current/total)` counter never
 collapses it by itself. When capture is degraded, wrap the precise reason below
-the header and show a `Degraded: pi-native fallback used` indicator beside the
-description, with only `Degraded` in `warning` color and the colon and explanation
-in `dim`, keeping the fallback hierarchy usable. Below both come, when shown, the probe bullet,
+the header, even in a compact frame whenever physically possible, and show a
+`Degraded: pi-native fallback used` indicator beside the description, with only
+`Degraded` in `warning` color and the colon and explanation in `dim`, keeping
+the fallback hierarchy usable. Below both come, when shown, the probe bullet,
 the guard-status bullet, the [hidden-tools bullet](#hidden-tools), then the
-payload-changes bullet. All collapse with the rest of the description block.
-The [selected-row status bar](#selected-row-status-bar), above the description,
+payload-changes bullet. All detailed notes collapse with the rest of the
+description block; compact origin and payload status stay near the header. No
+new details key or view is added. The
+[selected-row status bar](#selected-row-status-bar), above the description,
 explains changes and markers instead of list-wide legend bullets.
 
 ## Injection preview

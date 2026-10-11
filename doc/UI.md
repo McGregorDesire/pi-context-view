@@ -130,13 +130,15 @@ partial and never ellipsized.
 | Preview marker legend | `DESCRIPTION_MIN_CONTENT_ROWS` (22) content rows visible, or a shorter preview in full |
 
 Hints, borders, degraded-capture warnings, configuration notices, and the
-Injections selected-row status bar are not descriptions and never collapse.
-The Injections probe, guard-status, hidden-tools, and payload-change bullets
-and the `Degraded: …` indicator belong to its description block and collapse
-with it, while the wrapped degraded reason below the header stays. Its status
-bar explains the selected row instead of marker-legend bullets, reserves its
-own wrapped height, and reduces the list viewport. On exceptionally short
-terminals the list compacts its frame to keep the bar; its
+Injections capture header and selected-row status bar are not descriptions and
+never collapse. The Injections detailed probe, guard-status, hidden-tools, and
+payload-change bullets and the `Degraded: …` indicator belong to its description
+block and collapse with it, while the compact request-origin label, payload
+status, and wrapped degraded reason near the header stay. Hidden tools have no
+header status. The selected-row bar explains changes instead of marker-legend
+bullets, reserves its own wrapped height, and reduces the list viewport. On exceptionally short
+terminals the list compacts its frame to keep capture status, the degraded
+reason, and the bar whenever physically possible; its
 [per-view contract](ui/injections.md#selected-row-status-bar) owns that fallback.
 The Usage thinking-notation explanation is view content, not a description,
 and also never collapses.
@@ -194,4 +196,6 @@ UI cases `pnpm check` must cover, beyond the general matrix in
 - a configured map size larger than the width and the height can render;
 - overflow navigation, preview return position, and theme invalidation;
 - selected-row status changes, empty reserved lines, diff-only accounting,
-  unknown editors, wrapping, and the compact short-terminal frame.
+  unknown editors, wrapping, and the compact short-terminal frame;
+- persistent capture-origin and payload status, partial comparisons with no
+  findings, narrow header wrapping, and degraded reasons in compact frames.
