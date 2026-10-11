@@ -299,8 +299,9 @@ like other list labels.
 The list description survives scrolling, per the floor in
 [Descriptions](../UI.md#descriptions); the `(current/total)` counter never
 collapses it by itself. When capture is degraded, wrap the precise reason below
-the header and show a `[Degraded: …]` indicator beside the description, keeping
-the fallback hierarchy usable. Below both come, when shown, the probe bullet,
+the header and show a `Degraded: pi-native fallback used` indicator beside the
+description, with only `Degraded` in `warning` color and the colon and explanation
+in `dim`, keeping the fallback hierarchy usable. Below both come, when shown, the probe bullet,
 the guard-status bullet, the [hidden-tools bullet](#hidden-tools), one
 [legend bullet](previews.md#marker-legend) per marker the rows carry —
 `Dropped`, `Moved`, `Forced`, or none — then one `+N -N` bullet while any row

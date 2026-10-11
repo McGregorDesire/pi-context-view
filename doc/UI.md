@@ -125,7 +125,7 @@ partial and never ellipsized.
 
 Hints, borders, degraded-capture warnings, and configuration notices are not
 descriptions and never collapse. The Injections probe, guard-status,
-hidden-tools, payload-change, and marker-legend bullets and the `[Degraded: …]`
+hidden-tools, payload-change, and marker-legend bullets and the `Degraded: …`
 indicator belong to its description block and collapse with it, while the
 wrapped degraded reason below the header stays. The Usage thinking-notation
 explanation is view content, not a description, and also never collapses.

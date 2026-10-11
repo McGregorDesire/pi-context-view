@@ -46,8 +46,7 @@ const LEGEND: Record<ContextMarker, { keyword: string; color: ThemeColor; senten
 	moved: {
 		keyword: "Moved",
 		color: "warning",
-		sentence: "blocks appear in a different position in the system prompt than usual." +
-			" Their token counts are unchanged.",
+		sentence: "blocks appear in a different position in the system prompt than usual.",
 	},
 	forced: {
 		keyword: "Forced",

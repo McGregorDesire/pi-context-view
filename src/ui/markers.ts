@@ -76,8 +76,7 @@ const MARKER_LEGENDS: Record<Exclude<ContextMarker, "diff">, MarkerLegend> = {
 	moved: {
 		keyword: "Moved",
 		color: "warning",
-		explanation: " blocks appear in a different position in the system prompt than usual." +
-			" Their token counts are unchanged.",
+		explanation: " blocks appear in a different position in the system prompt than usual.",
 	},
 	forced: {
 		keyword: "Forced",

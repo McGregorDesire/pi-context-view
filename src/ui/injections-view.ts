@@ -570,8 +570,8 @@ export class InjectionsView {
 		if (this.input.degradedReason !== undefined) {
 			lines.push(...wrapDescriptionLines(
 				this.theme,
-				"[Degraded: pi-native fallback used]",
-				"warning",
+				this.theme.fg("warning", "Degraded") + this.theme.fg("dim", ": pi-native fallback used"),
+				"dim",
 				width,
 			));
 		}

@@ -442,18 +442,19 @@ test("InjectionsView adds degraded capture to the dialog description", () => {
 	);
 	assert.ok(descriptionIndex >= 0);
 	const degradedDescription = degradedLines[descriptionIndex + 1] ?? "";
-	assert.equal(stripSgr(degradedDescription), "  [Degraded: pi-native fallback used]");
-	assert.match(degradedDescription, /\u001b\[38;2;170;187;204m  \[Degraded: pi-native fallback used\]/);
+	assert.equal(stripSgr(degradedDescription), "  Degraded: pi-native fallback used");
+	assert.match(degradedDescription, /\u001b\[38;2;170;187;204mDegraded/);
+	assert.match(degradedDescription, /\u001b\[38;2;16;17;18m: pi-native fallback used/);
 
 	const narrowLines = degraded.render(24).map(stripSgr);
-	const degradedStart = narrowLines.findIndex((line) => line.includes("[Degraded:"));
+	const degradedStart = narrowLines.findIndex((line) => line.includes("Degraded:"));
 	const hintsIndex = narrowLines.findIndex((line) => line.includes("↑↓/jk Navigate"));
 	assert.ok(degradedStart >= 0 && hintsIndex > degradedStart);
 	const wrappedDegradedLines = narrowLines.slice(degradedStart, hintsIndex - 1);
 	assert.ok(wrappedDegradedLines.length > 1);
 	assert.equal(
 		wrappedDegradedLines.map((line) => line.trim()).join(" "),
-		"[Degraded: pi-native fallback used]",
+		"Degraded: pi-native fallback used",
 	);
 	assert.doesNotMatch(wrappedDegradedLines.join("\n"), /…/);
 });

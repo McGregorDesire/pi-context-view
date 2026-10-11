@@ -95,7 +95,7 @@ uses, followed by dim text:
 > - **Dropped** parts were replaced by a custom system prompt and are counted
 >   nowhere.
 > - **Moved** blocks appear in a different position in the system prompt than
->   usual. Their token counts are unchanged.
+>   usual.
 > - **Forced** prompts replace pi’s system prompt for this request.
 > - **+N -N** Tokens extensions added or removed, compared with pi’s default
 >   prompt.
