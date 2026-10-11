@@ -5,12 +5,13 @@
  * one more copy.
  *
  * Expected result:
- *   before the monitor   no change: listed under `context-view-fixture-agent-message` without a marker
- *   after the monitor    no change: listed under `context-view-fixture-agent-message` without a marker
+ *   before the monitor   no change: an unmarked saved part in unattributed messages
+ *   after the monitor    same as before
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-export const AGENT_START_MESSAGE_TYPE = "context-view-fixture-agent-message";
+/** Readable, since the customType labels the message's preview part. */
+export const AGENT_START_MESSAGE_TYPE = "Custom Demo Message: Findings Format";
 export const AGENT_START_MESSAGE_TEXT = "Review findings should include the affected file and a suggested improvement.";
 
 /** Add one hidden custom message to every run. */

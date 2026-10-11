@@ -8,7 +8,8 @@
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-export const CONTEXT_ADD_TYPE = "context-view-fixture-add";
+/** Readable, since the customType labels the message's preview part. */
+export const CONTEXT_ADD_TYPE = "Custom Demo Message: Review Focus";
 export const CONTEXT_ADD_TEXT = "Focus the review on error handling and test coverage.";
 
 /** Add the note before the prompt so it cannot pair with a deleted note after it. */

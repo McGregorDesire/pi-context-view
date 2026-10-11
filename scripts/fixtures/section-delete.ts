@@ -9,7 +9,7 @@
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-export const SECTION_DELETE_NAME = "context-view-fixture-obsolete";
+export const SECTION_DELETE_NAME = "demo_legacy_migration";
 export const SECTION_DELETE_TEXT = `<${SECTION_DELETE_NAME}>\n`
 	+ "Use the legacy configuration format for migration.\n"
 	+ `</${SECTION_DELETE_NAME}>`;

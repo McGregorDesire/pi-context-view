@@ -29,7 +29,7 @@ const FIXTURES = [
 	"context-modify", "context-delete", "context-add", "review-checklist",
 	"section-patch", "section-modify", "section-delete", "payload-changes", "payload-remove-tool", "agent-start-message",
 ];
-const OBSOLETE_MESSAGE_TYPE = "context-view-fixture-obsolete-message";
+const OBSOLETE_MESSAGE_TYPE = "Custom Demo Message: Obsolete Scope";
 const OBSOLETE_MESSAGE_TEXT = "Limit the review to formatting; skip error handling and test coverage.";
 const PAYLOAD_ORIGINAL = "Keep the review brief.";
 const PAYLOAD_MODIFIED = "Keep the review brief. Include a short explanation for each finding.";
@@ -59,7 +59,7 @@ for (const api of ["openai-completions", "openai-responses", "anthropic-messages
 
 			assert.deepEqual(snapshot.changes.system.map((change) => change.type === "section" ? change.name : change.type)
 				.sort(), after ? [] : [
-					"context-view-fixture-checklist", "context-view-fixture-obsolete", "context-view-fixture-review",
+					"demo_checklist", "demo_legacy_migration", "demo_review",
 				]);
 			assert.ok(snapshot.guard.status === "complete");
 			assert.deepEqual(snapshot.guard.findings.map((finding) => finding.type === "payload-tool-change"
@@ -82,13 +82,13 @@ for (const api of ["openai-completions", "openai-responses", "anthropic-messages
 			const removed = messages?.sections?.find((part) => part.change === "deleted");
 			assert.equal(removed?.tokens, 0);
 			assert.equal(removed?.text, OBSOLETE_MESSAGE_TEXT);
-			const saved = messages?.sections?.find((part) => part.label === "context-view-fixture-agent-message");
+			const saved = messages?.sections?.find((part) => part.label === "Custom Demo Message: Findings Format");
 			assert.ok(saved);
 			assert.equal(saved.requestOnly, undefined);
 			assert.ok(!JSON.stringify(composition).includes("XYZZY"));
 			if (!after) {
 				const promptParts = items.find((item) => item.kind === "base-prompt")?.children ?? [];
-				const removedSection = promptParts.find((part) => part.label === "context-view-fixture-obsolete");
+				const removedSection = promptParts.find((part) => part.label === "demo_legacy_migration");
 				assert.equal(removedSection?.tokens, 0);
 				assert.equal(removedSection?.requestOnly, true);
 			}

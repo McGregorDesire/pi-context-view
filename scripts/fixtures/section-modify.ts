@@ -10,7 +10,7 @@
 import { getCurrentSystemMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-export const SECTION_MODIFY_NAME = "context-view-fixture-review";
+export const SECTION_MODIFY_NAME = "demo_review";
 export const SECTION_MODIFY_ORIGINAL = "Review the changed files for correctness.";
 export const SECTION_MODIFY_TEXT = "Review the changed files for correctness, error handling, and test coverage.";
 

@@ -98,12 +98,17 @@ so the sample asks the model not to call tools.
 ./scripts/demo-injections.sh --system --no-session
 ```
 
-| Fixture           | Changes |
-| ----------------- | ------- |
-| `section-patch`    | Adds only `context-view-fixture-checklist`: read affected files and run focused tests. |
-| `section-modify`   | Expands only `context-view-fixture-review` from correctness to correctness, error handling, and test coverage. |
-| `section-delete`   | Deletes only `context-view-fixture-obsolete`: a legacy configuration migration note. |
+| Fixture            | Changes                                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `section-patch`    | Adds `demo_checklist`: read affected files and run focused tests.                                                        |
+| `section-modify`   | Expands `demo_review` from correctness to correctness, error handling, and test coverage.                                |
+| `section-delete`   | Deletes `demo_legacy_migration`: an obsolete configuration migration note.                                               |
 | `review-checklist` | Registers `review_checklist`, a harmless tool returning a fixed review checklist, with a prompt snippet and guideline. |
+
+Section names label the System Prompt rows verbatim. Pi accepts only
+lowercase identifiers (`^[a-z][a-z0-9_-]*$`), so the names follow Pi's own
+`project_context` style. Message types have no such limit, so message parts use
+readable labels.
 
 The modification and deletion fixtures seed their originals through
 `before_agent_start`, making them part of the session baseline.
@@ -118,9 +123,10 @@ repeats changes counted under `pi`, without counting them twice. Enter on
 Available Tools or Guidelines also shows the attributed lines; selecting
 these saved parts names the known extension in `Changed By`.
 
-Custom section tags and message types do not identify an editing extension,
-so those changes remain under `unattributed`. This is a deliberate contrast,
-not a claim that all edits can be attributed.
+Pi does not report which extension's handler edited a section or message.
+Custom section names and message types do not identify an editing extension
+either, so those changes remain under `unattributed`. This is a deliberate
+contrast, not a claim that all edits can be attributed.
 
 With `--after`, the three section edits appear only as payload changes after a
 real prompt. The tool definition and its saved prompt lines remain attributed
@@ -132,12 +138,12 @@ in both load orders.
 ./scripts/demo-injections.sh --context --message --no-session
 ```
 
-| Fixture               | Preview |
-| --------------------- | ------- |
-| `context-add`         | Added: “Focus the review on error handling and test coverage.” |
-| `context-modify`      | Modified user prompt: adds “Give recommendations only; do not edit files.” |
-| `context-delete`      | Deleted: “Limit the review to formatting; skip error handling and test coverage.” |
-| `agent-start-message` | Unchanged saved note: “Review findings should include the affected file and a suggested improvement.” |
+| Fixture               | Part label                             | Preview                                                                                |
+| --------------------- | -------------------------------------- | -------------------------------------------------------------------------------------- |
+| `context-add`         | `Custom Demo Message: Review Focus`    | Added: “Focus the review on error handling and test coverage.”                         |
+| `context-modify`      | `user`                                 | Modified user prompt: adds “Give recommendations only; do not edit files.”             |
+| `context-delete`      | `Custom Demo Message: Obsolete Scope`  | Deleted: “Limit the review to formatting; skip error handling and test coverage.”      |
+| `agent-start-message` | `Custom Demo Message: Findings Format` | Unchanged saved note: “Review findings should include the affected file and a suggested improvement.” |
 
 `context-delete` saves its obsolete custom note once per session, then omits
 it from each request. It never removes genuine user prompts. The saved note

@@ -7,7 +7,7 @@
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-export const SECTION_PATCH_NAME = "context-view-fixture-checklist";
+export const SECTION_PATCH_NAME = "demo_checklist";
 export const SECTION_PATCH_TEXT = `<${SECTION_PATCH_NAME}>\n`
 	+ "- Read the affected files before editing.\n- Run focused tests after the change.\n"
 	+ `</${SECTION_PATCH_NAME}>`;

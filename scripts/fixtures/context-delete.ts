@@ -8,7 +8,8 @@
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-export const CONTEXT_DELETE_TYPE = "context-view-fixture-obsolete-message";
+/** Readable, since the customType labels the message's preview part. */
+export const CONTEXT_DELETE_TYPE = "Custom Demo Message: Obsolete Scope";
 export const CONTEXT_DELETE_TEXT = "Limit the review to formatting; skip error handling and test coverage.";
 
 /** Seed the note once per session and filter only its custom message type. */
