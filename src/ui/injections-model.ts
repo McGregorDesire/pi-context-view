@@ -32,6 +32,8 @@ export type InjectionRow =
 		readonly change?: RequestChange;
 		/** Tokens this contribution gained and lost against its base. */
 		readonly diff?: TokenDiff;
+		/** Whether the request sent other content than the session keeps. */
+		readonly requestOnly?: boolean;
 		/** Stable preview target id from the snapshot. */
 		readonly itemId: string;
 	}
@@ -83,6 +85,7 @@ export function buildInjectionRows(snapshot: InjectionSnapshot): InjectionRow[] 
 				moved: item.moved,
 				change: item.change,
 				diff: item.diff,
+				requestOnly: item.requestOnly,
 				itemId: item.id,
 			});
 			const children = item.children ?? [];
@@ -98,6 +101,7 @@ export function buildInjectionRows(snapshot: InjectionSnapshot): InjectionRow[] 
 					moved: child.moved,
 					change: child.change,
 					diff: child.diff,
+					requestOnly: child.requestOnly,
 					itemId: child.id,
 				});
 			});

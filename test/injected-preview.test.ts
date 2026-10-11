@@ -60,23 +60,10 @@ const LEGEND: Record<ContextMarker, { keyword: string; color: ThemeColor; senten
 		color: "toolDiffAdded",
 		sentence: "Tokens extensions added or removed, compared with pi’s default prompt.",
 	},
-	added: {
-		keyword: "Added",
-		color: "toolDiffAdded",
-		sentence: "parts exist only in this request: an extension added them, and the session does not" +
-			" keep them. They are counted.",
-	},
-	modified: {
-		keyword: "Modified",
-		color: "warning",
-		sentence: "parts were changed by an extension for this request only; the session keeps the" +
-			" original. The request version is counted.",
-	},
-	deleted: {
-		keyword: "Deleted",
-		color: "toolDiffRemoved",
-		sentence: "parts were removed by an extension for this request only; the session keeps them." +
-			" They are counted nowhere.",
+	"request-only": {
+		keyword: "Request-Only",
+		color: "dim",
+		sentence: "Includes changes made only in this request, not saved in the session.",
 	},
 };
 const DESCRIPTION = `- ${LEGEND.highlighted.keyword} ${LEGEND.highlighted.sentence}`;

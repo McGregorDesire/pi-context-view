@@ -80,6 +80,14 @@ A branch without recorded system state and the degraded fallback compare the
 live prompt with itself, so only extension text shows.
 [ui/injections.md](../ui/injections.md#token-diffs) holds the rules.
 
+A leaf row whose sent content differs from the session is request-only
+(`InjectionItem.requestOnly`): an added, modified, or deleted message, prompt
+part, or tool. Pi never saves a forced prompt, so under one, every prompt part,
+instruction file, or skill whose text differs from the session's version is
+request-only too. Parents, the System Prompt item, and payload changes never
+are. Sections that mirror child rows copy the flag, so previews mark the same
+parts as the list.
+
 Prompt additions have no `before_agent_start` handler boundary: recorded
 structured edits already belong to the baseline, and the forced prompt is
 captured as final text ([prompt additions](measurement.md#extension-prompt-additions)).

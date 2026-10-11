@@ -75,8 +75,7 @@ Every frame showing a marker also explains it, through the
 bullet opens with the keyword in the same fixed color as the marker it explains,
 so `Highlighted` uses `syntaxNumber`, `(guess)` `dim`, `Dropped`
 `toolDiffRemoved`, `Moved` `warning`, `Forced` `warning`, `+N` `toolDiffAdded`
-and `-N` `toolDiffRemoved` in one `+N -N` keyword, `Added` `toolDiffAdded`,
-`Modified` `warning`, and `Deleted` `toolDiffRemoved`.
+and `-N` `toolDiffRemoved` in one `+N -N` keyword, and `Request-Only` `dim`.
 
 Moved `Available Tools` and `Guidelines` sections outside pi's normal order
 carry a fixed `warning` `Moved` marker after the estimate, in hierarchy rows,
@@ -90,9 +89,9 @@ Injections shows the tokens extensions added or removed as fixed `+N`
 (`toolDiffAdded`) and `-N` (`toolDiffRemoved`)
 [token diffs](ui/injections.md#token-diffs): in their own columns after the
 estimate in hierarchy rows, and after the estimate behind a dim ` · ` in preview
-headers and subheaders. Besides them, hierarchy rows mark only the request-only
-`Forced` change; previews also keep the fixed `Added`, `Modified`, and
-`Deleted` markers after the diff.
+headers and subheaders. After the diff, hierarchy rows, preview headers, and
+part subheaders carry two fixed change markers: `Forced` (`warning`) and
+`Request-Only` (`dim`), which marks content the session does not keep.
 [ui/injections.md](ui/injections.md#request-only-changes) defines them. They follow the same separator, fit, and configuration rules as
 `Dropped` and `Moved`. Usage shows `Forced` the same way in its System Prompt
 previews; [ui/usage.md](ui/usage.md#forced-prompt) defines where.

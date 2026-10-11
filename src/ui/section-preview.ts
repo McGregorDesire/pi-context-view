@@ -45,10 +45,12 @@ export interface SectionedContent {
 	readonly dropped?: boolean;
 	/** True when an extension moved this content out of the region pi renders it into. */
 	readonly moved?: boolean;
-	/** Request-only change of this content; Usage shows only `forced`. */
+	/** Request-only change of this content; only `forced` has a marker. */
 	readonly change?: RequestChange;
 	/** Tokens this content gained and lost against its base; only Injections measures them. */
 	readonly diff?: TokenDiff;
+	/** True when the request sent other content than the session keeps; only Injections measures it. */
+	readonly requestOnly?: boolean;
 	/** Changed lines of a payload change; rendered as a diff instead of the text. */
 	readonly changedLines?: readonly PayloadChangeLine[];
 }
@@ -237,10 +239,10 @@ function headingKey(text: string): string {
 }
 
 /**
- * Bold subheader naming one part, its share of the parent estimate, and its
- * token diff. Parts use `syntaxKeyword` rather than the usual `mdHeading`
- * subheader color, because they nest under item and entry headings that
- * already carry `mdHeading`.
+ * Bold subheader naming one part, its share of the parent estimate, its token
+ * diff, and its markers. Parts use `syntaxKeyword` rather than the usual
+ * `mdHeading` subheader color, because they nest under item and entry headings
+ * that already carry `mdHeading`.
  */
 function sectionHeaderLines(theme: Theme, section: InjectionSection, wrapWidth: number): string[] {
 	const label = theme.fg("syntaxKeyword", theme.bold(normalizeInlineText(section.label)));

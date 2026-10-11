@@ -5,13 +5,7 @@
 import type { ExtensionCommandContext, Theme } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
-import {
-	type InjectionItem,
-	type InjectionSnapshot,
-	PAYLOAD_CHANGES_SOURCE_ID,
-	type RequestChange,
-	type TokenDiff,
-} from "../model.ts";
+import { type InjectionItem, type InjectionSnapshot, PAYLOAD_CHANGES_SOURCE_ID, type TokenDiff } from "../model.ts";
 import type { GuardResult } from "../snapshot.ts";
 import { normalizeInlineText, normalizePreviewText } from "../text.ts";
 import {
@@ -310,7 +304,7 @@ export class InjectionsView {
 		const source = normalizeInlineText(item.source.label);
 		const meta = theme.fg("muted", `${source} · ${item.tokens.toLocaleString("en-US")} tokens`);
 		const diff = diffMarker(theme, item.diff);
-		const marker = stateMarkers(theme, { moved: item.moved, change: item.change });
+		const marker = stateMarkers(theme, { moved: item.moved, change: item.change, requestOnly: item.requestOnly });
 		// Drop the marker first when space runs out, then the diff
 		const headerWidth = visibleWidth(title) + visibleWidth(meta) + 2;
 		const fitsDiff = headerWidth + visibleWidth(diff) <= width;
@@ -488,11 +482,12 @@ export class InjectionsView {
 	}
 
 	/**
-	 * State markers after the estimate and diff columns: `Dropped`, `Moved`, and
-	 * `Forced`. The diff columns replace the other request-only change markers.
+	 * State markers after the estimate and diff columns: `Dropped`, `Moved`,
+	 * `Forced`, and `Request-Only`. The diff columns show what a change added
+	 * or removed.
 	 */
 	private rowMarker(row: Exclude<InjectionRow, { readonly kind: "separator" }>): string {
-		return row.kind === "item" ? stateMarkers(this.theme, listMarkedState(row)) : "";
+		return row.kind === "item" ? stateMarkers(this.theme, row) : "";
 	}
 
 	/** Fill a label/value gap with dim dots, retaining spaces at both ends. */
@@ -601,7 +596,7 @@ export class InjectionsView {
 	private rowMarkers(): ContextMarker[] {
 		return this.rows.flatMap((row) => {
 			if (row.kind === "group") return partMarkers({ diff: row.diff });
-			return row.kind === "item" ? partMarkers({ ...listMarkedState(row), diff: row.diff }) : [];
+			return row.kind === "item" ? partMarkers(row) : [];
 		});
 	}
 
@@ -650,13 +645,6 @@ function diffColumnsWidth(columns: InjectionColumns): number {
 	const added = columns.addedWidth > 0 ? DIFF_COLUMN_GAP + columns.addedWidth : 0;
 	const removed = columns.removedWidth > 0 ? DIFF_COLUMN_GAP + columns.removedWidth : 0;
 	return added + removed;
-}
-
-/** The marked state a list row shows: its `Forced` change, but no change the diff columns already show. */
-function listMarkedState(
-	row: Extract<InjectionRow, { readonly kind: "item" }>,
-): { readonly dropped?: boolean; readonly moved?: boolean; readonly change?: RequestChange } {
-	return { dropped: row.dropped, moved: row.moved, change: row.change === "forced" ? "forced" : undefined };
 }
 
 /**

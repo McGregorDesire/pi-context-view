@@ -230,8 +230,8 @@ function measureMessages(
 }
 
 /**
- * One conversation change as a marked item with its token diff against the
- * session; deletions read 0 tokens and preview the session original.
+ * One conversation change as a marked, request-only item with its token diff
+ * against the session; deletions read 0 tokens and preview the session original.
  */
 function changeItem(
 	id: string,
@@ -244,17 +244,18 @@ function changeItem(
 	switch (change.type) {
 		case "added": {
 			const item = messageItem(id, change.message, source, true);
-			return { ...item, change: "added", ...diffField(measureTokenDiff(undefined, item)) };
+			return { ...item, change: "added", requestOnly: true, ...diffField(measureTokenDiff(undefined, item)) };
 		}
 		case "modified": {
 			const item = messageItem(id, change.message, source, true);
 			const original = take(change.entryId);
-			if (original === undefined) return { ...item, change: "modified" };
+			if (original === undefined) return { ...item, change: "modified", requestOnly: true };
 			const session = messagePreview(original);
 			const diff = measureTokenDiff({ text: session.text, tokens: estimateTokens(original) }, item);
 			return {
 				...item,
 				change: "modified",
+				requestOnly: true,
 				...diffField(diff),
 				sections: [
 					{ label: "Request", text: item.text, tokens: item.tokens, jsonSpan: item.jsonSpan },
@@ -265,11 +266,14 @@ function changeItem(
 		case "deleted": {
 			const original = take(change.entryId);
 			if (original === undefined) {
-				return { id, kind: "message", source, label: "message", chars: 0, tokens: 0, text: "", change: "deleted" };
+				return {
+					id, kind: "message", source, label: "message", chars: 0, tokens: 0, text: "",
+					change: "deleted", requestOnly: true,
+				};
 			}
 			const item = messageItem(id, original, source);
 			const diff = measureTokenDiff(item, { text: "", tokens: 0 });
-			return { ...item, chars: 0, tokens: 0, change: "deleted", ...diffField(diff) };
+			return { ...item, chars: 0, tokens: 0, change: "deleted", requestOnly: true, ...diffField(diff) };
 		}
 	}
 }
@@ -331,7 +335,8 @@ function messageItem(id: string, message: RequestMessage, source: InjectionSourc
  * Extension Additions are extension text with no default; a deleted custom
  * section compares with the session instead, so its deletion stays visible.
  * Tools, instruction files, and skills compare with the session. A parent sums
- * its children, plus the removal of children only the session has.
+ * its children, plus the removal of children only the session has. Each leaf
+ * also learns whether it is request-only.
  */
 function withPromptDiffs(items: readonly InjectionItem[], session: readonly InjectionItem[]): InjectionItem[] {
 	const sessionById = new Map<string, InjectionItem>();
@@ -339,7 +344,12 @@ function withPromptDiffs(items: readonly InjectionItem[], session: readonly Inje
 		sessionById.set(item.id, item);
 		for (const child of item.children ?? []) sessionById.set(child.id, child);
 	}
-	const context: DiffContext = { sessionById, sessionItems: session, sentIds: new Set(items.map((item) => item.id)) };
+	const context: DiffContext = {
+		sessionById,
+		sessionItems: session,
+		sentIds: new Set(items.map((item) => item.id)),
+		forced: items.some((item) => item.id === SYSTEM_PROMPT_ITEM_ID && item.change === "forced"),
+	};
 	return items.map((item) => withItemDiff(item, context, false));
 }
 
@@ -351,19 +361,25 @@ interface DiffContext {
 	readonly sessionItems: readonly InjectionItem[];
 	/** Ids of the request's top-level items. */
 	readonly sentIds: ReadonlySet<string>;
+	/** True when the request carried a forced prompt, whose text the session never keeps. */
+	readonly forced: boolean;
 }
 
 /**
- * One item with its diff; `promptPart` marks a System Prompt part. Its
- * sections mirror its children one to one, so preview subheaders show the
- * same diffs as the rows.
+ * One item with its diff and, for a leaf, its request-only state; `promptPart`
+ * marks a System Prompt part. Its sections mirror its children one to one, so
+ * preview subheaders show the same diffs and markers as the rows.
  */
 function withItemDiff(item: InjectionItem, context: DiffContext, promptPart: boolean): InjectionItem {
 	if (item.dropped === true) return item;
 	const children = item.children ?? [];
 	if (children.length === 0) {
 		const request: DiffSide = item.change === "deleted" ? { text: "", tokens: 0 } : item;
-		return { ...item, ...diffField(measureTokenDiff(itemBase(item, context, promptPart), request)) };
+		return {
+			...item,
+			...diffField(measureTokenDiff(itemBase(item, context, promptPart), request)),
+			...(isRequestOnly(item, context) ? { requestOnly: true } : {}),
+		};
 	}
 	const parts = item.id === SYSTEM_PROMPT_ITEM_ID;
 	const diffed = children.map((child) => withItemDiff(child, context, parts));
@@ -377,8 +393,24 @@ function withItemDiff(item: InjectionItem, context: DiffContext, promptPart: boo
 		...item,
 		...diffField(diff),
 		children: diffed,
-		sections: item.sections?.map((section, index) => ({ ...section, ...diffField(diffed[index]?.diff) })),
+		sections: item.sections?.map((section, index) => ({
+			...section,
+			...diffField(diffed[index]?.diff),
+			...(diffed[index]?.requestOnly === true ? { requestOnly: true } : {}),
+		})),
 	};
+}
+
+/**
+ * Whether the request sent other content than the session keeps for one leaf:
+ * a request-only addition, edit, or deletion, or forced prompt text that
+ * differs from the session's version. Tool changes reach a forced prompt as
+ * usual, and the undivided System Prompt carries only its `forced` change.
+ */
+function isRequestOnly(item: InjectionItem, context: DiffContext): boolean {
+	if (item.change !== undefined && item.change !== "forced") return true;
+	if (!context.forced || item.kind === "tool" || item.id === SYSTEM_PROMPT_ITEM_ID) return false;
+	return context.sessionById.get(item.id)?.text !== item.text;
 }
 
 /**

@@ -3,15 +3,13 @@
 
 ## Unreleased
 
-**Requires Pi 1.1+.**
-
 Injection capture has been redesigned for Pi 1.1. Instead of freezing the first request (Initial),
 it now captures every request and compares it with the saved session. This shows request-only
 injections that were invisible before: changes from later handlers, deleted or modified messages,
 forced prompts, and tools Pi hides.
 
 ### New
-* `[injections]` Show Added, Modified, and Deleted request-only injections.
+* `[injections]` Show request-only injections with `+N`/`-N` diffs and a `Request-Only` marker.
 * `[injections]` Use the latest request instead of the frozen Initial snapshot.
 * `[injections]` Show payload changes and tools Pi hides.
 

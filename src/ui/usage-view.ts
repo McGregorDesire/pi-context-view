@@ -38,7 +38,7 @@ import {
 	STEP_KEY_HINT,
 	wrapDescriptionLines,
 } from "./layout.ts";
-import { changeMarker } from "./markers.ts";
+import { forcedMarker } from "./markers.ts";
 import { previewBodyLines, previewLegendLines } from "./section-preview.ts";
 import { splitSkillPreview } from "./skill-preview.ts";
 import { buildUsageMap, calculateFitMapScale, type UsageMap, type UsageMapCell } from "./usage-map.ts";
@@ -943,7 +943,7 @@ export class UsageView {
 		const percent = this.plainLegendPercent(row.category.tokens);
 		const meta = theme.fg("muted", `${formatTokens(row.category.tokens)}${percent === "" ? "" : ` · ${percent}`}`);
 		const forced = this.previewEntries(row).some((entry) => entry.change === "forced");
-		const marker = forced ? changeMarker(theme, "forced") : "";
+		const marker = forced ? forcedMarker(theme) : "";
 		const fitsMarker = visibleWidth(title) + visibleWidth(meta) + visibleWidth(marker) + 2 <= width;
 		return spreadLine(title, `${meta}${fitsMarker ? marker : ""} `, width);
 	}

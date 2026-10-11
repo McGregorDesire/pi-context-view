@@ -14,12 +14,18 @@ import { BODY_INDENT, fitLine } from "./layout.ts";
 const MARKER_SEPARATOR = " · ";
 
 /** Markers a frame can show, in the fixed order their legend bullets render. */
-const MARKER_ORDER = [
-	"highlighted", "guess", "dropped", "moved", "forced", "diff", "added", "modified", "deleted",
-] as const;
+const MARKER_ORDER = ["highlighted", "guess", "dropped", "moved", "forced", "diff", "request-only"] as const;
 
 /** One marked state a description bullet explains; `diff` stands for `+N`/`-N` token diffs. */
 export type ContextMarker = (typeof MARKER_ORDER)[number];
+
+/** The state of one part or row that markers show; only a `forced` change has a marker of its own. */
+export interface MarkedState {
+	readonly dropped?: boolean;
+	readonly moved?: boolean;
+	readonly change?: RequestChange;
+	readonly requestOnly?: boolean;
+}
 
 /**
  * What the token diffs of a preview compare with:
@@ -78,23 +84,10 @@ const MARKER_LEGENDS: Record<Exclude<ContextMarker, "diff">, MarkerLegend> = {
 		color: "warning",
 		explanation: " prompts replace pi’s system prompt for this request.",
 	},
-	added: {
-		keyword: "Added",
-		color: "toolDiffAdded",
-		explanation: " parts exist only in this request: an extension added them, and the session does not" +
-			" keep them. They are counted.",
-	},
-	modified: {
-		keyword: "Modified",
-		color: "warning",
-		explanation: " parts were changed by an extension for this request only; the session keeps the" +
-			" original. The request version is counted.",
-	},
-	deleted: {
-		keyword: "Deleted",
-		color: "toolDiffRemoved",
-		explanation: " parts were removed by an extension for this request only; the session keeps them." +
-			" They are counted nowhere.",
+	"request-only": {
+		keyword: "Request-Only",
+		color: "dim",
+		explanation: " Includes changes made only in this request, not saved in the session.",
 	},
 };
 
@@ -130,38 +123,31 @@ export function diffMarker(theme: Theme, diff: TokenDiff | undefined): string {
 	return sides.length === 0 ? "" : `${theme.fg("dim", MARKER_SEPARATOR)}${sides.join(" ")}`;
 }
 
-/** Themed marker naming how a request-only change touched a part. */
-export function changeMarker(theme: Theme, change: RequestChange): string {
-	return stateMarker(theme, MARKER_LEGENDS[change]);
+/** Themed marker naming a request that carried an extension's forced prompt instead of pi's. */
+export function forcedMarker(theme: Theme): string {
+	return stateMarker(theme, MARKER_LEGENDS.forced);
 }
 
 /**
- * Every state marker of one part, in legend order: dropped, moved, then its
- * request-only change. Empty when the part carries none.
+ * Every state marker of one part, in legend order: dropped, moved, forced,
+ * then request-only. Empty when the part carries none. Token diffs, not
+ * markers, show what an added, modified, or deleted part changed.
  */
-export function stateMarkers(
-	theme: Theme,
-	part: { readonly dropped?: boolean; readonly moved?: boolean; readonly change?: RequestChange },
-): string {
+export function stateMarkers(theme: Theme, part: MarkedState): string {
 	let markers = part.dropped === true ? droppedMarker(theme) : part.moved === true ? movedMarker(theme) : "";
-	if (part.change !== undefined) markers += changeMarker(theme, part.change);
+	if (part.change === "forced") markers += forcedMarker(theme);
+	if (part.requestOnly === true) markers += stateMarker(theme, MARKER_LEGENDS["request-only"]);
 	return markers;
 }
 
 /** Markers one part carries, including its token diff, for the legend of the frame showing it. */
-export function partMarkers(
-	part: {
-		readonly dropped?: boolean;
-		readonly moved?: boolean;
-		readonly change?: RequestChange;
-		readonly diff?: TokenDiff;
-	},
-): ContextMarker[] {
+export function partMarkers(part: MarkedState & { readonly diff?: TokenDiff }): ContextMarker[] {
 	const markers: ContextMarker[] = [];
 	if (part.dropped === true) markers.push("dropped");
 	if (part.moved === true) markers.push("moved");
-	if (part.change !== undefined) markers.push(part.change);
+	if (part.change === "forced") markers.push("forced");
 	if (part.diff !== undefined && (part.diff.added > 0 || part.diff.removed > 0)) markers.push("diff");
+	if (part.requestOnly === true) markers.push("request-only");
 	return markers;
 }
 

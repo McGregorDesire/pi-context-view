@@ -193,6 +193,8 @@ export interface InjectionSection {
 	readonly change?: RequestChange;
 	/** Tokens this part gained and lost against its base; absent when unchanged. */
 	readonly diff?: TokenDiff;
+	/** True when the child row this part stands for is request-only; see `InjectionItem.requestOnly`. */
+	readonly requestOnly?: boolean;
 	/** Serialized JSON inside `text`, e.g. a tool's parameter schema. */
 	readonly jsonSpan?: JsonSpan;
 	/** Extension lines inside `text`, annotated with their source in previews. */
@@ -224,6 +226,13 @@ export interface InjectionItem {
 	readonly change?: RequestChange;
 	/** Tokens this contribution gained and lost against its base; a parent sums its children. */
 	readonly diff?: TokenDiff;
+	/**
+	 * True when the request sent other content than the session keeps: a
+	 * request-only addition, edit, or deletion, alone or mixed with saved
+	 * changes, or forced prompt text that differs from the session's. Only
+	 * Injections measures it; parents and payload changes never carry it.
+	 */
+	readonly requestOnly?: boolean;
 	/**
 	 * Changed lines of a payload change, in payload order. `text` holds only the
 	 * added lines, which the estimate counts.

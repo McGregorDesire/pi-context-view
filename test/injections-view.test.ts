@@ -1040,7 +1040,9 @@ test("InjectionsView navigation scrolls the non-selectable total and Escape clos
 
 /** A snapshot whose items carry each request-only change, one of them with Request and Session parts. */
 function changedSnapshot(): InjectionSnapshot {
-	const base = (id: string, tokens: number) => ({ ...item(id, "unattributed", false, tokens), text: `${id} text` });
+	const base = (id: string, tokens: number) => ({
+		...item(id, "unattributed", false, tokens), text: `${id} text`, requestOnly: true,
+	});
 	const items: InjectionItem[] = [
 		{ ...base("added", 4), label: "added message", change: "added", diff: { added: 4, removed: 0 } },
 		{
@@ -1062,34 +1064,50 @@ function changedSnapshot(): InjectionSnapshot {
 	return { groups: [changes], totalTokens: 9 };
 }
 
-test("InjectionsView shows token diffs in right-aligned columns instead of change markers", () => {
+test("InjectionsView shows token diffs in right-aligned columns and marks request-only rows", () => {
 	const theme = createTheme();
-	const view = new InjectionsView(theme, { snapshot: changedSnapshot() }, () => {}, () => 40);
+	const saved: InjectionItem = {
+		...item("saved", "pi", true, 2), label: "saved section", diff: { added: 2, removed: 0 },
+	};
+	const changed = changedSnapshot();
+	const snapshot: InjectionSnapshot = {
+		groups: [{ ...group("pi", true, [saved]), diff: saved.diff }, ...changed.groups],
+		totalTokens: changed.totalTokens + saved.tokens,
+	};
+	const view = new InjectionsView(theme, { snapshot }, () => {}, () => 40);
 	const lines = view.render(100);
 	const plain = lines.map(stripSgr);
 	const row = (label: string) => plain.find((line) => line.includes(label)) ?? "";
 
-	assert.match(row("unattributed"), / 9 {2}\+7 {2}-1,240$/);
-	assert.match(row("added message"), / 4 {2}\+4$/, "an added row reads its value as added");
-	assert.match(row("modified message"), / 5 {2}\+3 {2}-1,234$/);
-	assert.match(row("deleted message"), / 0 {10}-6$/, "a deleted row reads 0 with a blank +N column");
-	for (const label of ["unattributed", "modified message", "deleted message"]) {
-		assert.equal(row(label).length, row("unattributed").length, `${label}: the columns keep their right edges`);
+	assert.match(row("unattributed"), / 9 {2}\+7 {2}-1,240$/, "a group row is never request-only");
+	assert.match(row("saved section"), / 2 {2}\+2$/, "saved text has a diff but no marker");
+	assert.match(row("added message"), / 4 {2}\+4 {8} · Request-Only$/, "an added row reads its value as added");
+	assert.match(row("modified message"), / 5 {2}\+3 {2}-1,234 · Request-Only$/);
+	assert.match(row("deleted message"), / 0 {10}-6 · Request-Only$/, "a deleted row reads 0 with a blank +N column");
+	for (const label of ["added message", "modified message", "deleted message"]) {
+		assert.equal(row(label).length - " · Request-Only".length, row("unattributed").length,
+			`${label}: the columns keep their right edges, and the marker follows them`);
 	}
-	assert.equal(row("added message").length, row("unattributed").length - "  -1,240".length,
+	assert.equal(row("saved section").length, row("unattributed").length - "  -1,240".length,
 		"a blank -N column leaves no trailing spaces");
-	assert.match(row("TOTAL"), / 9$/, "TOTAL has no diff");
+	assert.match(row("TOTAL"), / 11$/, "TOTAL has no diff");
 	assert.ok(lines.some((line) => line.includes(theme.fg("toolDiffAdded", "+3"))));
 	assert.ok(lines.some((line) => line.includes(theme.fg("toolDiffRemoved", "-1,234"))));
-	const selected = lines.find((line) => stripSgr(line).startsWith("→ unattributed")) ?? "";
-	assert.ok(selected.includes(theme.fg("toolDiffAdded", "+7")), "the selected row keeps the diff colors");
+	const marker = `${theme.fg("dim", " · ")}${theme.fg("dim", "Request-Only")}`;
+	assert.ok(lines.find((line) => line.includes("deleted message"))?.endsWith(marker), "the marker is dim");
+	const selected = lines.find((line) => stripSgr(line).startsWith("→ pi")) ?? "";
+	assert.ok(selected.includes(theme.fg("toolDiffAdded", "+2")), "the selected row keeps the diff colors");
 	assert.ok(!plain.some((line) => /Added|Modified|Deleted/.test(line)), "rows and legend name no change marker");
 
 	const bullets = plain.filter((line) => line.startsWith("  - "));
-	assert.deepEqual(bullets, ["  - +N -N Tokens extensions added or removed."]);
+	assert.deepEqual(bullets, [
+		"  - +N -N Tokens extensions added or removed.",
+		"  - Request-Only Includes changes made only in this request, not saved in the session.",
+	]);
 	const bullet = lines.find((line) => stripSgr(line).startsWith("  - +N")) ?? "";
 	assert.ok(bullet.includes(`${theme.fg("toolDiffAdded", "+N")} ${theme.fg("toolDiffRemoved", "-N")}`));
-	assert.equal(plain.find((line) => line.trim().startsWith("TOTAL"))?.trim().endsWith("9"), true);
+	const requestOnlyBullet = lines.find((line) => stripSgr(line).startsWith("  - Request-Only")) ?? "";
+	assert.ok(requestOnlyBullet.includes(theme.fg("dim", "Request-Only")));
 });
 
 test("InjectionsView drops the diff columns whole at narrow widths and keeps markers after them", () => {
@@ -1097,17 +1115,19 @@ test("InjectionsView drops the diff columns whole at narrow widths and keeps mar
 	const prompt: InjectionItem = {
 		...item("base-prompt", "pi", true, 7), label: "System Prompt", change: "forced", diff: { added: 5, removed: 12 },
 	};
-	const moved: InjectionItem = { ...item("moved", "pi", true, 3), label: "moved part", moved: true };
+	const moved: InjectionItem = {
+		...item("moved", "pi", true, 3), label: "moved part", moved: true, requestOnly: true,
+	};
 	const piGroup = { ...group("pi", true, [prompt, moved]), diff: { added: 5, removed: 12 } };
 	const view = new InjectionsView(theme, { snapshot: { groups: [piGroup], totalTokens: 10 } }, () => {}, () => 40);
 
 	const wide = view.render(120).map(stripSgr);
 	const forced = wide.find((line) => line.includes("System Prompt")) ?? "";
 	assert.match(forced, / 7 {2}\+5 {2}-12 · Forced$/);
-	assert.match(wide.find((line) => line.includes("moved part")) ?? "", / 3 {10}· Moved$/,
-		"blank diff columns keep a marker aligned");
+	assert.match(wide.find((line) => line.includes("moved part")) ?? "", / 3 {10}· Moved · Request-Only$/,
+		"blank diff columns keep markers aligned, in legend order");
 	assert.deepEqual(wide.filter((line) => line.startsWith("  - ")).map((line) => line.slice(4, 12)),
-		["Moved bl", "Forced p", "+N -N To"], "markers and diffs explain themselves in legend order");
+		["Moved bl", "Forced p", "+N -N To", "Request-"], "markers and diffs explain themselves in legend order");
 
 	for (const width of [24, 40]) {
 		const narrow = view.render(width).map(stripSgr);
@@ -1148,7 +1168,8 @@ test("InjectionsView previews a modification as Request and Session parts", () =
 	view.handleInput("\r");
 	const plain = view.render(100).map(stripSgr);
 
-	assert.match(plain.find((line) => line.includes("modified message")) ?? "", /5 tokens · \+3 -1,234 · Modified $/);
+	assert.match(plain.find((line) => line.includes("modified message")) ?? "",
+		/5 tokens · \+3 -1,234 · Request-Only $/);
 	const request = plain.findIndex((line) => line.trim() === "Request · 5 tokens");
 	const session = plain.findIndex((line) => line.trim() === "Session · 0 tokens");
 	assert.ok(request >= 0 && session > request);
@@ -1157,8 +1178,9 @@ test("InjectionsView previews a modification as Request and Session parts", () =
 	const bullets = plain.filter((line) => line.startsWith("  - ")).map((line) => line.slice(4));
 	assert.equal(bullets[0], "+N -N Tokens extensions added or removed, compared with the session.",
 		"the preview's diff bullet names its base");
-	assert.match(bullets[1] ?? "", /^Modified parts were changed/, "the preview keeps the full marker sentence");
+	assert.equal(bullets[1], "Request-Only Includes changes made only in this request, not saved in the session.");
 	assert.equal(bullets.length, 2);
+	assert.ok(!plain.some((line) => /Added|Modified|Deleted/.test(line)), "Request-Only replaces the change markers");
 
 	// A narrow header drops the marker first, then the diff
 	const header = (width: number) => view.render(width).map(stripSgr).find((line) => line.includes("modified")) ?? "";
@@ -1171,15 +1193,18 @@ test("InjectionsView previews System Prompt parts with their diffs against pi's 
 	const part = (id: string, label: string, tokens: number, diff?: InjectionItem["diff"]): InjectionItem => ({
 		...item(id, "pi", true, tokens), label, text: `${label} text`, ...(diff === undefined ? {} : { diff }),
 	});
-	const children = [
+	const children: InjectionItem[] = [
 		part("preamble", "Preamble", 6),
 		part("tools", "Available Tools", 9, { added: 4, removed: 0 }),
-		part("docs", "Documentation", 0, { added: 0, removed: 7 }),
+		{ ...part("docs", "Documentation", 0, { added: 0, removed: 7 }), change: "deleted", requestOnly: true },
 	];
 	const prompt: InjectionItem = {
 		...part("base-prompt", "System Prompt", 15, { added: 4, removed: 7 }),
 		children,
-		sections: children.map((child) => ({ label: child.label, text: child.text, tokens: child.tokens, diff: child.diff })),
+		sections: children.map((child) => ({
+			label: child.label, text: child.text, tokens: child.tokens, diff: child.diff,
+			change: child.change, requestOnly: child.requestOnly,
+		})),
 	};
 	const piGroup = { ...group("pi", true, [prompt]), diff: { added: 4, removed: 7 } };
 	const view = new InjectionsView(theme, { snapshot: { groups: [piGroup], totalTokens: 15 } }, () => {}, () => 40);
@@ -1190,12 +1215,14 @@ test("InjectionsView previews System Prompt parts with their diffs against pi's 
 
 	assert.match(plain.find((line) => line.startsWith("System Prompt")) ?? "", /pi · 15 tokens · \+4 -7 $/);
 	assert.ok(plain.includes("  Preamble · 6 tokens"), "an unchanged part shows no diff");
-	assert.ok(plain.includes("  Available Tools · 9 tokens · +4"));
-	assert.ok(plain.includes("  Documentation · 0 tokens · -7"));
+	assert.ok(plain.includes("  Available Tools · 9 tokens · +4"), "saved extension text has no marker");
+	assert.ok(plain.includes("  Documentation · 0 tokens · -7 · Request-Only"));
 	const subheader = lines.find((line) => stripSgr(line).startsWith("  Documentation")) ?? "";
 	assert.ok(subheader.includes(`${theme.fg("dim", " · ")}${theme.fg("toolDiffRemoved", "-7")}`));
-	assert.deepEqual(plain.filter((line) => line.startsWith("  - ")),
-		["  - +N -N Tokens extensions added or removed, compared with pi’s default prompt."]);
+	assert.deepEqual(plain.filter((line) => line.startsWith("  - ")), [
+		"  - +N -N Tokens extensions added or removed, compared with pi’s default prompt.",
+		"  - Request-Only Includes changes made only in this request, not saved in the session.",
+	]);
 });
 
 test("InjectionsView describes a probe snapshot and notes an unavailable payload comparison", () => {
@@ -1382,8 +1409,8 @@ test("InjectionsView previews a payload change as colored changed lines with a h
 	const lines = view.render(60);
 	const plain = lines.map(stripSgr);
 
-	assert.match(plain.find((line) => line.includes("user message")) ?? "",
-		/payload changes · 4 tokens · \+3 -2 · Modified/);
+	assert.match(plain.find((line) => line.includes("user message")) ?? "", /payload changes · 4 tokens · \+3 -2 $/,
+		"a payload change carries no change marker");
 	const removed = plain.findIndex((line) => line === "  - before the edit");
 	assert.ok(removed >= 0);
 	assert.ok(lines[removed]?.includes(theme.fg("toolDiffRemoved", "- before the edit")));
@@ -1394,7 +1421,7 @@ test("InjectionsView previews a payload change as colored changed lines with a h
 	assert.ok(plain.every((line) => visibleWidth(line) <= 60));
 	assert.ok(plain.join(" ").replace(/\s+/g, " ")
 		.includes("- +N -N Tokens added or removed, compared with the captured request."));
-	assert.ok(plain.some((line) => line.startsWith("  - Modified parts")));
+	assert.ok(!plain.some((line) => /Added|Modified|Deleted|Request-Only/.test(line)));
 	assert.ok(plain.some((line) => line.startsWith("  - Payload changes appear only")));
 	assert.ok(!plain.some((line) => line.includes("hidden by pi")), "the hidden-tools note stays in the list");
 

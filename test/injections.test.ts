@@ -136,6 +136,9 @@ test("conversation changes stay in place with their markers", () => {
 	], "the modified session custom message replaces its unchanged row");
 
 	const items = [...itemsById(snapshot).values()];
+	const messages = items.filter((item) => item.kind === "message");
+	assert.ok(messages.every((item) => (item.requestOnly === true) === (item.change !== undefined)),
+		"every changed message is request-only");
 	const modified = items.find((item) => item.change === "modified" && item.label === "user message");
 	assert.deepEqual(modified?.sections?.map((part) => [part.label, part.text, part.tokens]), [
 		["Request", "edited second prompt", 5],
@@ -173,6 +176,11 @@ test("system changes apply to the measured prompt and tools and mark what they t
 	], "the deleted section follows the sent parts");
 	assert.equal(items.get("base-prompt:documentation")?.text, "Pi documentation lives here.");
 	assert.deepEqual(prompt?.sections?.map((part) => part.change), ["modified", undefined, "modified", "added", "deleted"]);
+	const requestOnlyParts = [true, false, true, true, true];
+	assert.deepEqual(prompt?.children?.map((child) => child.requestOnly === true), requestOnlyParts);
+	assert.deepEqual(prompt?.sections?.map((part) => part.requestOnly === true), requestOnlyParts,
+		"preview subheaders mark the same parts as the rows");
+	assert.equal(prompt?.requestOnly, undefined, "a parent row is never request-only");
 	assert.ok(items.get("base-prompt:preamble")?.text.startsWith("Appended instructions."));
 	assert.equal(prompt?.tokens, prompt?.children?.reduce((sum, child) => sum + child.tokens, 0));
 
@@ -182,6 +190,10 @@ test("system changes apply to the measured prompt and tools and mark what they t
 	assert.deepEqual([bash?.change, bash?.tokens], ["deleted", 0]);
 	assert.match(bash?.sections?.[0]?.text ?? "", /^bash: Run commands/, "a deleted tool previews its session definition");
 	assert.equal(items.get("tool:unattributed:grep")?.change, "added");
+	for (const id of ["tool:builtin:read", "tool:builtin:bash", "tool:unattributed:grep"]) {
+		assert.equal(items.get(id)?.requestOnly, true, id);
+	}
+	assert.equal(items.get("tool:builtin")?.requestOnly, undefined);
 });
 
 test("a forced prompt is measured whole and ignores section changes", () => {
@@ -193,7 +205,28 @@ test("a forced prompt is measured whole and ignores section changes", () => {
 
 	assert.equal(items.get("base-prompt")?.text, "Forced prompt text.");
 	assert.equal(items.get("base-prompt")?.children, undefined);
+	assert.equal(items.get("base-prompt")?.requestOnly, undefined, "System Prompt carries only its Forced marker");
 	assert.equal(items.get("tool:builtin:bash")?.change, "deleted", "tool changes still reach a forced prompt");
+});
+
+test("forced prompt parts that differ from the session are request-only", () => {
+	const { session } = createSession();
+	const saved = [SECTIONS.preamble, SECTIONS.tools, SECTIONS.docs, SECTIONS.cwd].join("\n\n");
+	const forced = `${saved.replace("/tmp/project", "/tmp/forced")}\n\nForced addition.`;
+	const snapshot = buildInjectionsSnapshot(input(session, {}, { forcedPrompt: forced }));
+	const prompt = itemsById(snapshot).get("base-prompt");
+
+	assert.equal(prompt?.change, "forced");
+	assert.equal(prompt?.requestOnly, undefined);
+	assert.deepEqual(prompt?.children?.map((child) => [child.label, child.change, child.requestOnly === true]), [
+		["Preamble", undefined, false],
+		["Available Tools", undefined, false],
+		["Documentation", undefined, false],
+		["Current Dir", undefined, true],
+		["Extension Additions", undefined, true],
+	], "only the parts whose forced text differs from the session are marked; none carries a change");
+	assert.deepEqual(prompt?.sections?.map((part) => part.requestOnly === true), [false, false, false, true, true]);
+	assert.equal(itemsById(snapshot).get("tool:builtin:read")?.requestOnly, undefined, "unchanged tools are not");
 });
 
 test("a branch with no recorded system state uses the live prompt", () => {
@@ -318,6 +351,7 @@ test("payload changes form the last group and count only the lines the payload a
 		["tool result", "message", 0, "deleted"],
 	], "tools come first, then messages by size");
 	assert.equal(changes?.totalTokens, 12);
+	assert.ok(changes?.items.every((item) => item.requestOnly === undefined), "payload changes are not request-only");
 	const modified = changes?.items.find((item) => item.change === "modified");
 	assert.equal(modified?.text, "new rule!", "the counted text holds only the added lines");
 	assert.deepEqual(modified?.changedLines, [
@@ -425,6 +459,9 @@ test("pi's rows compare with pi's default prompt, so saved and request-only exte
 	const prompt = items.get("base-prompt");
 	assert.deepEqual(prompt?.sections?.map((section) => section.diff), prompt?.children?.map((child) => child.diff),
 		"preview subheaders show the rows' diffs");
+	assert.deepEqual(prompt?.children?.filter((child) => child.requestOnly === true).map((child) => child.label),
+		["Current Dir", "fixture-added", "Documentation", "fixture-obsolete"],
+		"saved extension text has a diff but is not request-only");
 
 	assert.deepEqual(diffRows(items.get("tool:builtin")).map(([label, , added, removed]) => [label, added > 0, removed]),
 		[["Built-in Tools (2)", true, 0], ["read", true, 0], ["bash", false, 0]]);

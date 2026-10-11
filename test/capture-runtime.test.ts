@@ -295,8 +295,8 @@ suite("structured edits", { concurrency: true }, () => {
 				rows.slice(rows.indexOf(POINT_AGENT_START_TYPE), rows.indexOf("TOTAL (Prompt, Tools, Injections)")),
 				[
 					POINT_AGENT_START_TYPE, "message",
-					...(before ? [`${POINT_SYSTEM_TYPE} +`, "message +"] : []),
-					"unattributed +", "user message +",
+					...(before ? [`${POINT_SYSTEM_TYPE} +`, "message + · Request-Only"] : []),
+					"unattributed +", "user message + · Request-Only",
 					"payload changes +", "user message +",
 				],
 			);
@@ -309,7 +309,7 @@ suite("structured edits", { concurrency: true }, () => {
 			const factories = position === "before" ? [...fixtures, monitorSlot] : [monitorSlot, ...fixtures];
 			const runtime = await createRuntime(t, provider, { factories });
 			const before = position === "before";
-			const added = [`${SYSTEM_ADD_MESSAGE_TYPE} +`, "message +"];
+			const added = [`${SYSTEM_ADD_MESSAGE_TYPE} +`, "message + · Request-Only"];
 			/** Rows of the fixtures' groups in the rendered Injections view, after pi's own rows. */
 			const fixtureRows = async () => {
 				await runtime.session.prompt("/context injections");
@@ -611,7 +611,7 @@ async function createRuntime(t: TestContext, provider: MockProvider, options: Ru
  */
 function treeRows(lines: readonly string[]): string[] {
 	return lines.flatMap((line) => {
-		const row = /^[→│├└─\s]*(.+?) \.+ +[\d,]+(?: +(\+)[\d,]+)?(?: +(-)[\d,]+)?(?: +· (\w+))?$/.exec(line);
+		const row = /^[→│├└─\s]*(.+?) \.+ +[\d,]+(?: +(\+)[\d,]+)?(?: +(-)[\d,]+)?(?: +· ([\w-]+))?$/.exec(line);
 		if (row === null) return [];
 		const [, label, added, removed, marker] = row;
 		const diffs = `${added === undefined ? "" : " +"}${removed === undefined ? "" : " -"}`;

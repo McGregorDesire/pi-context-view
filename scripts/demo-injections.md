@@ -67,8 +67,9 @@ The section fixtures need no marker prompts:
 
 The modification and deletion fixtures seed their synthetic originals through
 `before_agent_start`, making them part of the session baseline.
-`context_with_system` changes only the outgoing request. Modified previews show
-the request text; Deleted previews keep the original at zero tokens. With normal
+`context_with_system` changes only the outgoing request, so every changed
+section is marked `Request-Only`. Modified sections preview the request text;
+deleted sections keep the original at zero tokens. With normal
 Pi defaults, the first capture gives three examples of each section change.
 
 With `--after`, these edits are not marked in the structured view; they appear
