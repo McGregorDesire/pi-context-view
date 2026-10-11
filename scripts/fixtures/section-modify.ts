@@ -1,48 +1,35 @@
 /**
- * Demo extension: changes `cwd` and two seeded sections for the request only.
- * `before_agent_start` records the demo originals in Pi's structured prompt;
- * `context_with_system` replaces them without changing the saved baseline.
+ * Demo extension: expands one saved review instruction for the request only.
+ * `before_agent_start` seeds the original; `context_with_system` replaces it.
+ * Pi's own sections, including `cwd`, stay unchanged.
  *
  * Expected result:
- *   before the monitor   three structured section modifications, unattributed
- *   after the monitor    edited after monitor
+ *   before the monitor   one structured section modification, unattributed
+ *   after the monitor    payload change after an ordinary prompt
  */
 import { getCurrentSystemMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-export const SECTION_MODIFY_TEXT = "XYZZY_SECTION_MODIFY: request-only line in the cwd section.";
+export const SECTION_MODIFY_NAME = "context-view-fixture-review";
+export const SECTION_MODIFY_ORIGINAL = "Review the changed files for correctness.";
+export const SECTION_MODIFY_TEXT = "Review the changed files for correctness, error handling, and test coverage.";
 
-/** Original and replacement bodies for automatically demonstrated modifications. */
-export const SECTION_MODIFY_SECTIONS = [
-	{
-		name: "context-view-fixture-review",
-		original: "Review the changed files for correctness.",
-		text: "XYZZY_SECTION_MODIFY_REVIEW: Review correctness, error handling, and test coverage.",
-	},
-	{
-		name: "context-view-fixture-output",
-		original: "List the changed files.",
-		text: "XYZZY_SECTION_MODIFY_OUTPUT: List the changed files and explain the user-visible effects.",
-	},
-];
-
-/** Seed two baseline sections, then modify them and `cwd` in each request. */
+/** Seed one baseline section, then replace its body only in outgoing requests. */
 export default function (pi: ExtensionAPI): void {
 	pi.on("before_agent_start", (event) => {
-		for (const { name, original } of SECTION_MODIFY_SECTIONS) {
-			event.systemPromptOptions.sections[name] = `<${name}>\n${original}\n</${name}>`;
-		}
+		event.systemPromptOptions.sections[SECTION_MODIFY_NAME] = `<${SECTION_MODIFY_NAME}>\n`
+			+ `${SECTION_MODIFY_ORIGINAL}\n</${SECTION_MODIFY_NAME}>`;
 	});
 	pi.on("context_with_system", (event) => {
-		const current = getCurrentSystemMessage(event.messages)?.sections;
-		const sections: Record<string, string> = {};
-		if (current?.cwd) sections.cwd = current.cwd.replace("\n</cwd>", `\n${SECTION_MODIFY_TEXT}\n</cwd>`);
-		for (const { name, original, text } of SECTION_MODIFY_SECTIONS) {
-			if (current?.[name]) sections[name] = current[name].replace(original, text);
-		}
-		if (Object.keys(sections).length === 0) return undefined;
+		const original = getCurrentSystemMessage(event.messages)?.sections?.[SECTION_MODIFY_NAME];
+		if (!original) return undefined;
 		return {
-			messages: [...event.messages, { role: "system", content: "", sections, timestamp: Date.now() }],
+			messages: [...event.messages, {
+				role: "system",
+				content: "",
+				sections: { [SECTION_MODIFY_NAME]: original.replace(SECTION_MODIFY_ORIGINAL, SECTION_MODIFY_TEXT) },
+				timestamp: Date.now(),
+			}],
 		};
 	});
 }

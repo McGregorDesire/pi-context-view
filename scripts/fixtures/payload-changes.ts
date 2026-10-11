@@ -1,20 +1,16 @@
 /**
- * Demo extension: one automatic payload addition, modification, and deletion.
- * `context` seeds request-only originals; `before_provider_request` edits them.
- * An unchanged message separates the modification from the deletion so the
- * guard cannot pair the addition with the wrong original.
+ * Demo extension: expands one review instruction only in the provider payload.
+ * `context` seeds a request-only note; `before_provider_request` replaces it.
+ * Genuine user prompts stay unchanged by this fixture.
  *
  * Expected result after an ordinary prompt (not a silent probe):
- *   before the monitor   three payload changes: Modified, Deleted, Added
+ *   before the monitor   one modified user message under payload changes
  *   after the monitor    not visible
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-export const PAYLOAD_CHANGE_ORIGINAL = "XYZZY_PAYLOAD_CHANGE_MODIFY: original request-only note.";
-export const PAYLOAD_CHANGE_MODIFIED = "XYZZY_PAYLOAD_CHANGE_MODIFY: modified in the provider payload.";
-export const PAYLOAD_CHANGE_DELETED = "XYZZY_PAYLOAD_CHANGE_DELETE: removed from the provider payload.";
-export const PAYLOAD_CHANGE_ADDED = "XYZZY_PAYLOAD_CHANGE_ADD: added to the provider payload.";
-const PAYLOAD_CHANGE_ANCHOR = "XYZZY_PAYLOAD_CHANGE_ANCHOR: unchanged request-only note.";
+export const PAYLOAD_CHANGE_ORIGINAL = "Keep the review brief.";
+export const PAYLOAD_CHANGE_MODIFIED = "Keep the review brief. Include a short explanation for each finding.";
 
 /** Fields shared by the supported providers' user messages. */
 interface PayloadMessage {
@@ -22,14 +18,13 @@ interface PayloadMessage {
 	readonly content?: unknown;
 }
 
-/** Seed synthetic originals without persisting them, then edit only the payload. */
+/** Seed one note without saving it, then edit it only in the provider payload. */
 export default function (pi: ExtensionAPI): void {
 	pi.on("context", (event) => ({
+		// After the real prompt, so message alignment cannot mistake the note for its replacement
 		messages: [
-			...[PAYLOAD_CHANGE_ORIGINAL, PAYLOAD_CHANGE_ANCHOR, PAYLOAD_CHANGE_DELETED].map((content) => ({
-				role: "user" as const, content, timestamp: Date.now(),
-			})),
 			...event.messages,
+			{ role: "user", content: PAYLOAD_CHANGE_ORIGINAL, timestamp: Date.now() },
 		],
 	}));
 	pi.on("before_provider_request", (event) => {
@@ -38,21 +33,20 @@ export default function (pi: ExtensionAPI): void {
 		const source = payload[key];
 		if (!Array.isArray(source)) return undefined;
 		const messages: PayloadMessage[] = source;
+		// The fixture appends its note last; an earlier genuine prompt may have the same text
+		const index = messages.findLastIndex((message) => hasText(message, PAYLOAD_CHANGE_ORIGINAL));
+		if (index === -1) return undefined;
 		const blockType = key === "input" ? "input_text" : "text";
 		return {
 			...payload,
-			[key]: [
-				...messages.filter((message) => !hasText(message, PAYLOAD_CHANGE_DELETED)).map((message) =>
-					hasText(message, PAYLOAD_CHANGE_ORIGINAL)
-						? { ...message, content: [{ type: blockType, text: PAYLOAD_CHANGE_MODIFIED }] }
-						: message),
-				{ role: "user", content: [{ type: blockType, text: PAYLOAD_CHANGE_ADDED }] },
-			],
+			[key]: messages.map((message, position) => position === index
+				? { ...message, content: [{ type: blockType, text: PAYLOAD_CHANGE_MODIFIED }] }
+				: message),
 		};
 	});
 }
 
-/** Match only a complete synthetic user message, never a marker inside a real prompt. */
+/** Match a complete synthetic note, not text contained in a genuine prompt. */
 function hasText(message: PayloadMessage, text: string): boolean {
 	if (message.role !== "user") return false;
 	if (message.content === text) return true;

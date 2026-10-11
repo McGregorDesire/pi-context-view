@@ -6,10 +6,10 @@
 # Usage:
 #   ./scripts/demo-injections.sh [demo flags...] [pi arguments...]
 #
-#   --context       load conversation additions, modifications, deletions, reordering
-#   --system        load system prompt and section edits
-#   --payload       load message payload changes and manual tool-declaration removal
-#   --message       load a saved before_agent_start message and a context_with_system message
+#   --context       load one conversation addition, modification, and deletion
+#   --system        load one section addition, modification, deletion, and an attributed tool
+#   --payload       load one message payload edit and manual tool-declaration removal
+#   --message       load a saved before_agent_start review message
 #   --forced        load forced-prompt.ts, replacing the whole system prompt
 #   --codemode-only load Pi's built-in codemode in only mode, through temporary settings
 #   --after         load pi-context-view before the selected demo extensions
@@ -75,13 +75,13 @@ main() {
             --forced) fixtures+=(forced-prompt) ;;
             --codemode-only) codemode_only=true ;;
             --context)
-                fixtures+=(context-modify context-in-place context-delete context-reorder context-add context-add-user) ;;
+                fixtures+=(context-modify context-delete context-add) ;;
             --system)
-                fixtures+=(system-append section-patch section-modify section-delete in-place-mutation) ;;
+                fixtures+=(review-checklist section-patch section-modify section-delete) ;;
             --payload)
-                fixtures+=(payload-changes payload-delete payload-remove-tool) ;;
+                fixtures+=(payload-changes payload-remove-tool) ;;
             --message)
-                fixtures+=(agent-start-message system-add-message) ;;
+                fixtures+=(agent-start-message) ;;
             *) break ;;
         esac
         shift

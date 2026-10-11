@@ -11,14 +11,10 @@ const SCRIPT = fileURLToPath(new URL("../scripts/demo-injections.sh", import.met
 const MONITOR = fileURLToPath(new URL("../src/index.ts", import.meta.url));
 const CODEMODE = "builtin:codemode";
 const SELECTIONS = [
-	{ flag: "--context", fixtures: [
-		"context-modify", "context-in-place", "context-delete", "context-reorder", "context-add", "context-add-user",
-	] },
-	{ flag: "--system", fixtures: [
-		"system-append", "section-patch", "section-modify", "section-delete", "in-place-mutation",
-	] },
-	{ flag: "--payload", fixtures: ["payload-changes", "payload-delete", "payload-remove-tool"] },
-	{ flag: "--message", fixtures: ["agent-start-message", "system-add-message"] },
+	{ flag: "--context", fixtures: ["context-modify", "context-delete", "context-add"] },
+	{ flag: "--system", fixtures: ["review-checklist", "section-patch", "section-modify", "section-delete"] },
+	{ flag: "--payload", fixtures: ["payload-changes", "payload-remove-tool"] },
+	{ flag: "--message", fixtures: ["agent-start-message"] },
 	{ flag: "--codemode-only", fixtures: [] },
 	{ flag: "--forced", fixtures: ["forced-prompt"] },
 ];

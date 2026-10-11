@@ -11,7 +11,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 export const AGENT_START_MESSAGE_TYPE = "context-view-fixture-agent-message";
-export const AGENT_START_MESSAGE_TEXT = "XYZZY_AGENT_START_MESSAGE: saved before_agent_start message.";
+export const AGENT_START_MESSAGE_TEXT = "Review findings should include the affected file and a suggested improvement.";
 
 /** Add one hidden custom message to every run. */
 export default function (pi: ExtensionAPI): void {

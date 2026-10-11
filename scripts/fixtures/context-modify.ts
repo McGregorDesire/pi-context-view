@@ -1,27 +1,33 @@
 /**
- * Demo extension: a `context` handler that rewrites the text of the
- * latest user message for the request only. It returns a modified copy and
- * leaves the original message object unchanged.
+ * Demo extension: adds a read-only review instruction to the latest saved
+ * user prompt for the request only, leaving its session original unchanged.
  *
  * Expected result:
- *   before the monitor   structured modification, unattributed
- *   after the monitor    structured modification, unattributed
+ *   before the monitor   one structured user-message modification, unattributed
+ *   after the monitor    same as before
  */
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ContextEvent, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-export const CONTEXT_MODIFY_PREFIX = "XYZZY_CONTEXT_MODIFY:";
+export const CONTEXT_MODIFY_SUFFIX = "Give recommendations only; do not edit files.";
 
-/** Prefix the latest user message with the marker. */
+/** Target the saved prompt, not a synthetic user note another demo added. */
 export default function (pi: ExtensionAPI): void {
-	pi.on("context", (event) => {
-		const index = event.messages.findLastIndex((message) => message.role === "user");
+	pi.on("context", (event, ctx) => {
+		const original = ctx.sessionManager.buildSessionProjection().messages.findLast((message) => message.role === "user");
+		if (original?.role !== "user") return undefined;
+		const text = contentText(original.content);
+		const index = event.messages.findLastIndex((message) => message.role === "user"
+			&& message.timestamp === original.timestamp && contentText(message.content) === text);
 		const target = event.messages[index];
 		if (target?.role !== "user") return undefined;
-		const text = typeof target.content === "string"
-			? target.content
-			: target.content.map((block) => block.type === "text" ? block.text : "").join("");
 		const messages = [...event.messages];
-		messages[index] = { ...target, content: `${CONTEXT_MODIFY_PREFIX} ${text}` };
+		messages[index] = { ...target, content: `${text}\n${CONTEXT_MODIFY_SUFFIX}` };
 		return { messages };
 	});
+}
+
+/** Text of a user prompt, whether Pi stores it as a string or content blocks. */
+function contentText(content: Extract<ContextEvent["messages"][number], { role: "user" }>["content"]): string {
+	return typeof content === "string" ? content
+		: content.map((block) => block.type === "text" ? block.text : "").join("");
 }

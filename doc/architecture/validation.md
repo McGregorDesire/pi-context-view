@@ -20,6 +20,12 @@ Runtime tests run the pinned Pi CLI against a local mock provider:
 `--no-extensions` also disables Pi's built-in extensions; runtime tests add the
 ones they need with `builtin:<name>`. `demo-injections.test.ts` checks launcher
 selection, order, and demo fixture paths without starting a provider.
+`demo-fixtures.test.ts` loads demo files by path through Pi's resource loader
+and checks the combined overview against the mock provider: distinct message
+and section edits, exact tool/prompt attribution, payload edits, both load
+orders, all three supported APIs, and reversed group order. It also checks
+conversation edits without the other groups. No demo fixture is imported by a
+regular test.
 `module-boundaries.test.ts` rejects imports between demo fixtures and regular
 tests, fixtures, or harness modules, including indirect imports. Both fixture
 sets are typechecked by `pnpm check`, but they are not required to stay identical.

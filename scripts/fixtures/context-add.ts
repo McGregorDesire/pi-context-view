@@ -3,23 +3,23 @@
  * message. Nothing is persisted, so only the request contains it.
  *
  * Expected result:
- *   before the monitor   structured addition, source `context-view-fixture-add`
- *   after the monitor    structured addition, source `context-view-fixture-add`
+ *   before the monitor   structured addition under unattributed messages
+ *   after the monitor    same as before
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 export const CONTEXT_ADD_TYPE = "context-view-fixture-add";
-export const CONTEXT_ADD_TEXT = "XYZZY_CONTEXT_ADD: request-only custom message.";
+export const CONTEXT_ADD_TEXT = "Focus the review on error handling and test coverage.";
 
-/** Append one custom message to every request. */
+/** Add the note before the prompt so it cannot pair with a deleted note after it. */
 export default function (pi: ExtensionAPI): void {
 	pi.on("context", (event) => ({
-		messages: [...event.messages, {
+		messages: [{
 			role: "custom",
 			customType: CONTEXT_ADD_TYPE,
 			content: CONTEXT_ADD_TEXT,
 			display: false,
 			timestamp: Date.now(),
-		}],
+		}, ...event.messages],
 	}));
 }

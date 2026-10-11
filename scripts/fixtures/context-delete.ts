@@ -1,21 +1,27 @@
 /**
- * Demo extension: a `context` handler that removes every user message
- * containing a marker from the request. The session keeps the message.
+ * Demo extension: saves one obsolete review note, then omits it from requests.
+ * No marker prompt is needed, and genuine user messages are never removed.
  *
  * Expected result:
- *   before the monitor   structured deletion, unattributed
- *   after the monitor    structured deletion, unattributed
+ *   before the monitor   one structured message deletion, unattributed
+ *   after the monitor    same as before
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-/** Send a prompt containing this marker to have the fixture delete it. */
-export const CONTEXT_DELETE_MARKER = "XYZZY_CONTEXT_DELETE";
+export const CONTEXT_DELETE_TYPE = "context-view-fixture-obsolete-message";
+export const CONTEXT_DELETE_TEXT = "Limit the review to formatting; skip error handling and test coverage.";
 
-/** Drop marked user messages; return nothing when none match. */
+/** Seed the note once per session and filter only its custom message type. */
 export default function (pi: ExtensionAPI): void {
-	pi.on("context", (event) => {
-		const messages = event.messages.filter((message) => message.role !== "user"
-			|| !JSON.stringify(message.content).includes(CONTEXT_DELETE_MARKER));
-		return messages.length === event.messages.length ? undefined : { messages };
+	pi.on("before_agent_start", (_event, ctx) => {
+		const saved = ctx.sessionManager.buildSessionProjection().messages;
+		if (saved.some((message) => message.role === "custom" && message.customType === CONTEXT_DELETE_TYPE)) {
+			return undefined;
+		}
+		return { message: { customType: CONTEXT_DELETE_TYPE, content: CONTEXT_DELETE_TEXT, display: false } };
 	});
+	pi.on("context", (event) => ({
+		messages: event.messages.filter((message) => message.role !== "custom"
+			|| message.customType !== CONTEXT_DELETE_TYPE),
+	}));
 }
