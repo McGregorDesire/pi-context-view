@@ -54,14 +54,13 @@ interface MarkerLegend {
 	readonly explanation: string;
 }
 
-/** One fixed sentence per marker: each states its own accounting, independent of the others. */
+/** One fixed sentence per marker, independent of the others. */
 const MARKER_LEGENDS: Record<Exclude<ContextMarker, "diff">, MarkerLegend> = {
 	highlighted: {
 		keyword: "Highlighted",
 		// Extension lines carry this color, so the bullet opens in it too.
 		color: "syntaxNumber",
-		explanation: " parts are injected by extensions into pi’s system prompt. They are counted in the" +
-			" System Prompt token count.",
+		explanation: " parts are injected by extensions into pi’s system prompt.",
 	},
 	guess: {
 		keyword: "(guess)",

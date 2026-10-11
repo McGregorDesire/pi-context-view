@@ -30,8 +30,7 @@ const LEGEND: Record<ContextMarker, { keyword: string; color: ThemeColor; senten
 	highlighted: {
 		keyword: "Highlighted",
 		color: "syntaxNumber",
-		sentence: "parts are injected by extensions into pi’s system prompt. They are counted in the" +
-			" System Prompt token count.",
+		sentence: "parts are injected by extensions into pi’s system prompt.",
 	},
 	guess: {
 		keyword: "(guess)",
@@ -94,7 +93,7 @@ function plain(lines: readonly string[]): string {
 	return lines.join("\n").replace(/\u001b\[[\d;]*m/g, "");
 }
 
-/** Parent and standalone previews share these semantic colors and a single fixed accounting bullet. */
+/** Parent and standalone previews share these semantic colors and a single fixed attribution bullet. */
 function assertAttribution(lines: readonly string[], theme: Theme, text = GUIDELINE): void {
 	assertLegend(lines, theme, ["highlighted"]);
 	assert.ok(plain(lines).includes(`- ${text}${ARROW}${SOURCE}:${TOOL}`));
@@ -509,7 +508,7 @@ for (const target of ["injections-parent", "injections-child", "usage-single", "
 					sawVisible = true;
 				} else {
 					sawCollapsed = true;
-					assert.doesNotMatch(plain(lines), /System Prompt token count/);
+					assert.doesNotMatch(plain(lines), /parts are injected by extensions/);
 					if (height >= 12 && width >= 60) assert.match(plain(lines), /Esc Back/);
 				}
 			}
@@ -528,9 +527,9 @@ test("the marker legend gives short content every row and never truncates on tin
 		text: "Guidelines:\n- Use search",
 		injectedReferences: [{ start: 11, end: 24, source: { id: "web", label: SOURCE, native: false } }],
 	};
-	// At 120 columns the bullet occupies two wrapped lines and its preceding blank row
+	// At 120 columns the bullet occupies one line and its preceding blank row
 	for (const contentLineCount of [1, 2, 21, 22, 23, 80]) {
-		const required = 3 + Math.min(22, contentLineCount) + (contentLineCount > 22 ? 1 : 0);
+		const required = 2 + Math.min(22, contentLineCount) + (contentLineCount > 22 ? 1 : 0);
 		const layout = { width: 120, contentLineCount, availableRows: required };
 		assert.equal(plain(previewLegendLines(theme, [content], layout)).replace(/\s+/g, " ").trim(), DESCRIPTION);
 		for (let availableRows = -5; availableRows < required; availableRows++) {
@@ -580,7 +579,7 @@ test("a replaced prompt marks its dropped blocks in the tree and in previews", (
 	assert.match(parent.replace(/\s+/g, " "), /Documentation · 0 tokens · Dropped/);
 	assert.ok(parent.includes(`- search: ${SNIPPET}${ARROW}${SOURCE}:${TOOL}`));
 	assert.ok(parent.includes(`- ${GUIDELINE}${ARROW}${SOURCE}:${TOOL}`));
-	// Extension Additions survive the replacement, so this preview explains both accountings.
+	// Extension Additions survive the replacement, so this preview explains attribution and dropped parts
 	assertLegend(view.render(120), theme, ["highlighted", "guess", "dropped"]);
 
 	view.handleInput("\u001b");
@@ -588,7 +587,7 @@ test("a replaced prompt marks its dropped blocks in the tree and in previews", (
 	view.handleInput("j"); // Available Tools
 	view.handleInput("\r");
 	assert.ok(plain(view.render(120)).includes(`- search: ${SNIPPET}${ARROW}${SOURCE}:${TOOL}`));
-	// The Dropped bullet states the exception to the accounting the Highlighted bullet describes.
+	// The Dropped bullet explains that replaced highlighted lines count nowhere
 	assertLegend(view.render(120), theme, ["highlighted", "dropped"]);
 
 	for (const width of [30, 60, 80, 120]) {

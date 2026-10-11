@@ -98,7 +98,6 @@ opening with the keyword in the fixed color that mark
 uses, followed by dim text:
 
 > - **Highlighted** parts are injected by extensions into pi’s system prompt.
->   They are counted in the System Prompt token count.
 > - **(guess)** sources are inferred from the injected text itself.
 > - **Dropped** parts were replaced by a custom system prompt and are counted
 >   nowhere.
@@ -110,8 +109,8 @@ uses, followed by dim text:
 > - **Request-Only** Includes changes made only in this request, not saved in
 >   the session.
 
-Each sentence is fixed and states its own accounting, so the `Dropped` bullet
-reads as the exception to the `Highlighted` one wherever a preview shows both.
+Each sentence is fixed. The `Dropped` bullet explains that replaced parts count
+nowhere, including highlighted extension lines wherever a preview shows both.
 Only the `+N -N` sentence names the
 [base](injections.md#token-diffs) of the preview's diffs: pi's default prompt,
 as above, for pi's items; `compared with the session.` for extension tools and
