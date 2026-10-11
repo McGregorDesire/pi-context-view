@@ -9,7 +9,7 @@
     Decided: the `system prompt additions` rows and their Usage `Extensions` children are removed until the extension `system prompt` row item; an extension tool preview shows only `Definition` plus `Dropped` lines, like a built-in tool. `InjectedReference` now marks a `start`/`end` range in the part's text instead of an insertion; a dropped part's text holds only its extension lines, uncounted.
     Verified on Pi 1.1.0: `pnpm check` (735 tests). Real-PTY run with a temporary extension that registers a tool with a snippet and guideline and appends a prompt addition: Injections counted `Extension Additions` (16) and the tool lines in System Prompt, the tool row counted only its definition (32), the preview annotated each line once with `<- ext.ts:smoke_tool`, and Usage showed no `Extensions` category.
 
-- [ ] **Improve Injection View Readability** ([UI draft](drafts/injections-redesign.md))
+- [x] **Improve Injection View Readability** ([UI draft](drafts/injections-redesign.md))
   - [x] Right-align token values in the shared value column, so magnitudes line up.
   - [x] Keep the file name in long instruction-file paths: shorten the middle (`~/…/injection-redesign/AGENTS.md`), retaining whole trailing directories where space permits.
   - [x] Rename `TOTAL` to `TOTAL (Prompt, Tools, Injections)`, so it does not read as the context or payload size.
@@ -74,13 +74,15 @@
     - The row shows its messages' summed `+N`/`-N` against the session after its value.
     Decided: one leaf row with labeled preview parts, using customType or role. Session-backed parts stay in baseline order, modifications and deletions in place, then additions in capture order because they carry no position. Modified messages temporarily show their counted request part followed by `<label> · session` at 0 tokens. Deleted messages stay in the preview at 0 tokens but not in `N`; session references do not count either. The row and changed message parts carry `Request-Only`; its status says `only in this request` with `Changed By: Unknown`. User-prompt numbering and word-level previews remain in the next item.
     Verified on Pi 1.1.0: `pnpm check` (804 tests). No real-PTY run.
-  - [ ] **Message preview** ([injections.md](ui/injections.md#injection-preview)):
+  - [x] **Message preview** ([injections.md](ui/injections.md#injection-preview)):
     - The header reads `messages (N)` with `unattributed · N tokens` and the row's `+N`/`-N`.
     - One [labeled part](ui/previews.md#labeled-parts) per message in conversation order, including deleted messages at 0 tokens.
     - The part label is the `customType` of a custom message, or the role of any other message, followed by muted `· user prompt #N · N tokens` and the message's `+N`/`-N`.
     - `user prompt #N` counts user prompts up to the message over the whole branch, not only the compacted projection, so numbers stay the same after compaction. Request-only additions take the number of the request's prompt; a message before the first prompt shows no number.
     - A modified message shows a word-level diff of its session and request versions instead of the interim request and zero-token session parts. Its estimate counts the request version.
     - Add word-level highlighting to payload-finding parts in the same preview work; their labeled layout is already implemented.
+    Decided: word highlighting spans multi-line replacements, reusing the token-diff word alignment, instead of Pi's one-line pairs. Every message part uses the diff gutter: unchanged custom messages show context lines, additions `+` lines, deletions `-` lines, all without inverse words. Both message versions expand marked JSON before the comparison. Prompt numbers count genuine `user` messages up to and including the message's entry on the captured branch, excluding probe prompts; additions take the number at the snapshot leaf. A modified message keeps its redacted original as preview-only metadata of its one counted part. Payload findings compare all removed with all added lines, keeping guard order and no context lines.
+    Verified on Pi 1.1.0: `pnpm check` (817 tests). No real-PTY run.
   - [x] **One row for payload changes** ([injections.md](ui/injections.md#payload-changes)):
     - `unattributed` holds one `payload changes (N)` row without child rows, like `messages (N)`.
     - `N` counts all findings, deletions included: the row lists changes, so a deletion-only finding still counts.

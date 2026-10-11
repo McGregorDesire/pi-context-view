@@ -143,10 +143,8 @@ test("conversation changes form one unattributed messages row, in session order,
 
 	assert.deepEqual(describeMessages(snapshot), [
 		"unattributed / fixture-notes · 6 · modified",
-		"unattributed / fixture-notes · session · 0",
 		"unattributed / user · 0 · deleted",
 		"unattributed / user · 5 · modified",
-		"unattributed / user · session · 0",
 		"unattributed / fixture-add · 3 · added",
 		"unattributed / user · 4 · added",
 	], "a modified or deleted message takes its session original's place; additions follow");
@@ -159,11 +157,11 @@ test("conversation changes form one unattributed messages row, in session order,
 	const parts = row?.sections ?? [];
 	assert.ok(parts.every((part) => (part.requestOnly === true) === (part.change !== undefined)),
 		"every changed message is request-only; a session part is not");
-	assert.deepEqual(parts.slice(3, 5).map((part) => [part.label, part.text, part.tokens]), [
-		["user", "edited second prompt", 5],
-		["user · session", "second prompt", 0],
-	], "a modification shows its counted request version, then the session original");
-	assert.equal(parts[2]?.text, "first prompt", "a deletion previews the session original");
+	assert.deepEqual([parts[2]?.label, parts[2]?.text, parts[2]?.tokens], ["user", "edited second prompt", 5]);
+	assert.equal(parts[2]?.message?.original?.text, "second prompt", "a modification keeps its base in the same part");
+	assert.equal(parts[1]?.text, "first prompt", "a deletion previews the session original");
+	assert.deepEqual(parts.map((part) => part.message?.userPrompt), [undefined, 1, 2, 2, 2],
+		"messages before the first prompt have no number; additions use the request's number");
 });
 
 test("custom entries are not messages, and message provenance never creates an extension group", () => {
@@ -370,7 +368,7 @@ test("raw session and redacted request images keep their original size markers i
 	] }));
 	const parts = messagesRow(snapshot)?.sections?.filter((part) => part.label.startsWith("user"));
 	assert.match(parts?.[0]?.text ?? "", /<2.0KB omitted>/);
-	assert.match(parts?.[1]?.text ?? "", /<1000B omitted>/);
+	assert.match(parts?.[0]?.message?.original?.text ?? "", /<1000B omitted>/);
 	assert.ok(!JSON.stringify(snapshot).includes("x".repeat(1_000)));
 	assert.ok(Array.isArray(raw.content));
 	assert.ok(raw.content[0]?.type === "image");
@@ -759,7 +757,6 @@ test("tool and message rows compare with the session; deletions remove the sessi
 		["fixture-notes", undefined, 3, undefined],
 		["user", "deleted", 0, { added: 0, removed: 3 }],
 		["user", "modified", 5, { added: 1, removed: 0 }],
-		["user \u00b7 session", undefined, 0, undefined],
 		["fixture-add", "added", 3, { added: 3, removed: 0 }],
 	], "the modification reconciles with the 4-token session prompt");
 	assert.deepEqual(messages?.diff, { added: 4, removed: 3 }, "the row sums its messages' diffs");

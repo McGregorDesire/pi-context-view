@@ -180,7 +180,7 @@ export interface InjectedReference extends TextSpan {
 export interface InjectionSection {
 	/** Section name rendered as a preview subheader. */
 	readonly label: string;
-	/** Preview text; zero-token dropped, deleted, and session-reference parts do not add to the item's text. */
+	/** Preview text; zero-token dropped and deleted parts do not add to the item's text. */
 	readonly text: string;
 	/** Share of the parent estimate; sections sum exactly to the item total. A diff-only part has no share. */
 	readonly tokens: number;
@@ -214,6 +214,13 @@ export interface InjectionSection {
 	 * `text`. `text` holds only the added lines, which the share counts.
 	 */
 	readonly changedLines?: readonly PayloadChangeLine[];
+	/** Injections message metadata; its presence enables the diff body, even for an unchanged message. */
+	readonly message?: {
+		/** User prompts through the source entry on the whole branch; absent before the first genuine prompt. */
+		readonly userPrompt?: number;
+		/** Content-only session version of a modified message, redacted like `text` and never counted again. */
+		readonly original?: { readonly text: string; readonly jsonSpan?: JsonSpan };
+	};
 	/** Serialized JSON inside `text`, e.g. a tool's parameter schema. */
 	readonly jsonSpan?: JsonSpan;
 	/** Extension lines inside `text`, annotated with their source in previews. */
@@ -435,6 +442,12 @@ function copyItem(item: InjectionItem): InjectionItem {
 			...section,
 			diff: copyTokenDiff(section.diff),
 			changedLines: section.changedLines?.map((line) => ({ ...line })),
+			message: section.message === undefined ? undefined : {
+				...section.message,
+				original: section.message.original === undefined ? undefined : {
+					...section.message.original, jsonSpan: copyJsonSpan(section.message.original.jsonSpan),
+				},
+			},
 			jsonSpan: copyJsonSpan(section.jsonSpan),
 			injectedReferences: copyInjectedReferences(section.injectedReferences),
 		})),

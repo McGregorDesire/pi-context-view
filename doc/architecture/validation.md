@@ -72,10 +72,22 @@ customType and cooperative provenance creating no source group, non-context
 changed-line ownership. Message parts preserve session order with additions
 following in capture order; payload parts preserve guard order. Counts exclude
 message deletions but include every payload finding; estimates and diffs sum
-without counting reference parts. Render checks cover dim `tool:` prefixes,
-value alignment, aggregate status, per-part token shares and markers,
-sanitization, preview return, narrow widths, and height reflow. Real-PTY checks
-remain explicit opt-in.
+without double-counting a modified message's original. Render checks cover dim
+`tool:` prefixes, value alignment, aggregate status, per-part token shares and
+markers, sanitization, preview return, narrow widths, and height reflow.
+Real-PTY checks remain explicit opt-in.
+
+### Message and payload previews
+
+`message-sections` tests branch-wide `user prompt #N` numbers: messages before
+the first prompt, compaction, saved context omissions, abandoned branches,
+entries appended after capture, excluded probe prompts, and request-only
+additions. It also checks that a modified message keeps only its redacted,
+signature-free original. `token-diff` checks that preview word runs rebuild
+both texts and match the counted characters, including the bounded fallback.
+`diff-preview` and `injections-view` cover context lines, multi-line word
+highlighting, whole-line additions and deletions, expanded marked JSON, payload
+guard order, sanitization before styling, Unicode, and wrapped inverse words.
 
 ### Selected-row status bar
 

@@ -103,7 +103,7 @@ export function buildInjectionsSnapshot(input: InjectionsInput): InjectionSnapsh
 	const prompt = measureRequestPrompt(input, baseline.map(({ message }) => message));
 	const items = [
 		...prompt.items,
-		...measureMessages(input.snapshot.changes.conversation, baseline),
+		...measureMessages(input, baseline),
 		...measurePayloadChanges(findings),
 	];
 	return { ...buildSnapshot(items), hiddenTools: prompt.hiddenTools };
@@ -209,9 +209,9 @@ function withToolChange(tool: ToolSlice, change: RequestChange | undefined): Too
 /** A conversation change that references the session message it replaces or removes. */
 type EntryChange = Extract<ConversationChange, { readonly type: "modified" | "deleted" }>;
 
-/** Preview parts of one message and whether the request sent it. */
-interface MessageParts {
-	readonly sections: readonly InjectionSection[];
+/** One message's preview part and whether the request sent it. */
+interface MeasuredMessage {
+	readonly section: InjectionSection;
 	readonly sent: boolean;
 }
 
@@ -222,10 +222,10 @@ interface MessageParts {
  * additions, which carry no position, in capture order. `N` counts the
  * messages the request sent, so deletions are left out.
  */
-function measureMessages(
-	changes: readonly ConversationChange[],
-	baseline: readonly ProjectedMessage[],
-): InjectionItem[] {
+function measureMessages(input: InjectionsInput, baseline: readonly ProjectedMessage[]): InjectionItem[] {
+	const changes = input.snapshot.changes.conversation;
+	const prompts = userPromptNumbers(input);
+	const requestPrompt = input.snapshot.leafId === null ? undefined : prompts.get(input.snapshot.leafId);
 	const targets = new Map<ProjectedMessage, EntryChange>();
 	const unplaced: ConversationChange[] = [];
 	for (const change of changes) {
@@ -235,21 +235,46 @@ function measureMessages(
 		if (target === undefined || change.type === "added") unplaced.push(change);
 		else targets.set(target, change);
 	}
-	const messages: MessageParts[] = [];
+	const messages: MeasuredMessage[] = [];
 	for (const entry of baseline) {
 		const change = targets.get(entry);
-		if (change !== undefined) messages.push(changedMessageParts(change, entry.message));
-		else if (entry.message.role === "custom") messages.push({ sections: [messageSection(entry.message)], sent: true });
+		const userPrompt = prompts.get(entry.entryId);
+		if (change !== undefined) messages.push(changedMessagePart(change, entry.message, userPrompt));
+		else if (entry.message.role === "custom") {
+			messages.push({ section: { ...messageSection(entry.message), message: { userPrompt } }, sent: true });
+		}
 	}
-	messages.push(...unplaced.map((change) => changedMessageParts(change, undefined)));
+	messages.push(...unplaced.map((change) => changedMessagePart(change, undefined, requestPrompt)));
 	return messages.length === 0 ? [] : [createMessagesItem(messages)];
 }
 
-/** The one messages row: the sent messages' estimates and diffs, and every message's parts. */
-function createMessagesItem(messages: readonly MessageParts[]): InjectionItem {
-	const sections = messages.flatMap((message) => message.sections);
-	const text = messages.filter((message) => message.sent)
-		.map((message) => message.sections[0]?.text ?? "").join("\n\n");
+/**
+ * Prompt counts on the snapshot's whole root-to-leaf branch, before compaction
+ * and context omissions. Probe identities are excluded. Walking parent links
+ * leaves out abandoned branches and entries appended after capture.
+ */
+function userPromptNumbers(input: InjectionsInput): Map<string, number> {
+	const byId = new Map(input.entries.map((entry) => [entry.id, entry]));
+	const branch: SessionEntry[] = [];
+	let entry = input.snapshot.leafId === null ? undefined : byId.get(input.snapshot.leafId);
+	while (entry !== undefined) {
+		branch.push(entry);
+		entry = entry.parentId === null ? undefined : byId.get(entry.parentId);
+	}
+	const numbers = new Map<string, number>();
+	let count = 0;
+	for (const entry of branch.reverse()) {
+		if (entry.type === "message" && entry.message.role === "user"
+			&& input.filterMessages([entry.message]).length > 0) count++;
+		if (count > 0) numbers.set(entry.id, count);
+	}
+	return numbers;
+}
+
+/** The one messages row: the sent messages' estimates and diffs, and every message's part. */
+function createMessagesItem(messages: readonly MeasuredMessage[]): InjectionItem {
+	const sections = messages.map((message) => message.section);
+	const text = messages.filter((message) => message.sent).map((message) => message.section.text).join("\n\n");
 	const diff = sumTokenDiffs(sections.map((section) => section.diff));
 	return {
 		id: "messages",
@@ -266,38 +291,45 @@ function createMessagesItem(messages: readonly MessageParts[]): InjectionItem {
 }
 
 /**
- * Parts of one conversation change, request-only, with its token diff against
- * the session. A modification shows its counted request version, then the
- * session original at 0 tokens; a deletion reads 0 tokens and shows the
- * session original. `original` is undefined when the change has no session
- * message in the baseline.
+ * One request-only message part with its token diff against the session.
+ * A modification keeps its redacted original for a preview-only word diff;
+ * a deletion reads 0 tokens and shows its original as removed text.
  */
-function changedMessageParts(change: ConversationChange, original: RequestMessage | undefined): MessageParts {
+function changedMessagePart(
+	change: ConversationChange,
+	original: RequestMessage | undefined,
+	userPrompt: number | undefined,
+): MeasuredMessage {
 	switch (change.type) {
 		case "added": {
 			const section = messageSection(change.message, true);
 			const diff = measureTokenDiff(undefined, section);
-			return { sections: [{ ...section, change: "added", requestOnly: true, ...diffField(diff) }], sent: true };
+			return {
+				section: { ...section, change: "added", requestOnly: true, message: { userPrompt }, ...diffField(diff) },
+				sent: true,
+			};
 		}
 		case "modified": {
-			const request = { ...messageSection(change.message, true), change: "modified" as const, requestOnly: true };
-			if (original === undefined) return { sections: [request], sent: true };
+			const request = { ...messageSection(change.message, true), change: "modified" as const, requestOnly: true,
+				message: { userPrompt } };
+			if (original === undefined) return { section: request, sent: true };
 			const session = messageSection(original);
 			const diff = measureTokenDiff(session, request);
 			return {
-				sections: [{ ...request, ...diffField(diff) }, { ...session, label: `${session.label} · session`, tokens: 0 }],
+				section: { ...request, ...diffField(diff),
+					message: { userPrompt, original: { text: session.text, jsonSpan: session.jsonSpan } } },
 				sent: true,
 			};
 		}
 		case "deleted": {
-			const deleted = { change: "deleted" as const, requestOnly: true };
+			const deleted = { change: "deleted" as const, requestOnly: true, message: { userPrompt } };
 			if (original === undefined) {
-				return { sections: [{ label: change.attribution.customType ?? "message", text: "", tokens: 0, ...deleted }],
+				return { section: { label: change.attribution.customType ?? "message", text: "", tokens: 0, ...deleted },
 					sent: false };
 			}
 			const session = messageSection(original);
 			const diff = measureTokenDiff(session, { text: "", tokens: 0 });
-			return { sections: [{ ...session, tokens: 0, ...deleted, ...diffField(diff) }], sent: false };
+			return { section: { ...session, tokens: 0, ...deleted, ...diffField(diff) }, sent: false };
 		}
 	}
 }

@@ -3,11 +3,11 @@
 Draft for the Injections items in the [PLAN.md TODO list](../PLAN.md#todo).
 It is not canonical: [ui/injections.md](../ui/injections.md) and
 [ui/previews.md](../ui/previews.md) stay the contract until the items land.
-Then move the agreed rules there and delete this file. The source groups and
-aggregate message/payload rows, including labeled parts, are now implemented.
-Keep this draft for the remaining user-prompt numbering and word-level preview
-work; current message previews retain zero-token session-reference parts, and
-payload previews retain full-line diff colors.
+Then move the agreed rules there and delete this file. The list, status bar,
+messages preview (with user-prompt numbers and word-level diffs), and
+payload-changes preview are now implemented. Only the System Prompt and
+`system prompt` preview diff bodies below remain unscheduled; their previews
+stay plain text for now.
 
 The numbers are invented but consistent: every parent, group, and `TOTAL`
 adds up. Frames are 90 columns wide.

@@ -8,8 +8,8 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import { wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
 import type { InjectedReference, InjectionSection, JsonSpan, RequestChange, TokenDiff } from "../model.ts";
-import type { PayloadChangeLine } from "../snapshot.ts";
 import { normalizeInlineText, normalizePreviewText } from "../text.ts";
+import { messageDiffLines, payloadDiffLines } from "./diff-preview.ts";
 import { shiftJsonSpan } from "./json-preview.ts";
 import { BODY_INDENT, calculateViewport, descriptionBlockRows } from "./layout.ts";
 import {
@@ -31,9 +31,6 @@ import {
 const SOURCE_ARROW = "\u00A0<-\u00A0";
 /** Keep a normal block's worth of content visible before making room for its explanation. */
 const DESCRIPTION_MIN_CONTENT_ROWS = 22;
-/** Prefix of a changed line, two columns wide: `+ ` only in the payload, `- ` only in the captured request. */
-const ADDED_LINE_PREFIX = "+ ";
-const REMOVED_LINE_PREFIX = "- ";
 /** Dim prefix of a tool declaration part, so it reads apart from a `tool call` part. */
 const TOOL_LABEL_PREFIX = "tool:";
 
@@ -116,30 +113,11 @@ export function previewBodyLines(
 			lines.push("", "");
 		}
 		lines.push(...sectionHeaderLines(theme, section, wrapWidth));
-		lines.push(...(section.changedLines === undefined
-			? contentBodyLines(theme, section, wrapWidth, wrapText, section.label)
-			: changedLineRows(theme, section.changedLines, wrapWidth)));
+		if (section.message !== undefined) lines.push(...messageDiffLines(theme, section, wrapWidth));
+		else if (section.changedLines !== undefined) lines.push(...payloadDiffLines(theme, section.changedLines, wrapWidth));
+		else lines.push(...contentBodyLines(theme, section, wrapWidth, wrapText, section.label));
 	}
 	return lines;
-}
-
-/**
- * Changed lines in payload order, each wholly in its diff color after its
- * prefix; wrapped continuation lines hang under the text.
- */
-function changedLineRows(theme: Theme, lines: readonly PayloadChangeLine[], wrapWidth: number): string[] {
-	return lines.flatMap((line) => {
-		const added = line.type === "added";
-		const prefix = added ? ADDED_LINE_PREFIX : REMOVED_LINE_PREFIX;
-		const color = added ? "toolDiffAdded" : "toolDiffRemoved";
-		// A lone carriage return would otherwise become a line break of its own
-		const text = normalizePreviewText(line.text).replaceAll("\n", " ");
-		const hanging = " ".repeat(prefix.length);
-		const wrapped = wrapTextWithAnsi(text, Math.max(1, wrapWidth - prefix.length));
-		return (wrapped.length === 0 ? [""] : wrapped).map((part, index) => index === 0
-			? `${BODY_INDENT}${theme.fg(color, `${prefix}${part}`)}`
-			: `${BODY_INDENT}${hanging}${theme.fg(color, part)}`);
-	});
 }
 
 /**
@@ -255,10 +233,12 @@ function headingKey(text: string): string {
 function sectionHeaderLines(theme: Theme, section: InjectionSection, wrapWidth: number): string[] {
 	const prefix = section.toolDeclaration === true ? theme.fg("dim", TOOL_LABEL_PREFIX) : "";
 	const label = prefix + theme.fg("syntaxKeyword", theme.bold(normalizeInlineText(section.label)));
+	const prompt = section.message?.userPrompt;
+	const number = prompt === undefined ? "" : theme.fg("muted", ` · user prompt #${prompt}`);
 	const tokens = section.diffOnly === true
 		? ""
 		: theme.fg("muted", ` · ${section.tokens.toLocaleString("en-US")} tokens`);
 	const guess = section.attribution === "guess" ? guessMarker(theme) : "";
-	const header = `${label}${tokens}${diffMarker(theme, section.diff)}${guess}${stateMarkers(theme, section)}`;
+	const header = `${label}${number}${tokens}${diffMarker(theme, section.diff)}${guess}${stateMarkers(theme, section)}`;
 	return wrapTextWithAnsi(header, wrapWidth).map((line) => `${BODY_INDENT}${line}`);
 }

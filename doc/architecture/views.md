@@ -46,17 +46,25 @@ The command also keeps the TUI-only guard. `openInjections()` and
    follow baseline order, with modifications and deletions in place; additions
    and changes with no matched entry follow in capture order. Unchanged
    ordinary conversation stays out of the tree. `N` counts only sent messages,
-   excluding deletions and session-reference parts.
+   excluding deletions.
 
 Added and modified message parts count their request version; deleted parts
 count zero. The row sums their estimates and token diffs against the session,
-with no child rows. A modified message previews its counted request part,
-then a `<label> · session` part at zero tokens; a deletion previews its session
-original at zero. A customType or role labels each part, never a source group.
-User-prompt numbering and word-level preview bodies remain deferred. Message
-previews use the content-only extraction in `src/message-preview.ts`. Snapshot images already
-hold size markers; session originals are redacted on extraction. Neither
-source's opaque signature bytes reach a preview.
+with no child rows. A modified message keeps its session original only as
+preview metadata of its counted part, for a word-level diff; a deletion
+previews its session original at zero. A customType or role labels each part,
+never a source group. Message previews use the content-only extraction in
+`src/message-preview.ts`. Snapshot images already hold size markers; session
+originals are redacted on extraction. Neither source's opaque signature bytes
+reach a preview.
+
+Each message part also carries its `user prompt #N`: the genuine user
+messages from the session root through its source entry, on the branch
+ending at `snapshot.leafId`. Walking parent links over all entries counts
+prompts that compaction or a context omission left out of the projection and
+ignores abandoned branches and later entries, so numbers stay stable. Known
+probe prompts are excluded through the same filter. Additions take the number
+of the request's leaf; parts before the first prompt have none.
 
 System changes mark the affected prompt part or tool in place. These groups
 identify the affected content, **not the editing extension**. Marking a pi part
@@ -142,8 +150,7 @@ The snapshot also supplies hidden tools and payload changes:
   lines, so a deletion counts zero. The item sums these estimates and diffs
   against the captured request. Tool removals Pi did not hide belong here;
   typed section metadata distinguishes a tool declaration from a message part.
-  Sections render their colored changed lines; word-level highlighting remains
-  deferred.
+  Sections render their colored changed lines, with changed words inverse.
 
 Top-level sources are `pi`, identified extensions by size, then one
 `unattributed` group for content from an unknown extension. Unregistered tools,

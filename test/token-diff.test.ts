@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { textTokens } from "../src/measure.ts";
-import { countWordChanges, type DiffSide, measureTokenDiff } from "../src/token-diff.ts";
+import { countWordChanges, type DiffSide, diffWords, measureTokenDiff } from "../src/token-diff.ts";
 
 /** A side whose estimate is the plain character heuristic. */
 function side(text: string): DiffSide {
@@ -36,6 +36,34 @@ test("countWordChanges counts an unaligned middle as replaced, keeping the commo
 	const changes = countWordChanges(`start ${before} end`, `start ${after} end`);
 	// Too many edits to align: the whole middle is replaced, while the shared ends stay matched
 	assert.deepEqual(changes, { addedChars: after.length, removedChars: before.length });
+});
+
+test("diffWords reconstructs both sides on the same alignment as counts", () => {
+	const texts = ["", "a", "b", "a b", "b a", "a b a", "a\nb", "a b\n", "  a\n  b", "a 🙂 中", "b 🙃 中"];
+	for (const before of texts) {
+		for (const after of texts) {
+			const parts = diffWords(before, after);
+			assert.equal(parts.filter((part) => part.type !== "added").map((part) => part.text).join(""), before);
+			assert.equal(parts.filter((part) => part.type !== "removed").map((part) => part.text).join(""), after);
+			assert.deepEqual({
+				addedChars: parts.filter((part) => part.type === "added").reduce((sum, part) => sum + part.text.length, 0),
+				removedChars: parts.filter((part) => part.type === "removed").reduce((sum, part) => sum + part.text.length, 0),
+			}, countWordChanges(before, after));
+		}
+	}
+	assert.deepEqual(diffWords("Summarize the latest test results.", "Summarize XYZZY_PAYLOAD results."), [
+		{ type: "unchanged", text: "Summarize " }, { type: "removed", text: "the latest test" },
+		{ type: "added", text: "XYZZY_PAYLOAD" }, { type: "unchanged", text: " results." },
+	]);
+});
+
+test("diffWords bounds the preview trace and retains matching ends on fallback", () => {
+	const before = Array.from({ length: 3_000 }, (_, index) => `old${index}`).join(" ");
+	const after = Array.from({ length: 3_000 }, (_, index) => `new${index}`).join(" ");
+	assert.deepEqual(diffWords(`start ${before} end`, `start ${after} end`), [
+		{ type: "unchanged", text: "start " }, { type: "removed", text: before },
+		{ type: "added", text: after }, { type: "unchanged", text: " end" },
+	]);
 });
 
 test("measureTokenDiff counts a missing base as added and an empty request as removed", () => {

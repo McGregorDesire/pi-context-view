@@ -218,7 +218,7 @@ itself carries only `Forced`.
 
 - **Messages.** All custom messages and request-only conversation changes
   form one `messages (N)` row under `unattributed`. `N` counts the messages the
-  request sent, excluding deletions and zero-token session-reference parts.
+  request sent, excluding deletions.
   Its value sums the sent messages' estimates; its diff sums their changes
   against the session. A modified or deleted session custom message replaces
   its unchanged part, never counting it twice. Parts follow session order,
@@ -499,18 +499,28 @@ for payload changes.
 The messages preview header reads
 `messages (N) … unattributed · N tokens · +N -N`, followed by `Request-Only`
 when any message changed. Its parts use the message's `customType` or literal
-role (`user`, `assistant`, `toolResult`, and so on), then muted `· N tokens`,
-the message's diff, and `Request-Only` when changed. Session-backed parts stay
-in conversation order, including deletions; additions follow in capture order.
+role (`user`, `assistant`, `toolResult`, and so on), then muted
+`· user prompt #N · N tokens`, the message's diff, and `Request-Only` when
+changed. Session-backed parts stay in conversation order, including deletions;
+additions follow in capture order.
 
-- A **modified** message shows the counted request version first, followed by
-  a `<label> · session` reference part at 0 tokens, with no diff or marker.
-- A **deleted** message shows its session original at 0 tokens in its part,
-  with its removal diff and `Request-Only`; it is excluded from the row's `N`.
+`user prompt #N` counts the user prompts on the whole captured branch up to and
+including the message's session entry, not only the compacted projection, so
+numbers stay the same after compaction or a saved context omission. Probe
+prompts do not count. A request-only addition takes the number of the
+request's prompt. A message before the first prompt shows no number.
 
-User-prompt numbering and word-level diff bodies remain deferred to the
-Message preview PLAN item. Until then, both message versions are plain content
-with their existing marked JSON expansion.
+Each part body is a [diff body](previews.md#diff-bodies) against the session:
+
+- An **unchanged** custom message shows context lines only.
+- An **added** message shows only added lines.
+- A **modified** message shows a word-level diff of its session and request
+  versions in its one part; its estimate counts the request version.
+- A **deleted** message shows its session original as removed lines at 0
+  tokens, with its removal diff and `Request-Only`; it is excluded from the
+  row's `N`.
+
+Both versions expand their marked JSON before the comparison.
 
 A deleted System Prompt part or tool previews the session text it removed, at 0
 tokens. A modified System Prompt part or tool shows only the request version.
@@ -520,10 +530,10 @@ The payload preview header reads
 under a labeled part subheader with its estimate and diff, in the guard's
 order, including deletions at 0 tokens. Tool declaration labels carry a dim
 `tool:` prefix. Findings have no captured position, so they have no user-prompt
-number. A line only in the payload opens with `+ ` in `toolDiffAdded`; a line
-only in the captured request opens with `- ` in `toolDiffRemoved`. The whole
-line takes that color, and wrapped continuation lines hang under its text.
-Word-level highlighting remains deferred to the later preview work.
+number. Each body is a [diff body](previews.md#diff-bodies) of the retained
+lines in guard order: a line only in the payload opens with `+ `, a line only
+in the captured request with `- `. Changed words between a finding's removed
+and added lines are inverse; the guard keeps no unchanged context lines.
 
 After the legend bullets of its markers, a payload-change preview repeats the
 payload-changes bullet. Descriptions collapse under the rules in

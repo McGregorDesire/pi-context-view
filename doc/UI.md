@@ -28,6 +28,7 @@ is authoritative.
 | Usage entry and block model | `src/ui/usage-preview.ts` |
 | Injections tree model / rendering | `src/ui/injections-model.ts`, `src/ui/injections-view.ts` |
 | Labeled parts, preview legend | `src/ui/section-preview.ts` |
+| Message and payload diff bodies | `src/ui/diff-preview.ts` |
 | State markers and preview legend bullets | `src/ui/markers.ts` |
 | Selected-row status bar | `src/ui/status-bar.ts` |
 | Marked JSON, skill badges, wheel | `src/ui/json-preview.ts`, `src/ui/skill-preview.ts`, `src/ui/wheel.ts` |

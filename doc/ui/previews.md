@@ -12,9 +12,8 @@ part under its own bold `syntaxKeyword` subheader followed by a muted
 trailing blank rows of the preceding part with this separator; preserve blank
 rows inside its body and leave captured text and token estimates unchanged.
 Part shares reconcile exactly with the item or entry estimate and never add to
-it. In Injections, a modified message's `<label> · session` part and a deleted
-part keep reference text at 0 tokens; only the request version contributes to
-the row. The `messages (N)` and `payload changes (N)` rows each use labeled
+it. In Injections, a deleted part keeps its removed text at 0 tokens; a
+modified message counts only its request version. The `messages (N)` and `payload changes (N)` rows each use labeled
 parts, without child rows, for every message or finding.
 Show the applicable subheader even when `Definition` is the only captured
 part; omit parts with no captured text rather than rendering zero-token
@@ -31,17 +30,40 @@ instruction file, a skill, a built-in tool — or stands for a message also
 carries its [`+N`/`-N` diff](injections.md#token-diffs) after its share, behind a
 dim ` · `, and its [`Request-Only` marker](injections.md#request-only-changes)
 among its markers: `Current Dir · 31 tokens · +14 · Request-Only`.
-Message labels are the `customType` or role; a modified message's zero-token
-session-reference part has no diff or marker. User-prompt numbering and
-word-level diff bodies are deferred.
+Message labels are the `customType` or role, followed by muted
+` · user prompt #N` before the share when the message follows a user prompt:
+`user · user prompt #2 · 7 tokens · +6 · Request-Only`.
+
+Message bodies use the [diff body](#diff-bodies): unchanged messages show only
+context lines, additions and deletions show whole added or removed lines, and a
+modified message shows a word-level diff of its session and request versions
+in its one part.
 
 Each payload finding's part carries its estimate and diff against the captured
 request, with no `Request-Only`. Its body shows the retained changed lines
-instead of only the counted added text, including removed lines of a deletion.
+instead of only the counted added text, including removed lines of a deletion,
+as a [diff body](#diff-bodies) without context lines.
 A tool declaration subheader adds a dim `tool:` before its bold tool name, so
 it reads apart from a `tool call`. These parts retain the guard's order, never
-sorting by token size. Word-level highlighting is deferred; changed lines
-keep their existing full-line diff colors and hanging indent.
+sorting by token size. Changed words compare all of a finding's removed lines
+with all of its added lines, the same comparison as its token diff.
+
+### Diff bodies
+
+Injections message and payload-finding parts render diff bodies in the style of
+pi's `renderDiff()`. A line only in the request or payload opens with `+ ` in
+`toolDiffAdded`, a line only in the base opens with `- ` in `toolDiffRemoved`,
+and an unchanged line keeps the two-column gap in `toolDiffContext`, so text
+stays aligned. The whole line takes its color; wrapped continuation lines hang
+under its text.
+
+Where removed and added lines replace each other, changed words are inverse,
+excluding their leading whitespace. The comparison runs across all lines of a
+changed block, not just one line pair, and uses the word alignment of the
+[token diff](injections.md#token-diffs). Whole-line additions and deletions
+have no inverse words. A comparison too large to align marks its whole middle
+as changed, keeping the common start and end. Marked JSON expands on both sides before the
+comparison. Text is sanitized before styling; the diff changes no estimate.
 
 Diff-only Injections [`system prompt` rows](injections.md#system-prompt-rows)
 and their parts have no token estimate. Part subheaders show only their diffs,

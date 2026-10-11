@@ -459,11 +459,11 @@ suite("Injections composition", { concurrency: true }, () => {
 			...Object.keys(SECTION_DELETE_SECTIONS).map((name) => `pi / ${name}: deleted`),
 			"unattributed / user: modified",
 		].sort());
-		const modified = messages?.sections?.findIndex((part) => part.change === "modified") ?? -1;
-		assert.deepEqual(messages?.sections?.slice(modified, modified + 2).map((part) => [part.label, part.text]), [
-			["user", `${CONTEXT_MODIFY_PREFIX} original text`],
-			["user · session", JSON.stringify([{ type: "text", text: "original text" }])],
+		const modified = messages?.sections?.find((part) => part.change === "modified");
+		assert.deepEqual([modified?.label, modified?.text, modified?.message?.original?.text], [
+			"user", `${CONTEXT_MODIFY_PREFIX} original text`, JSON.stringify([{ type: "text", text: "original text" }]),
 		]);
+		assert.equal(modified?.message?.userPrompt, 1, "later prompts do not renumber the captured request");
 	});
 
 	for (const position of ["before", "after"] as const) {

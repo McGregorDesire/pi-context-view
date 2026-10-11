@@ -178,13 +178,15 @@ provenance. Neither identifies an extension. Pi adds no custom context messages:
 by `customType`; its categories and message accounting are unchanged.
 
 One `messages (N)` item holds labeled sections, not child items. `N` counts
-messages sent, excluding deletions and session-reference parts. Message
-estimates use Pi's `estimateTokens`; the row sums the counted sections. Each
-changed message's content-only preview compares with its session original, and
-the row sums those diffs. Modified messages retain a zero-token session section
-following their counted request section; deleted messages retain the original
-at zero tokens. Only sent text contributes to the item's counted text and
-characters. The row and changed message sections carry `requestOnly`.
+messages sent, excluding deletions. Message estimates use Pi's
+`estimateTokens`; the row sums the counted sections. Each changed message's
+content-only preview compares with its session original, and the row sums
+those diffs. A modified message's section counts the request version and keeps
+the redacted original as preview-only metadata, never as a second section;
+deleted messages retain the original at zero tokens. Only sent text
+contributes to the item's counted text and characters. The row and changed
+message sections carry `requestOnly`. Message sections also carry their
+`user prompt #N`, which changes no estimate.
 
 One `payload changes (N)` item of kind `payload-change` holds one section per
 guard finding, in guard order. `N` counts every finding, deletions included.

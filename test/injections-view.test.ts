@@ -34,11 +34,14 @@ function createTheme(): Theme {
 	};
 	const fgColors = Object.fromEntries(FG_COLORS.map((color) => [color, foregroundOverrides[color] ?? "#aabbcc"]));
 	const bgColors = Object.fromEntries(BG_COLORS.map((color) => [color, "#112233"]));
-	return new Theme(
+	const theme = new Theme(
 		fgColors as ConstructorParameters<typeof Theme>[0],
 		bgColors as ConstructorParameters<typeof Theme>[1],
 		"truecolor",
 	);
+	// Chalk disables inverse without a TTY, so mark it visibly instead
+	theme.inverse = (text) => `\u001b[7m${text}\u001b[27m`;
+	return theme;
 }
 
 /** A neutral leaf: the messages and payload-change rows have kinds of their own. */
@@ -1542,11 +1545,14 @@ test("InjectionsView previews payload changes as one part per finding with color
 	assert.match(plain[plain.indexOf("  tool:write · 0 tokens · -3") + 1] ?? "", /^ {2}- Write files$/);
 	const removed = plain.findIndex((line) => line === "  - before the edit");
 	assert.ok(removed >= 0);
-	assert.ok(lines[removed]?.includes(theme.fg("toolDiffRemoved", "- before the edit")));
+	assert.ok(lines[removed]?.includes(theme.getFgAnsi("toolDiffRemoved")));
+	assert.ok(lines[removed]?.includes(theme.inverse("before")), "only the changed word is inverse");
 	assert.match(plain[removed + 1] ?? "", /^ {2}\+ after the edit long/);
 	assert.ok(lines[removed + 1]?.includes(theme.getFgAnsi("toolDiffAdded")));
 	assert.match(plain[removed + 2] ?? "", /^ {4}long/, "continuation lines hang under the text");
-	assert.ok(lines[removed + 2]?.includes(theme.getFgAnsi("toolDiffAdded")));
+	// Wrapping merges the carried inverse and color into one SGR sequence
+	assert.ok(lines[removed + 2]?.includes(theme.getFgAnsi("toolDiffAdded").slice(2, -1)));
+	assert.ok(lines[removed + 2]?.includes("\u001b[7;"), "inverse words stay inverse after wrapping");
 	assert.ok(plain.every((line) => visibleWidth(line) <= 60));
 	assert.ok(plain.join(" ").replace(/\s+/g, " ")
 		.includes("- +N -N Tokens added or removed, compared with the captured request."));
@@ -1750,14 +1756,13 @@ test("InjectionsView lists messages in one unattributed row and previews one par
 		...item("messages", AGGREGATE_SOURCE.id, false, 12), kind: "message", source: AGGREGATE_SOURCE,
 		label: "messages (3)", requestOnly: true, diff: { added: 8, removed: 4 },
 		sections: [
-			{ label: "fixture-notes", text: "stored note", tokens: 3 },
+			{ label: "fixture-notes", text: "stored note", tokens: 3, message: {} },
 			{ label: "user", text: "edited prompt", tokens: 5, diff: { added: 4, removed: 1 }, change: "modified",
-				requestOnly: true },
-			{ label: "user \u00b7 session", text: "original prompt", tokens: 0 },
+				requestOnly: true, message: { userPrompt: 1, original: { text: "original prompt" } } },
 			{ label: "user", text: "deleted prompt", tokens: 0, diff: { added: 0, removed: 3 }, change: "deleted",
-				requestOnly: true },
+				requestOnly: true, message: { userPrompt: 2 } },
 			{ label: "fixture-add", text: "added note", tokens: 4, diff: { added: 4, removed: 0 }, change: "added",
-				requestOnly: true },
+				requestOnly: true, message: { userPrompt: 2 } },
 		],
 	};
 	const snapshot: InjectionSnapshot = {
@@ -1780,13 +1785,20 @@ test("InjectionsView lists messages in one unattributed row and previews one par
 	assert.match(preview[2] ?? "", /^messages \(3\) +unattributed \u00b7 12 tokens \u00b7 \+8 -4 \u00b7 Request-Only $/);
 	assert.deepEqual(preview.filter((line) => / \u00b7 \d+ tokens/.test(line)).slice(1), [
 		"  fixture-notes \u00b7 3 tokens",
-		"  user \u00b7 5 tokens \u00b7 +4 -1 \u00b7 Request-Only",
-		"  user \u00b7 session \u00b7 0 tokens",
-		"  user \u00b7 0 tokens \u00b7 -3 \u00b7 Request-Only",
-		"  fixture-add \u00b7 4 tokens \u00b7 +4 \u00b7 Request-Only",
-	], "customType or role labels each part; a modification keeps its session original");
-	assert.ok(preview.includes("  original prompt"));
-	assert.ok(preview.includes("  deleted prompt"));
+		"  user · user prompt #1 · 5 tokens · +4 -1 · Request-Only",
+		"  user · user prompt #2 · 0 tokens · -3 · Request-Only",
+		"  fixture-add · user prompt #2 · 4 tokens · +4 · Request-Only",
+	], "customType or role labels each part; a modification diffs its session original in the same part");
+	assert.ok(preview.includes("    stored note"));
+	assert.ok(preview.includes("  - original prompt"));
+	assert.ok(preview.includes("  + edited prompt"));
+	assert.ok(preview.includes("  - deleted prompt"));
+	assert.ok(preview.includes("  + added note"));
+	const styled = view.render(100);
+	assert.ok(styled.some((line) => line.includes(theme.fg("muted", " · user prompt #1"))));
+	assert.ok(styled.some((line) => line.includes(theme.inverse("original"))));
+	assert.ok(styled.some((line) => line.includes(theme.inverse("edited"))));
+	assert.doesNotMatch(preview.join("\n"), /· session|#0/);
 	const legend = preview.join(" ").replace(/\s+/g, " ");
 	assert.ok(legend.includes("- +N -N Tokens extensions added or removed, compared with the session."));
 	assert.ok(legend.includes("- Request-Only Includes changes made only in this request"));
