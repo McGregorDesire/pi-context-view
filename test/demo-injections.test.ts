@@ -89,8 +89,8 @@ test("demo launcher keeps the real agent directory without --codemode-only", asy
 });
 
 for (const forwarded of [
-	["--", "--context", "--system", "--payload", "--message", "--codemode-only", "--after", "--forced", "--local"],
-	["--model", "provider/model", "--context", "--system", "--payload", "--message", "--codemode-only", "--forced", "--local"],
+	["--", "--context", "--system", "--payload", "--message", "--codemode-only", "--after", "--forced", "--local", "--mock"],
+	["--model", "provider/model", "--context", "--system", "--payload", "--message", "--codemode-only", "--forced", "--local", "--mock"],
 	["--force"],
 	["--context-modify"],
 	["--section-patch"],

@@ -18,6 +18,7 @@ import {
 	SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 
+import { startDemoMockProvider } from "../scripts/demo-mock-provider.ts";
 import registerExtension from "../src/index.ts";
 import { buildInjectionsSnapshot } from "../src/injections.ts";
 import type { InjectionSnapshot } from "../src/model.ts";
@@ -108,7 +109,7 @@ test("combined demo also works with reversed group order", async (t) => {
 		"agent-start-message", "payload-changes", "payload-remove-tool", "review-checklist",
 		"section-patch", "section-modify", "section-delete", "context-modify", "context-delete", "context-add",
 	];
-	const runtime = await createDemoRuntime(t, "openai-completions", false, fixtures);
+	const runtime = await createDemoRuntime(t, "openai-completions", false, { fixtures });
 	const prompt = "Suggest improvements to the review workflow.";
 	await runtime.session.prompt(prompt);
 	const snapshot = await runtime.latest();
@@ -123,7 +124,7 @@ test("combined demo also works with reversed group order", async (t) => {
 
 test("context demo stays distinct without saved-message or payload anchors", async (t) => {
 	const runtime = await createDemoRuntime(t, "openai-completions", false,
-		["context-modify", "context-delete", "context-add"]);
+		{ fixtures: ["context-modify", "context-delete", "context-add"] });
 	await runtime.session.prompt("Suggest improvements to the review workflow.");
 	const snapshot = await runtime.latest();
 	assert.deepEqual(runtime.errors, []);
@@ -132,6 +133,24 @@ test("context demo stays distinct without saved-message or payload anchors", asy
 	assert.deepEqual(snapshot.guard.findings, []);
 	assert.equal(runtime.compose(snapshot).groups.flatMap((group) => group.items)
 		.find((item) => item.kind === "message")?.label, "messages (2)");
+});
+
+test("combined demo captures both payload findings with the launcher's body-discarding mock", async (t) => {
+	const provider = await startDemoMockProvider();
+	t.after(() => provider.close());
+	const runtime = await createDemoRuntime(t, "openai-completions", false, { baseUrl: provider.baseUrl });
+	await runtime.session.prompt("Suggest improvements to a code review workflow.");
+	const snapshot = await runtime.latest();
+	assert.deepEqual(runtime.errors, []);
+	assert.equal(snapshot.guard.status, "complete");
+	assert.deepEqual(snapshot.guard.findings.map((finding) => finding.type === "payload-tool-change"
+		? `${finding.change} tool:${finding.name}` : `${finding.change} ${finding.part}`).sort(),
+	["deleted tool:write", "modified user"]);
+	assertAttributedTool(runtime.compose(snapshot));
+	const assistant = runtime.session.agent.state.messages.findLast((message) => message.role === "assistant");
+	assert.ok(assistant?.role === "assistant");
+	assert.equal(assistant.stopReason, "stop");
+	assert.deepEqual(assistant.content, [{ type: "text", text: "ok" }]);
 });
 
 /** A demo runtime exposing captures and composition without opening a TUI. */
@@ -161,15 +180,24 @@ function assertAttributedTool(snapshot: InjectionSnapshot): void {
 	}
 }
 
+/** Overrides for the default fixture set or the test harness endpoint. */
+interface DemoRuntimeOptions {
+	readonly fixtures?: readonly string[];
+	readonly baseUrl?: string;
+}
+
 /** Load real demo files by path, preserving their independence from regular test fixtures. */
 async function createDemoRuntime(
 	t: TestContext,
 	api: MockApi,
 	after: boolean,
-	fixtures: readonly string[] = FIXTURES,
+	overrides: DemoRuntimeOptions = {},
 ): Promise<DemoRuntime> {
-	const provider = await startMockProvider();
-	t.after(() => provider.close());
+	const fixtures = overrides.fixtures ?? FIXTURES;
+	const provider = overrides.baseUrl === undefined ? await startMockProvider() : undefined;
+	if (provider) t.after(() => provider.close());
+	const baseUrl = overrides.baseUrl ?? provider?.baseUrls[api];
+	assert.ok(baseUrl);
 	const directory = await mkdtemp(join(tmpdir(), "context-demo-fixtures-"));
 	t.after(() => rm(directory, { recursive: true, force: true }));
 	const settingsManager = SettingsManager.inMemory({ cacheWarming: "off", compaction: { enabled: false } });
@@ -177,7 +205,7 @@ async function createDemoRuntime(
 		authPath: join(directory, "auth.json"), modelsPath: null, refreshOnCreate: false, allowModelNetwork: false,
 	});
 	const model = {
-		provider: `demo-${api}`, id: "demo", name: "Demo", api, baseUrl: provider.baseUrls[api],
+		provider: `demo-${api}`, id: "demo", name: "Demo", api, baseUrl,
 		reasoning: false, input: ["text"], contextWindow: 100_000, maxTokens: 128,
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 	} satisfies NonNullable<ExtensionContext["model"]>;

@@ -10,6 +10,7 @@
 #   --system        load one section addition, modification, deletion, and an attributed tool
 #   --payload       load one message payload edit and manual tool-declaration removal
 #   --message       load a saved before_agent_start review message
+#   --mock          use a local mock provider, without real LLM calls or saved sessions
 #   --forced        load forced-prompt.ts, replacing the whole system prompt
 #   --codemode-only load Pi's built-in codemode in only mode, through temporary settings
 #   --after         load pi-context-view before the selected demo extensions
@@ -23,6 +24,7 @@
 # Place demo flags before Pi arguments. Other arguments go to pi unchanged.
 # Discovered extensions stay disabled unless --local is set. With --local,
 # an installed pi-context-view may load alongside this working copy.
+# --mock --local loads global extensions only; project resources stay disabled.
 #
 # Send an ordinary prompt for payload demos: silent probes have no provider
 # payload. Injections shows the latest request when reopened.
@@ -65,13 +67,16 @@ main() {
     #   ./scripts/demo-injections.sh --codemode-only --forced --no-session
     #
     local monitor_first=false
+    local mock=false
+    local local_extensions=false
     local codemode_only=false
     local discovery_args=(--no-extensions)
     local fixtures=()
     while (($# > 0)); do
         case "$1" in
-            --local) discovery_args=() ;;
+            --local) local_extensions=true; discovery_args=() ;;
             --after) monitor_first=true ;;
+            --mock) mock=true ;;
             --forced) fixtures+=(forced-prompt) ;;
             --codemode-only) codemode_only=true ;;
             --context)
@@ -100,11 +105,19 @@ main() {
     if [[ "$codemode_only" == true ]]; then
         # --no-extensions drops built-ins; Pi loads explicit builtin: entries after other -e paths
         extension_args+=(-e 'builtin:codemode')
-        _demo_use_codemode_settings
     fi
 
-    # No exec: the EXIT trap must remove the temporary agent directory after pi exits
-    pi "${discovery_args[@]}" "${extension_args[@]}" "$@"
+    if [[ "$mock" == true ]]; then
+        # The runner owns cleanup; replace the shell so signals reach it directly
+        exec node "$_DEMO_REPO_ROOT/scripts/demo-mock.ts" "$codemode_only" "$local_extensions" \
+            "${discovery_args[@]}" "${extension_args[@]}" "$@"
+    else
+        if [[ "$codemode_only" == true ]]; then
+            _demo_use_codemode_settings
+        fi
+        # No exec: the EXIT trap must remove the temporary agent directory after pi exits
+        pi "${discovery_args[@]}" "${extension_args[@]}" "$@"
+    fi
 }
 
 

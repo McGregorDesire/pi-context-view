@@ -20,12 +20,27 @@ Runtime tests run the pinned Pi CLI against a local mock provider:
 `--no-extensions` also disables Pi's built-in extensions; runtime tests add the
 ones they need with `builtin:<name>`. `demo-injections.test.ts` checks launcher
 selection, order, and demo fixture paths without starting a provider.
+`demo-mock.test.ts` checks the launcher's optional `--mock` mode: a separate,
+Completions-only loopback endpoint that discards bodies, appearance-only
+configuration, in-memory sessions, conflicting-argument rejection, signal and
+failure cleanup, and ordinary prompts through the pinned CLI with and without
+codemode. Theme cases cover selected installed-package assets, automatic
+light/dark pairs, manifest paths and exclusions, configured paths, and local
+packages, without executing package extensions during discovery or installing
+missing packages. `--mock --local` cases cover global configured, auto-discovered,
+and package extensions, relative imports, resource and built-in exclusions,
+project rejection even when a global extension would grant trust, unchanged
+original files, and lifecycle hooks through a normal mock request. Without
+`--local`, the same installed extensions stay disabled.
+No real provider or PTY is involved. The demo mock is not the recording provider
+in `test/harness/`, and imports no regular test module.
 `demo-fixtures.test.ts` loads demo files by path through Pi's resource loader
 and checks the combined overview against the mock provider: distinct message
 and section edits, exact tool/prompt attribution, payload edits, both load
 orders, all three supported APIs, and reversed group order. It also checks
-conversation edits without the other groups. No demo fixture is imported by a
-regular test.
+conversation edits without the other groups and both payload findings against
+the launcher's body-discarding mock. No demo fixture is imported by a regular
+test.
 `module-boundaries.test.ts` rejects imports between demo fixtures and regular
 tests, fixtures, or harness modules, including indirect imports. Both fixture
 sets are typechecked by `pnpm check`, but they are not required to stay identical.

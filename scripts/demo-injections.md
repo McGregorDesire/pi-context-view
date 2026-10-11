@@ -26,6 +26,9 @@ order below.
 Discovered extensions stay disabled unless you add `--local`, which omits
 Pi's `--no-extensions` argument. The working copy and selected fixtures still
 load explicitly, so an installed pi-context-view may load alongside them.
+`--mock` selects a local endpoint without adding any fixtures. With
+`--mock --local`, discovery includes globally installed extensions only;
+project resources stay disabled.
 
 | Flag              | Fixtures                                                               |
 | ----------------- | ---------------------------------------------------------------------- |
@@ -56,10 +59,71 @@ This requires a configured model, credentials, and the usual probe safety checks
 Probes have no provider payload, so payload changes require an ordinary prompt.
 Reopen the view afterwards: the latest real request replaces the probe snapshot.
 
+## Mock provider
+
+Add `--mock` to run the demos without contacting a real LLM:
+
+```sh
+./scripts/demo-injections.sh --mock --context --system --payload --message
+```
+
+Send an ordinary prompt, then open `/context injections` as usual. Pi still
+builds the provider payload and runs its normal hooks, but sends it to a
+Completions-only HTTP endpoint bound to `127.0.0.1` on a temporary port. The
+endpoint discards request bodies without recording or logging them and always
+replies `ok`, never calling tools. Its reported token usage is synthetic and
+its configured cost is zero; context estimates still use normal capture.
+Opening the view before a prompt still uses a silent probe with no payload.
+
+The runner uses an in-memory session and a temporary agent directory. Only
+appearance settings, `keybindings.json`, and the selected theme's files are
+copied. An automatic light/dark pair copies both themes. Selected custom themes
+are found in the agent's `themes/` directory, configured theme paths, and
+already-installed packages, respecting Pi's manifests and resource filters.
+Only theme assets are copied, by their declared theme name; other package themes
+are not added to the picker. No package extension code runs during discovery,
+and missing packages are never installed. Credentials, model configuration,
+instructions, skills, package declarations, and other settings are not copied.
+Working-directory context files still load normally; trust-gated project
+settings and resources are disabled.
+The endpoint and temporary directory are cleaned up on exit, including startup
+failures and normal interruption. Original files stay unchanged.
+
+Add `--local` to include your globally installed extensions:
+
+```sh
+./scripts/demo-injections.sh --mock --local --context --system --payload --message
+```
+
+This loads extensions from the original agent directory, configured global
+paths, and already-installed packages. Pi's manifests, resource exclusions,
+and built-in extension filters still apply. Extensions run from their original
+paths, so their installed dependencies and relative imports keep working.
+Only extension paths are added to the temporary settings: package declarations,
+skills, other extension settings, credentials, models, and sessions are not
+inherited. Project settings and resources remain disabled, even if a global
+extension would grant project trust. `--mock` without `--local` still disables
+discovered extensions.
+
+Mock mode selects `demo-mock/demo` automatically, scopes model cycling to it,
+disables startup network activity, bypasses inherited HTTP proxies, and turns
+off retries, compaction, and cache warming. `--codemode-only` still works,
+using the temporary settings instead of the ordinary linked overlay.
+Model/authentication overrides (`--model`, `--provider`, `--models`, `--api-key`),
+session/resume/storage options, and `--approve` are rejected rather than allowed
+to override mock isolation. Other Pi arguments still pass through.
+This is not a network sandbox: extensions enabled by `--local` or explicit
+`-e` arguments are trusted code and can make their own network requests or
+change model routing. Manually choosing another provider is outside the mock
+demo flow.
+
+Without `--mock`, the launcher continues to use your normal model and setup.
+`--offline` alone does not prevent model requests.
+
 ## Combined overview
 
 ```sh
-./scripts/demo-injections.sh --context --system --payload --message --no-session
+./scripts/demo-injections.sh --mock --context --system --payload --message
 ```
 
 Send an ordinary prompt, for example:
