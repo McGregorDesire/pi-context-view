@@ -248,9 +248,11 @@ provider-payload size.
 ### Selected-row status bar
 
 The selected row's status bar sits above the description, outside the scrollable
-list and its counter. It changes with selection and returns unchanged after a
-preview. It shows only relevant change or state details, never raw text, the
-row's source, or its location. Compact capture status stays in the header and
+list and its counter. In the normal frame, exactly one empty row separates it
+from the last list row, or from the scroll counter when visible. Do not pad a
+short list with unused viewport rows. It changes with selection and returns
+unchanged after a preview. It shows only relevant change or state details, never
+raw text, the row's source, or its location. Compact capture status stays in the header and
 degraded warning, with detailed explanations in the view-wide description,
 separate from selected-row details.
 

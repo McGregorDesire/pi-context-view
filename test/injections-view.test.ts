@@ -1619,6 +1619,26 @@ test("InjectionsView pins selected-row details above the description, separate f
 	], "return from preview restores the same selection and bar");
 });
 
+test("InjectionsView leaves exactly one blank row before the bar, after the list or its counter", () => {
+	let height = 40;
+	const view = new InjectionsView(createTheme(), { snapshot: changedSnapshot() }, () => {}, () => height);
+	view.handleInput("j");
+	for (const width of [60, 80, 120]) {
+		for (height of [40, 16, 40]) {
+			const plain = view.render(width).map(stripSgr);
+			const change = plain.findIndex((line) => line.startsWith("    Change:"));
+			const counter = plain.findIndex((line) => /^  \(\d+\/\d+\)$/.test(line));
+			const total = plain.findIndex((line) => line.startsWith("  TOTAL"));
+			assert.ok(change >= 0, `${width}x${height}: the selected row's bar is visible`);
+			assert.equal(counter >= 0, height === 16, `${width}x${height}: counter only when the list overflows`);
+			if (counter < 0) assert.ok(total >= 0, `${width}x${height}: the complete list ends with TOTAL`);
+			assert.equal(change, (counter >= 0 ? counter : total) + 2,
+				`${width}x${height}: exactly one blank row after the list or counter`);
+			assert.equal(plain[change - 1], "");
+		}
+	}
+});
+
 test("InjectionsView keeps the full wrapped bar when descriptions collapse or the frame must compact", () => {
 	let height = 50;
 	const view = new InjectionsView(createTheme(), {

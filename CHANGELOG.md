@@ -9,7 +9,7 @@ injections that were invisible before: changes from later handlers, deleted or m
 forced prompts, and tools Pi hides.
 
 ### New
-* `[injections]` Show request-only injections with `+N`/`-N` diffs and a `Request-Only` marker.
+* `[injections]` Update the injections view UI: clearer grouping, `+N`/`-N` diffs indicators, and previews.
 * `[injections]` Use the latest request instead of the frozen Initial snapshot.
 * `[injections]` Show payload changes and tools Pi hides.
 

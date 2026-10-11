@@ -212,8 +212,6 @@ export class InjectionsView {
 		const listLines = this.listLines(width);
 		lines.push(...listLines);
 		if (viewport.showScroll) lines.push(this.scrollLine(width));
-		const paddingCount = viewport.visibleCount - listLines.length;
-		for (let pad = 0; pad < paddingCount; pad++) lines.push("");
 		if (statusLines.length > 0) lines.push("", ...statusLines);
 		if (descriptionLines.length > 0) lines.push("", ...descriptionLines);
 		const hints = this.fit(hintRow(theme, [
