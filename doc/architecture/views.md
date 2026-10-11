@@ -104,6 +104,17 @@ parts as the list. An extension's `system prompt` row compares its attributed
 lines with the session's, rather than inheriting the containing part's flag;
 the unattributed row is request-only when any of its changes is.
 
+System Prompt parts and diff-only rows also carry `InjectionItem.savedChange`
+when the session's version already differs from their diff base. A saved custom
+section with a request-only edit can therefore explain both states even when
+the edit folds into its `+N`. A deleted custom section compares with the session,
+so its deletion is request-only, not saved. Request-only prompt/tool leaves
+record whether a session original exists (`sessionOriginal`); a new forced part
+must not claim that the session keeps an original it never had. The row model
+combines these states for parents and groups, adding request-only removals of
+session-only children and excluding diff-only rows. None changes an estimate,
+capture, or persisted data.
+
 Prompt additions have no `before_agent_start` handler boundary: recorded
 structured edits already belong to the baseline, and the forced prompt is
 captured as final text ([prompt additions](measurement.md#extension-prompt-additions)).

@@ -138,3 +138,20 @@ test("extensionSource labels path extensions by their shortest unique path tail"
 	assert.equal(extensionSource(second).label, "web.ts");
 	assert.notEqual(extensionSource(first).id, extensionSource({ ...second, source: "local" }).id);
 });
+
+test("buildSnapshot owns editor records and their source metadata, including child editors", () => {
+	const source = { id: "ext", label: "npm:web", native: false };
+	const editor = { type: "extension" as const, source, attribution: "guess" as const };
+	const editors = [editor, { type: "unknown" as const }];
+	const child: InjectionItem = { ...item("child", "pi", "pi", true, 3), editors };
+	const parent = { ...child, id: "parent", children: [child] };
+	const snapshot = buildSnapshot([parent]);
+	source.label = "changed";
+	editors.length = 0;
+	for (const owned of [snapshot.groups[0]?.items[0], snapshot.groups[0]?.items[0]?.children?.[0]]) {
+		assert.deepEqual(owned?.editors, [
+			{ type: "extension", source: { id: "ext", label: "npm:web", native: false }, attribution: "guess" },
+			{ type: "unknown" },
+		]);
+	}
+});

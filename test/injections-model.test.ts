@@ -144,3 +144,56 @@ test("ListNavigator skips non-selectable trailing rows while scrolling them into
 	assert.equal(navigator.offset, 4);
 	assert.equal(navigator.moveBy(1), false);
 });
+
+test("row status distinguishes saved changes from request-only additions, edits, and mixed changes", () => {
+	const saved: InjectionItem = { ...item("saved", "pi", true, 10), diff: { added: 4, removed: 0 },
+		editors: [{ type: "extension", source: { id: "ext", label: "npm:web", native: false } }] };
+	const mixed: InjectionItem = { ...item("mixed", "pi", true, 10), diff: { added: 10, removed: 0 },
+		requestOnly: true, savedChange: true };
+	const added: InjectionItem = { ...item("added", "pi", true, 5), requestOnly: true, sessionOriginal: false };
+	const edited: InjectionItem = { ...item("edited", "pi", true, 5), requestOnly: true };
+	const children = [saved, mixed, added, edited];
+	const prompt: InjectionItem = { ...item("base-prompt", "pi", true, 30), children, diff: { added: 14, removed: 0 } };
+	const rows = buildInjectionRows({ groups: [{ source: prompt.source, items: [prompt], totalTokens: 30,
+		diff: prompt.diff }], totalTokens: 30 });
+	assert.deepEqual(rows.filter((row) => row.kind === "group" || row.kind === "item").map((row) => row.scope),
+		["partly", "partly", "saved", "saved-and-edit", "request-new", "request-edit"]);
+	const itemRows = rows.filter((row) => row.kind === "item");
+	assert.equal(itemRows[0]?.editors, undefined, "parents do not repeat their children's editors");
+	assert.deepEqual(itemRows[1]?.editors, saved.editors);
+	assert.deepEqual(itemRows[2]?.editors, [{ type: "unknown" }], "pi is an affected source, never an editor");
+});
+
+test("row status includes request-only removals of session-only children and never guesses tool editors", () => {
+	const saved: InjectionItem = { ...item("saved", "pi", true, 5), diff: { added: 3, removed: 0 } };
+	const parent: InjectionItem = { ...item("parent", "pi", true, 5), children: [saved],
+		diff: { added: 3, removed: 10 } };
+	const tool: InjectionItem = { ...item("tool", "npm:web", false, 5), kind: "tool", requestOnly: true,
+		change: "modified", diff: { added: 1, removed: 1 } };
+	const rows = buildInjectionRows({ groups: [
+		{ source: parent.source, items: [parent], totalTokens: 5, diff: parent.diff },
+		{ source: tool.source, items: [tool], totalTokens: 5, diff: tool.diff },
+	], totalTokens: 10 });
+	assert.equal(rows[1]?.kind === "item" ? rows[1].scope : undefined, "partly");
+	assert.equal(rows[3]?.kind === "group" ? rows[3].scope : undefined, "request");
+	assert.deepEqual(rows[4]?.kind === "item" ? rows[4].editors : undefined, [{ type: "unknown" }]);
+});
+
+test("row status leaves diff-only changes out of groups and shows them as saved or partly request-only", () => {
+	const tool = { ...item("tool", "npm:web", false, 5), kind: "tool" as const };
+	const saved: InjectionItem = { ...item("prompt-lines", "npm:web", false, 0), diffOnly: true,
+		diff: { added: 10, removed: 0 }, savedChange: true };
+	const mixed: InjectionItem = { ...saved, id: "mixed", requestOnly: true };
+	const forced: InjectionItem = { ...item("forced", "pi", true, 10), change: "forced" };
+	const rows = buildInjectionRows({ groups: [
+		{ source: tool.source, items: [tool, saved, mixed], totalTokens: 5 },
+		{ source: forced.source, items: [forced], totalTokens: 10 },
+	], totalTokens: 15 });
+	assert.deepEqual(rows.filter((row) => row.kind === "group" || row.kind === "item").map((row) => row.scope),
+		[undefined, undefined, "saved", "partly", "request", "request-edit"]);
+	for (const row of rows) {
+		if (row.kind === "item" && row.diffOnly === true) {
+			assert.equal(row.editors, undefined, "a diff-only row explains accounting instead of repeating its source");
+		}
+	}
+});

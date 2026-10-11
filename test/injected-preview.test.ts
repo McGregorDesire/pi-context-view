@@ -109,10 +109,8 @@ function assertAttribution(lines: readonly string[], theme: Theme, text = GUIDEL
 }
 
 /**
- * Complete bullet block for the given markers, in fixed order, ending one blank
- * row above the hints. Returns where it starts, which each frame places
- * differently: previews open their description with it, the list appends it to
- * its own sentence.
+ * Complete preview bullet block for the given markers, in fixed order, ending
+ * one blank row above the hints. Returns where it starts.
  */
 function assertLegendBullets(lines: readonly string[], theme: Theme, markers: readonly ContextMarker[]): number {
 	const rendered = plain(lines).split("\n");
@@ -143,6 +141,25 @@ function assertLegend(lines: readonly string[], theme: Theme, markers: readonly 
 	const rendered = plain(lines).split("\n");
 	assert.equal(rendered.findIndex((line) => line.includes("↑↓/jk")), lines.length - 3);
 	assert.equal(rendered[start - 1], "");
+}
+
+/**
+ * The list explains a marker only in the status bar of the selected row: one
+ * field opening with the keyword in its fixed color, never a legend bullet.
+ */
+function assertStatusMarker(lines: readonly string[], theme: Theme, marker: "dropped" | "moved", text: string): void {
+	const { color, keyword } = LEGEND[marker];
+	const rendered = plain(lines).split("\n");
+	assert.ok(!rendered.some((line) => line.trim().startsWith(`- ${keyword}`)), "the list has no marker legend");
+	const field = rendered.findIndex((line) => line.startsWith(`    ${keyword}: `));
+	assert.ok(field >= 0, `the status bar explains ${marker}`);
+	const wrapped = [rendered[field]];
+	for (const line of rendered.slice(field + 1)) {
+		if (!line.startsWith("      ")) break;
+		wrapped.push(line);
+	}
+	assert.equal(wrapped.map((line) => line?.trim()).join(" "), `${keyword}: ${text}`);
+	assert.ok(lines[field]?.includes(`${theme.fg(color, keyword)}${theme.getFgAnsi("dim")}: `));
 }
 
 /** Styled state marker: a dim separator, then the keyword in the one fixed color that marker uses. */
@@ -545,13 +562,16 @@ test("a replaced prompt marks its dropped blocks in the tree and in previews", (
 	}
 	const row = list.find((line) => plain([line]).includes("Documentation"));
 	assert.ok(row?.includes(styledMarker(theme, "dropped")), "a dim separator carries the keyword's fixed color");
-	// The list explains the marker its rows carry, below its own description sentence.
-	assertLegendBullets(list, theme, ["dropped"]);
-	// A marker that no longer fits is dropped whole rather than truncated, while its bullet stays.
+	// The status bar explains the marker of the selected row.
+	for (let step = 0; step < 3; step++) view.handleInput("j"); // Available Tools
+	const dropped = "a custom system prompt replaced this part; counted nowhere";
+	assertStatusMarker(view.render(120), theme, "dropped", dropped);
+	// A marker that no longer fits is dropped whole rather than truncated, while the bar still explains it.
 	const narrow = view.render(34);
 	assert.match(rowLine(narrow, "Documentation"), /Documentation/);
 	assert.doesNotMatch(rowLine(narrow, "Documentation"), /Dropped/);
-	assertLegendBullets(narrow, theme, ["dropped"]);
+	assertStatusMarker(narrow, theme, "dropped", dropped);
+	view.handleInput("\u001b[H");
 
 	view.handleInput("j"); // System Prompt
 	view.handleInput("\r");
@@ -628,12 +648,15 @@ test("a relocated block stays a counted System Prompt part, marked where it now 
 	);
 	const row = list.find((line) => plain([line]).includes("Guidelines"));
 	assert.ok(row?.includes(styledMarker(theme, "moved")), "a dim separator carries the keyword's fixed color");
-	assertLegendBullets(list, theme, ["moved"]);
-	// A marker that no longer fits is dropped whole rather than truncated, while its bullet stays.
+	for (let step = 0; step < 5; step++) view.handleInput("j"); // Guidelines
+	const moved = "in a different position in the system prompt than usual";
+	assertStatusMarker(view.render(120), theme, "moved", moved);
+	// A marker that no longer fits is dropped whole rather than truncated, while the bar still explains it.
 	const narrow = view.render(32);
 	assert.match(rowLine(narrow, "Guidelines"), /Guidelines/);
 	assert.doesNotMatch(rowLine(narrow, "Guidelines"), /Moved/);
-	assertLegendBullets(narrow, theme, ["moved"]);
+	assertStatusMarker(narrow, theme, "moved", moved);
+	view.handleInput("\u001b[H");
 
 	view.handleInput("j"); // System Prompt
 	view.handleInput("\r");

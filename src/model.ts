@@ -116,6 +116,15 @@ export interface TokenDiff {
 	readonly removed: number;
 }
 
+/**
+ * Who made a contribution's change, as far as the request shows:
+ *   extension   an extension whose own prompt lines make up the change; `guess` when inferred from the text
+ *   unknown     any other change: Pi reports no editor for prompt, tool, or message edits
+ */
+export type ChangeEditor =
+	| { readonly type: "extension"; readonly source: InjectionSource; readonly attribution?: "guess" }
+	| { readonly type: "unknown" };
+
 /** What kind of context data an injection item is. */
 export type InjectionKind =
 	| "base-prompt"
@@ -238,6 +247,21 @@ export interface InjectionItem {
 	 * Injections measures it; parents and payload changes never carry it.
 	 */
 	readonly requestOnly?: boolean;
+	/**
+	 * True when the session's own version already differs from the base, so
+	 * part of the diff is saved: extension lines in a pi part, an extension's
+	 * own part the session keeps, or `system prompt` row changes the session
+	 * has. Only System Prompt parts and `system prompt` rows carry it; every
+	 * other row compares with the session.
+	 */
+	readonly savedChange?: boolean;
+	/** False when a request-only prompt/tool leaf has no original in the session; absent outside Injections. */
+	readonly sessionOriginal?: boolean;
+	/**
+	 * Who made a System Prompt part's diff, in prompt order, as its `system
+	 * prompt` rows split it. Absent means unknown, as for every other row.
+	 */
+	readonly editors?: readonly ChangeEditor[];
 	/**
 	 * True for a row that shows only the diff of text another row counts: an
 	 * extension's or unattributed `system prompt` row, whose changes System
@@ -404,6 +428,8 @@ function copyItem(item: InjectionItem): InjectionItem {
 		source: { ...item.source },
 		jsonSpan: copyJsonSpan(item.jsonSpan),
 		diff: copyTokenDiff(item.diff),
+		editors: item.editors?.map((editor) =>
+			editor.type === "extension" ? { ...editor, source: { ...editor.source } } : { ...editor }),
 		injectedReferences: copyInjectedReferences(item.injectedReferences),
 		changedLines: item.changedLines?.map((line) => ({ ...line })),
 		sections: item.sections?.map((section) => ({

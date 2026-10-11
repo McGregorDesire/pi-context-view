@@ -43,7 +43,7 @@
     - Under `unattributed` it sums every prompt change with an unknown source, saved or request-only.
     Decided: `unattributed` also includes Instruction Files and Skills diffs. Extension rows carry `Request-Only` when their attributed lines differ from the session, not merely when their containing part is request-only. Enter previews plain text in labeled parts: an extension's own lines, or an unattributed part's whole request text (session text for deletions), with no token estimates; the header says `counted in System Prompt`, and guessed parts carry `(guess)`. Word-level diff lines wait for later preview work. Usage categories stay unchanged. Generated instruction-file and skill children now detect request-only edits, and replaced or deleted generated sections keep their measured session aggregate as the diff base.
     Verified on Pi 1.1.0: `pnpm check` (770 tests). No real-PTY run.
-  - [ ] **Selected-row status bar** ([injections.md](ui/injections.md#request-only-changes)):
+  - [x] **Selected-row status bar** ([injections.md](ui/injections.md#selected-row-status-bar)):
     - Place the bar above the description, outside the scrollable list, and update it when selection changes.
     - Show only relevant change/state details, including `Change` and `Changed By`; do not repeat source or location, or expose raw text.
     - Explain request-only changes and whether the session keeps the original. Show `Changed By: Unknown` when the editor is not known; never infer it from the source group.
@@ -52,6 +52,8 @@
     - For a row with `+N`/`-N`, say whether the change is saved in the session or only in this request.
     - For an extension `system prompt` row, say why it has no value: `Already counted in System Prompt`.
     - Keep view-wide capture status separate from selected-row details.
+    Decided: one field per line, indented four columns with muted field names and dim values; wrapped continuations hang two columns deeper. An unchanged row reserves one empty line; changed rows reserve only their own wrapped height. All list marker-legend bullets move into the bar; previews keep their full legends. Known and guessed editors are shown only for saved prompt lines; request-only editors stay Unknown, never inferred from the affected source. Parents and groups summarize where their counted changes live without repeating editors. When even a one-row list cannot fit, compact the frame to keep the selected row and full bar whenever physically possible.
+    Verified on Pi 1.1.0: `pnpm check` (791 tests). No real-PTY run.
   - [ ] **Keep Injections capture status visible** ([injections.md](ui/injections.md#latest-request)):
     - Show compact status near the header for Latest Request versus Request Probe, pending or incomplete payload comparison, and hidden-tool count.
     - Keep this status visible when the description collapses; keep the degraded-capture reason visible too.

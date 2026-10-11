@@ -89,11 +89,12 @@ lines in the overview list or dashboard.
 
 ## Marker legend
 
-Every frame explains the marks it shows, as one dash bullet per mark. A preview
+Every preview explains the marks it shows, as one dash bullet per mark. It
 places its bullets at the bottom, outside the scrollable content and
-block-selection gutter, between blank rows immediately above the hints; the
-Injections list appends them to its own description sentence. Bullets always
-render in this order, each opening with the keyword in the fixed color that mark
+block-selection gutter, between blank rows immediately above the hints. The
+Injections list uses its [selected-row status bar](injections.md#selected-row-status-bar)
+instead of legend bullets. Preview bullets always render in this order, each
+opening with the keyword in the fixed color that mark
 uses, followed by dim text:
 
 > - **Highlighted** parts are injected by extensions into pi’s system prompt.
@@ -115,7 +116,7 @@ Only the `+N -N` sentence names the
 [base](injections.md#token-diffs) of the preview's diffs: pi's default prompt,
 as above, for pi's items; `compared with the session.` for extension tools and
 messages; and `Tokens added or removed, compared with the captured request.`
-for payload changes. The Injections list names no base.
+for payload changes.
 The `(guess)` bullet covers a guessed `:<tool>` qualifier as well, which is
 inferred the same way and never gets a marker of its own.
 
@@ -131,11 +132,10 @@ A bullet renders only where its mark is visible on that frame:
   multi-entry Usage streams and their full content levels.
 - `Dropped`, `Moved`, `Forced`, `+N -N`, and `Request-Only` follow the part
   states a frame renders: preview subheaders and item metadata in any
-  category, and Injections hierarchy rows. Only Injections renders the last
-  two; Usage renders `Forced` only in
-  [System Prompt previews](usage.md#forced-prompt).
-  They follow the captured state, not each row's fit, so a row too narrow for
-  its own marker keeps the bullet that explains it.
+  category. Only Injections renders the last two; Usage renders `Forced`
+  only in [System Prompt previews](usage.md#forced-prompt). In the Injections
+  list they follow the selected row's captured state, not its fit, so a row
+  too narrow for a marker keeps its status-bar explanation.
 
 The Usage category stream inspects all entries; full content, opened directly or
 from a block, inspects only its open entry.

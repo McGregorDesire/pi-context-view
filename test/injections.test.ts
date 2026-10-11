@@ -462,6 +462,14 @@ test("pi's rows compare with pi's default prompt, so saved and request-only exte
 	assert.deepEqual(prompt?.children?.filter((child) => child.requestOnly === true).map((child) => child.label),
 		["Current Dir", "fixture-added", "Documentation", "fixture-obsolete"],
 		"saved extension text has a diff but is not request-only");
+	assert.deepEqual(prompt?.children?.filter((child) => child.savedChange === true).map((child) => child.label),
+		["Available Tools", "Guidelines", "fixture-review"], "only diffs the session keeps are saved");
+	assert.deepEqual(items.get("base-prompt:available-tools")?.editors, [
+		{ type: "extension", source: { id: "tool-source:npm:web", label: "npm:web", native: false } },
+	]);
+	assert.deepEqual(items.get("base-prompt:current-dir")?.editors, [{ type: "unknown" }]);
+	assert.equal(items.get("base-prompt:section:fixture-added")?.sessionOriginal, false);
+	assert.equal(items.get("base-prompt:current-dir")?.sessionOriginal, true);
 
 	assert.deepEqual(diffRows(items.get("tool:builtin")).map(([label, , added, removed]) => [label, added > 0, removed]),
 		[["Built-in Tools (2)", true, 0], ["read", true, 0], ["bash", false, 0]]);
@@ -501,6 +509,8 @@ test("system prompt rows split pi's prompt changes by source and count toward no
 		["Guidelines", "\n- Use search to verify claims", { added: 7, removed: 0 }, true],
 	]);
 	assert.deepEqual([unattributedRow?.diff, unattributedRow?.requestOnly], [{ added: 15, removed: 11 }, true]);
+	assert.equal(webRow?.savedChange, true);
+	assert.equal(unattributedRow?.savedChange, true, "the row combines saved and request-only changes");
 	assert.deepEqual(unattributedRow?.sections?.map((section) => [section.label, section.diff?.added,
 		section.diff?.removed, section.requestOnly === true]), [
 		["Current Dir", 3, 0, true],
@@ -560,6 +570,12 @@ test("system prompt rows hold guessed additions, and an unchanged prompt has non
 	assert.deepEqual(rows[0]?.sections?.map((section) => [section.label, section.text.trim(), section.attribution]), [
 		["Extension Additions", "Search tips live in npm:web docs.", "guess"],
 	]);
+	assert.deepEqual(additions?.editors, [
+		{ type: "extension", source: { id: "tool-source:npm:web", label: "npm:web", native: false },
+			attribution: "guess" },
+		{ type: "unknown" },
+	]);
+	assert.ok(rows.every((row) => row.savedChange === true));
 	assert.equal(rows[1]?.sections?.[0]?.text, additions?.text, "unattributed previews the whole part");
 
 	const plain = buildFallbackInjectionsSnapshot({
@@ -567,6 +583,30 @@ test("system prompt rows hold guessed additions, and an unchanged prompt has non
 		allTools: BUILTIN_TOOLS, activeToolNames: ["read"],
 	});
 	assert.ok(plain.groups.every((group) => group.items.every((item) => item.diffOnly !== true)));
+});
+
+test("a saved section's request-only edit stays partly saved and its editor is unknown", () => {
+	const session = createExtensionSession();
+	const snapshot = buildInjectionsSnapshot({
+		...input(session, { system: [
+			{ type: "section", name: "fixture-review", text: "<fixture-review>\nReview new files only.\n</fixture-review>" },
+			{ type: "section", name: "tools", text: "<tools>\n- read: Read files\n- bash: Run commands\n" +
+				"- search: Search the web\nUnknown request-only instruction\n</tools>" },
+		] }),
+		allTools: [...BUILTIN_TOOLS, SEARCH_INFO],
+	});
+	const items = itemsById(snapshot);
+	for (const id of ["base-prompt:section:fixture-review", "base-prompt:available-tools"]) {
+		const part = items.get(id);
+		assert.ok(part?.diff);
+		assert.equal(part?.requestOnly, true);
+		assert.equal(part?.savedChange, true);
+		assert.equal(part?.sessionOriginal, true);
+		assert.deepEqual(part?.editors, [{ type: "unknown" }], "the owner of saved lines is not the request's editor");
+	}
+	const row = snapshot.groups.find((group) => group.source.id === AGGREGATE_SOURCE_ID)?.items[0];
+	assert.equal(row?.requestOnly, true);
+	assert.equal(row?.savedChange, true, "the saved custom section and request edit share a +N");
 });
 
 /** Recorded generated instruction-file and skill sections, as Pi supplies them. */
@@ -624,6 +664,9 @@ test("deleting generated instruction files and skills keeps their removals in pr
 	const removed = (saved.get("context-files")?.tokens ?? 0) + (saved.get("skills")?.tokens ?? 0);
 	assert.ok(removed > 0);
 	assert.deepEqual(items.get("base-prompt")?.diff, { added: 0, removed });
+	assert.equal(items.get("base-prompt:context-files")?.sessionOriginal, true,
+		"a deleted generated section keeps its original under the session aggregate's id");
+	assert.equal(items.get("base-prompt:skills")?.sessionOriginal, true);
 	assert.deepEqual(row?.diff, { added: 0, removed });
 	assert.equal(row?.requestOnly, true);
 	assert.deepEqual(row?.sections?.map((section) => [section.label, section.text.includes("Original")]), [

@@ -1,7 +1,7 @@
 /**
  * State markers rendered after a token estimate, token diffs, and the bullet
- * legend that explains the ones a frame shows. Markers name how pi accounts
- * for a part rather than a usage category, so their colors are fixed instead
+ * preview legend and selected-row status fields that explain them. Markers
+ * name how pi accounts for a part rather than a usage category, so their colors are fixed instead
  * of configurable. Pure string logic shared by both views.
  */
 import type { Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
@@ -35,7 +35,7 @@ export interface MarkedState {
  */
 export type DiffBase = "default-prompt" | "session" | "captured-request";
 
-/** Diff legend sentence by base; the list compares rows with different bases, so it names none. */
+/** Preview diff-legend sentences by base; the fallback sentence names none. */
 const DIFF_EXPLANATIONS: Record<DiffBase | "list", string> = {
 	list: " Tokens extensions added or removed.",
 	"default-prompt": " Tokens extensions added or removed, compared with pi’s default prompt.",
@@ -88,6 +88,16 @@ const MARKER_LEGENDS: Record<Exclude<ContextMarker, "diff">, MarkerLegend> = {
 		color: "dim",
 		explanation: " Includes changes made only in this request, not saved in the session.",
 	},
+};
+
+/** Markers the Injections status bar explains on the selected row; its Change field covers diffs and Request-Only. */
+export type StatusMarker = "dropped" | "moved" | "forced";
+
+/** Status-bar explanation of each marker, about the one selected row. */
+const MARKER_STATUS: Record<StatusMarker, string> = {
+	dropped: "a custom system prompt replaced this part; counted nowhere",
+	moved: "in a different position in the system prompt than usual",
+	forced: "an extension’s prompt replaced pi’s system prompt for this request",
 };
 
 /** Themed marker naming content pi never sent, for a preview subheader or a hierarchy row. */
@@ -160,7 +170,7 @@ export function guessMarker(theme: Theme): string {
  * Description bullets explaining the markers one frame shows, in fixed order
  * and without duplicates. Callers pass only the markers actually visible there,
  * so a view never explains a state it does not render. `diffBase` names what
- * the frame's token diffs compare with; the list leaves it out.
+ * the preview's token diffs compare with; omitted, the bullet names no base.
  */
 export function markerLegendLines(
 	theme: Theme,
@@ -177,6 +187,15 @@ export function markerLegendLines(
 		const legend = MARKER_LEGENDS[marker];
 		return bulletLines(theme, theme.fg(legend.color, legend.keyword), legend.explanation, width);
 	});
+}
+
+/**
+ * Status-bar field explaining one marker of the selected row: the keyword in
+ * the marker's fixed color, then a dim colon and explanation.
+ */
+export function markerStatusField(theme: Theme, marker: StatusMarker): string {
+	const { color, keyword } = MARKER_LEGENDS[marker];
+	return `${theme.fg(color, keyword)}${theme.fg("dim", `: ${MARKER_STATUS[marker]}`)}`;
 }
 
 /** One dim description bullet with a hanging indent, for a note that is not a marker legend. */

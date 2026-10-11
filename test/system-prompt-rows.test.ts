@@ -12,7 +12,7 @@ import {
 	PI_SOURCE,
 	sumTokenDiffs,
 } from "../src/model.ts";
-import { buildSystemPromptRows } from "../src/system-prompt-rows.ts";
+import { buildSystemPromptRows, partEditors } from "../src/system-prompt-rows.ts";
 
 /** One prompt item or part, with its diff supplied separately from measurement. */
 function item(id: string, text: string, added = 0, removed = 0): InjectionItem {
@@ -124,4 +124,36 @@ test("diff-only rows cannot inflate a group value or diff even with an accidenta
 	const snapshot: InjectionSnapshot = buildSnapshot([item("counted", "Counted text", 2, 1), diffOnly]);
 	assert.equal(snapshot.totalTokens, Math.ceil("Counted text".length / 4));
 	assert.deepEqual(snapshot.groups[0]?.diff, { added: 2, removed: 1 });
+});
+
+test("part editors use the ownership split for saved lines, but never infer a request-only editor", () => {
+	const source = { id: "ext", label: "npm:web", native: false };
+	const part: InjectionItem = { ...item("base-prompt:additions", "abcdefgh", 3, 1),
+		injectedReferences: [{ start: 0, end: 8, source, attribution: "guess" }] };
+	assert.deepEqual(partEditors(part), [
+		{ type: "extension", source, attribution: "guess" }, { type: "unknown" },
+	]);
+	assert.deepEqual(partEditors({ ...part, requestOnly: true }), [{ type: "unknown" }]);
+	assert.equal(partEditors({ ...part, diff: undefined }), undefined);
+	assert.deepEqual(partEditors({ ...part, injectedReferences: [{ start: 0, end: 8, source: AGGREGATE_SOURCE }] }),
+		[{ type: "unknown" }]);
+});
+
+test("unattributed request edits do not inherit saved changes from known owners beside them", () => {
+	const source = { id: "ext", label: "npm:web", native: false };
+	const session: InjectionItem = { ...item("base-prompt:available-tools", "abcdefgh", 2),
+		injectedReferences: [{ start: 0, end: 8, source }] };
+	const request: InjectionItem = { ...session, text: "abcdefgh edited", requestOnly: true, savedChange: true,
+		diff: { added: 4, removed: 1 } };
+	const rows = buildSystemPromptRows([prompt([request])], [prompt([session])]);
+	assert.equal(rows[0]?.savedChange, true, "the extension's lines are saved");
+	assert.equal(rows[0]?.requestOnly, undefined);
+	assert.equal(rows[1]?.savedChange, undefined, "the unknown edit is only in the request");
+	assert.equal(rows[1]?.requestOnly, true);
+
+	const unownedSession = { ...session, injectedReferences: [{ start: 0, end: 8, source: AGGREGATE_SOURCE }] };
+	const unownedRequest = { ...request, injectedReferences: unownedSession.injectedReferences };
+	const unowned = buildSystemPromptRows([prompt([unownedRequest])], [prompt([unownedSession])]);
+	assert.equal(unowned[0]?.savedChange, true, "unowned extension lines the session keeps are saved too");
+	assert.equal(unowned[0]?.requestOnly, true);
 });

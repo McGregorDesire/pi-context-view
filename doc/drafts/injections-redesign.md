@@ -54,8 +54,6 @@ Context Injections · [Latest Request]
     Changed By: Unknown
 
   Injections into the model context of the latest request, with token estimates.
-  - +N -N Tokens extensions added or removed.
-  - Request-Only Includes changes made only in this request, not saved in the session.
   - 1 tool hidden by pi: bash.
 
   ↑↓/jk Navigate · Enter Preview · Esc Close
@@ -129,9 +127,13 @@ tool names. They collapse with it.
 
 ### Status bar
 
-One wrapped line above the description for the selected row. It never
-collapses; the list viewport shrinks instead. It never shows raw text or
-repeats the row's source or location.
+Implemented contract: [selected-row status bar](../ui/injections.md#selected-row-status-bar).
+Each field occupies its own line, indented four columns with brighter field
+names. Wrapped continuations hang two columns deeper. It never collapses; the
+list viewport shrinks instead. It never shows raw text or repeats the row's
+source or location. An unchanged row reserves one empty line; changed rows
+reserve only their own wrapped height. All marker explanations move from the
+list description to this bar; previews keep their full legends.
 
 | Selected row                         | Status bar                                                                                   |
 | ------------------------------------ | -------------------------------------------------------------------------------------------- |
@@ -144,7 +146,7 @@ repeats the row's source or location.
 | pi-ask `system prompt +127`          | `Change: +127 saved in the session · Already counted in System Prompt`                       |
 | `messages (4) 54 +23 -1`             | `Change: +23 -1 only in this request; the session keeps the originals · Changed By: Unknown` |
 | `payload changes (2) 12 +8 -4`       | `Change: +8 -4 only in the provider payload · Changed By: Unknown`                           |
-| `edit 278`                           | `No changes by extensions.`                                                                  |
+| `edit 278`                           | Empty reserved line                                                                          |
 
 `+N` and `-N` use the diff colors here too; the rest is `dim`, field names `muted`.
 
@@ -311,7 +313,5 @@ payload changes (2)                                       unattributed · 12 tok
 
 ## Open questions
 
-- **Unchanged rows in the status bar.** `No changes by extensions.` or an
-  empty reserved line?
 - **Header status wording.** `Payload: not checked`, `pending`, and
   `partly checked` are placeholders.

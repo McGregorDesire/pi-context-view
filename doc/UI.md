@@ -28,7 +28,8 @@ is authoritative.
 | Usage entry and block model | `src/ui/usage-preview.ts` |
 | Injections tree model / rendering | `src/ui/injections-model.ts`, `src/ui/injections-view.ts` |
 | Labeled parts, preview legend | `src/ui/section-preview.ts` |
-| State markers and legend bullets | `src/ui/markers.ts` |
+| State markers and preview legend bullets | `src/ui/markers.ts` |
+| Selected-row status bar | `src/ui/status-bar.ts` |
 | Marked JSON, skill badges, wheel | `src/ui/json-preview.ts`, `src/ui/skill-preview.ts`, `src/ui/wheel.ts` |
 
 ## Style rules
@@ -70,8 +71,10 @@ Every marker keyword hangs off a `dim` ` · ` separator: like the ` · ` joining
 hint pairs and header labels, the separator is punctuation and never takes the
 color of the text around it. Only the keyword carries the marker's fixed color.
 
-Every frame showing a marker also explains it, through the
-[marker legend](ui/previews.md#marker-legend) in its description block. A legend
+Previews explain their markers through the
+[marker legend](ui/previews.md#marker-legend) in their description block. The
+Injections list instead explains the selected row's changes and markers in its
+non-collapsing [status bar](ui/injections.md#selected-row-status-bar). A legend
 bullet opens with the keyword in the same fixed color as the marker it explains,
 so `Highlighted` uses `syntaxNumber`, `(guess)` `dim`, `Dropped`
 `toolDiffRemoved`, `Moved` `warning`, `Forced` `warning`, `+N` `toolDiffAdded`
@@ -126,12 +129,17 @@ partial and never ellipsized.
 | Injections list | `LIST_DESCRIPTION_MIN_ROWS` (26) rows visible, or a shorter list in full |
 | Preview marker legend | `DESCRIPTION_MIN_CONTENT_ROWS` (22) content rows visible, or a shorter preview in full |
 
-Hints, borders, degraded-capture warnings, and configuration notices are not
-descriptions and never collapse. The Injections probe, guard-status,
-hidden-tools, payload-change, and marker-legend bullets and the `Degraded: …`
-indicator belong to its description block and collapse with it, while the
-wrapped degraded reason below the header stays. The Usage thinking-notation
-explanation is view content, not a description, and also never collapses.
+Hints, borders, degraded-capture warnings, configuration notices, and the
+Injections selected-row status bar are not descriptions and never collapse.
+The Injections probe, guard-status, hidden-tools, and payload-change bullets
+and the `Degraded: …` indicator belong to its description block and collapse
+with it, while the wrapped degraded reason below the header stays. Its status
+bar explains the selected row instead of marker-legend bullets, reserves its
+own wrapped height, and reduces the list viewport. On exceptionally short
+terminals the list compacts its frame to keep the bar; its
+[per-view contract](ui/injections.md#selected-row-status-bar) owns that fallback.
+The Usage thinking-notation explanation is view content, not a description,
+and also never collapses.
 
 Why the floors differ: the Usage dashboard has a bounded legend and can drop its
 description early, while the unbounded Injections list and attributed previews
@@ -184,4 +192,6 @@ UI cases `pnpm check` must cover, beyond the general matrix in
 - both map scales, the header label's line-splitting fallback, the conditions
   hiding the zoom binding, and every map-key degradation;
 - a configured map size larger than the width and the height can render;
-- overflow navigation, preview return position, and theme invalidation.
+- overflow navigation, preview return position, and theme invalidation;
+- selected-row status changes, empty reserved lines, diff-only accounting,
+  unknown editors, wrapping, and the compact short-terminal frame.

@@ -5,12 +5,14 @@
  * lines and the additions guessed to be its own. `unattributed` gets every
  * other change to the System Prompt, instruction files, and skills. The rows
  * repeat diffs that System Prompt and its siblings already count, so they
- * carry no estimate of their own. Pure; no pi access.
+ * carry no estimate of their own. The same split names the editors of each
+ * System Prompt part's diff. Pure; no pi access.
  */
-import { charTokens, SYSTEM_PROMPT_ITEM_ID } from "./measure.ts";
+import { charTokens, isPiPromptPart, SYSTEM_PROMPT_ITEM_ID } from "./measure.ts";
 import {
 	AGGREGATE_SOURCE,
 	AGGREGATE_SOURCE_ID,
+	type ChangeEditor,
 	extensionSource,
 	type InjectionItem,
 	type InjectionSection,
@@ -51,10 +53,33 @@ export function buildSystemPromptRows(
 	const sessionLines = extensionLines(session);
 	const rows = [...owners.values()].map((owner) => {
 		const id = owner.source.id;
+		// The session keeps the lines it has, whatever this request changed
+		owner.saved = sessionLines.has(id);
 		return createRow(owner, requestLines.get(id) !== sessionLines.get(id));
 	});
 	rows.push(createRow(unattributed, unattributed.sections.some((section) => section.requestOnly === true)));
 	return rows.filter((row) => row.diff !== undefined);
+}
+
+/**
+ * Who made a saved System Prompt part's diff, as the `system prompt` rows
+ * split it: extensions whose lines take a share of the added tokens, in
+ * prompt order, then `unknown` for any other addition and every removal.
+ * A request-only part's editor is always unknown. Undefined without a diff.
+ */
+export function partEditors(part: InjectionItem): ChangeEditor[] | undefined {
+	if (part.diff === undefined) return undefined;
+	// References name contributed lines, never who edited them in this request
+	if (part.requestOnly === true) return [{ type: "unknown" }];
+	const shares = ownerShares(part, part.diff.added);
+	const editors: ChangeEditor[] = shares.map(({ source, guess }) => ({
+		type: "extension",
+		source,
+		...(guess ? { attribution: "guess" as const } : {}),
+	}));
+	const known = shares.reduce((sum, share) => sum + share.added, 0);
+	if (known < part.diff.added || part.diff.removed > 0) editors.push({ type: "unknown" });
+	return editors;
 }
 
 /** Parts and diffs collected for one `system prompt` row before it is built. */
@@ -62,11 +87,13 @@ interface RowDraft {
 	readonly source: InjectionSource;
 	/** One preview part per changed prompt part, in prompt order. */
 	readonly sections: InjectionSection[];
+	/** True when the session keeps some of the row's changes. */
+	saved: boolean;
 }
 
 /** An empty row draft for one source. */
 function createRowDraft(source: InjectionSource): RowDraft {
-	return { source, sections: [] };
+	return { source, sections: [], saved: false };
 }
 
 /**
@@ -82,11 +109,10 @@ function splitPromptDiff(
 ): void {
 	const parts = prompt.children ?? [];
 	if (parts.length === 0) {
-		if (prompt.diff !== undefined) {
-			unattributed.sections.push(diffSection(prompt, prompt.diff, prompt.change === "forced"));
-		}
+		if (prompt.diff !== undefined) addUnattributed(unattributed, prompt, prompt.diff, prompt.change === "forced");
 		return;
 	}
+	const sessionParts = new Map(session?.children?.map((part) => [part.id, part]));
 	for (const part of parts) {
 		if (part.diff === undefined) continue;
 		let added = part.diff.added;
@@ -107,7 +133,9 @@ function splitPromptDiff(
 			added -= share.added;
 		}
 		const rest = { added, removed: part.diff.removed };
-		if (rest.added > 0 || rest.removed > 0) unattributed.sections.push(diffSection(part, rest, false));
+		if (rest.added > 0 || rest.removed > 0) {
+			addUnattributed(unattributed, part, rest, false, hasSavedUnattributed(part, sessionParts.get(part.id)));
+		}
 	}
 	collectResidual(prompt, parts, unattributed, session);
 }
@@ -124,11 +152,11 @@ function collectUnattributedDiffs(
 	if (item.diff === undefined) return;
 	const children = item.children ?? [];
 	if (children.length === 0) {
-		unattributed.sections.push(diffSection(item, item.diff, false));
+		addUnattributed(unattributed, item, item.diff, false);
 		return;
 	}
 	for (const child of children) {
-		if (child.diff !== undefined) unattributed.sections.push(diffSection(child, child.diff, false));
+		if (child.diff !== undefined) addUnattributed(unattributed, child, child.diff, false);
 	}
 	collectResidual(item, children, unattributed, session);
 }
@@ -155,7 +183,32 @@ function collectResidual(
 	const reference = missing.length === 1 ? missing[0] : {
 		...parent, text: missing.map((child) => child.text).join("\n"), injectedReferences: undefined,
 	};
-	if (reference !== undefined) row.sections.push(diffSection(reference, residual, true));
+	if (reference !== undefined) addUnattributed(row, reference, residual, true);
+}
+
+/**
+ * Whether the unattributed share includes saved changes: a saved custom
+ * section, or unowned extension lines the session has. Saved lines of known
+ * owners go to their own rows, not to the unknown request-only edits beside them.
+ */
+function hasSavedUnattributed(part: InjectionItem, session: InjectionItem | undefined): boolean {
+	if (part.requestOnly !== true) return true;
+	if (part.savedChange !== true || session === undefined) return false;
+	const references = session.injectedReferences ?? [];
+	if (references.length > 0) return references.some((reference) => isUnattributedSource(reference.source));
+	return !isPiPromptPart(part.id);
+}
+
+/** Add one changed part and its persistence state to the unattributed row. */
+function addUnattributed(
+	row: RowDraft,
+	part: InjectionItem,
+	diff: TokenDiff,
+	requestOnly: boolean,
+	saved = part.requestOnly !== true && !requestOnly,
+): void {
+	row.sections.push(diffSection(part, diff, requestOnly));
+	row.saved ||= saved;
 }
 
 /**
@@ -256,5 +309,6 @@ function createRow(draft: RowDraft, requestOnly: boolean): InjectionItem {
 		diffOnly: true,
 		...(diff === undefined ? {} : { diff }),
 		...(requestOnly ? { requestOnly: true } : {}),
+		...(draft.saved ? { savedChange: true } : {}),
 	};
 }

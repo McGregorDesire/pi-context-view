@@ -53,7 +53,7 @@ import type {
 	RequestMessage,
 	RequestSnapshot,
 } from "./snapshot.ts";
-import { buildSystemPromptRows } from "./system-prompt-rows.ts";
+import { buildSystemPromptRows, partEditors } from "./system-prompt-rows.ts";
 import { type DiffSide, measureTokenDiff } from "./token-diff.ts";
 import { type SystemMessage, systemMessageText } from "./transcript.ts";
 
@@ -343,8 +343,9 @@ function messageItem(id: string, message: RequestMessage, source: InjectionSourc
  * section compares with the session instead, so its deletion stays visible.
  * Tools, instruction files, and skills compare with the session. A parent sums
  * its children, plus the removal of children only the session has. Each leaf
- * also learns whether it is request-only. The `system prompt` rows that split
- * these prompt changes by source follow the items.
+ * also learns whether it is request-only, and each System Prompt part whether
+ * the session saves part of its diff and who made it. The `system prompt` rows
+ * that split these prompt changes by source follow the items.
  */
 function withPromptDiffs(items: readonly InjectionItem[], session: readonly InjectionItem[]): InjectionItem[] {
 	const sessionById = new Map<string, InjectionItem>();
@@ -383,11 +384,23 @@ function withItemDiff(item: InjectionItem, context: DiffContext, promptPart: boo
 	if (item.dropped === true) return item;
 	const children = item.children ?? [];
 	if (children.length === 0) {
+		const base = itemBase(item, context, promptPart);
 		const request: DiffSide = item.change === "deleted" ? { text: "", tokens: 0 } : item;
-		return {
+		const requestOnly = isRequestOnly(item, context);
+		const diffed: InjectionItem = {
 			...item,
-			...diffField(measureTokenDiff(itemBase(item, context, promptPart), request)),
-			...(isRequestOnly(item, context) ? { requestOnly: true } : {}),
+			...diffField(measureTokenDiff(base, request)),
+			...(requestOnly ? {
+				requestOnly: true,
+				sessionOriginal: context.sessionById.has(item.id) || base !== undefined,
+			} : {}),
+		};
+		if (!promptPart) return diffed;
+		const editors = partEditors(diffed);
+		return {
+			...diffed,
+			...(hasSavedChange(item, base, context) ? { savedChange: true } : {}),
+			...(editors === undefined ? {} : { editors }),
 		};
 	}
 	const parts = item.id === SYSTEM_PROMPT_ITEM_ID;
@@ -423,6 +436,19 @@ function isRequestOnly(item: InjectionItem, context: DiffContext): boolean {
 	if (item.kind === "tool" || item.id === SYSTEM_PROMPT_ITEM_ID) return false;
 	if (!context.forced && item.kind !== "context-file" && item.kind !== "skills") return false;
 	return context.sessionById.get(item.id)?.text !== item.text;
+}
+
+/**
+ * Whether the session's own version of a System Prompt part already differs
+ * from the part's base, so the session saves part of its diff: extension
+ * lines in a pi part, or an extension's own part the session keeps. A
+ * deletion compares with the session, so none of it is saved.
+ */
+function hasSavedChange(item: InjectionItem, base: DiffSide | undefined, context: DiffContext): boolean {
+	if (item.change === "deleted") return false;
+	const session = context.sessionById.get(item.id);
+	if (session === undefined || session.dropped === true) return false;
+	return base === undefined || base.text !== session.text;
 }
 
 /**

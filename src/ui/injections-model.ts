@@ -1,8 +1,40 @@
 /**
- * Pure presentation model for the Injections view: flattened rows and
- * list navigation/scrolling state. No pi or TUI access — unit-testable.
+ * Pure presentation model for the Injections view: flattened rows, what the
+ * status bar tells about each, and list navigation/scrolling state. No pi or
+ * TUI access — unit-testable.
  */
-import type { InjectionItem, InjectionSnapshot, RequestChange, TokenDiff } from "../model.ts";
+import {
+	type ChangeEditor,
+	type InjectionItem,
+	type InjectionSnapshot,
+	PAYLOAD_CHANGES_SOURCE_ID,
+	type RequestChange,
+	sumTokenDiffs,
+	type TokenDiff,
+} from "../model.ts";
+
+/** Editor of every change no extension line explains. */
+const UNKNOWN_EDITOR: ChangeEditor = { type: "unknown" };
+
+/**
+ * Where a row's changes live, one status-bar phrase each:
+ *   saved            the session keeps every change
+ *   saved-and-edit   a leaf with saved changes and an edit only in this request
+ *   partly           an aggregate whose changes are partly only in this request
+ *   request          an aggregate whose changes are all only in this request
+ *   request-edit     a leaf changed only in this request; the session keeps the original
+ *   request-new      a leaf only this request has
+ *   payload          only in the provider payload
+ * Aggregates are parents, groups, and `system prompt` rows.
+ */
+export type ChangeScope =
+	| "saved"
+	| "saved-and-edit"
+	| "partly"
+	| "request"
+	| "request-edit"
+	| "request-new"
+	| "payload";
 
 /** One flattened list row derived from the snapshot hierarchy. */
 export type InjectionRow =
@@ -13,6 +45,8 @@ export type InjectionRow =
 		readonly depth: 0;
 		/** Sum of the group's token diffs. */
 		readonly diff?: TokenDiff;
+		/** Where the changes of the rows it counts live; absent when none changed. */
+		readonly scope?: ChangeScope;
 	}
 	| {
 		readonly kind: "item";
@@ -36,6 +70,10 @@ export type InjectionRow =
 		readonly requestOnly?: boolean;
 		/** Whether the row shows only a diff of text other rows count, without a value. */
 		readonly diffOnly?: boolean;
+		/** Where the row's changes live; absent when it has none. */
+		readonly scope?: ChangeScope;
+		/** Who made a changed leaf row's change; absent on aggregates and unchanged rows. */
+		readonly editors?: readonly ChangeEditor[];
 		/** Stable preview target id from the snapshot. */
 		readonly itemId: string;
 	}
@@ -74,6 +112,7 @@ export function buildInjectionRows(snapshot: InjectionSnapshot): InjectionRow[] 
 			tokens: group.totalTokens,
 			depth: 0,
 			diff: group.diff,
+			scope: combineScopes(group.items.filter((item) => item.diffOnly !== true).map(itemScope)),
 		});
 		group.items.forEach((item, itemIndex) => {
 			const isLastItem = itemIndex === group.items.length - 1;
@@ -89,6 +128,7 @@ export function buildInjectionRows(snapshot: InjectionSnapshot): InjectionRow[] 
 				diff: item.diff,
 				requestOnly: item.requestOnly,
 				diffOnly: item.diffOnly,
+				...rowStatus(item),
 				itemId: item.id,
 			});
 			const children = item.children ?? [];
@@ -105,6 +145,7 @@ export function buildInjectionRows(snapshot: InjectionSnapshot): InjectionRow[] 
 					change: child.change,
 					diff: child.diff,
 					requestOnly: child.requestOnly,
+					...rowStatus(child),
 					itemId: child.id,
 				});
 			});
@@ -113,6 +154,68 @@ export function buildInjectionRows(snapshot: InjectionSnapshot): InjectionRow[] 
 	rows.push({ kind: "separator", label: "", tokens: 0, depth: 0 });
 	rows.push({ kind: "total", label: "TOTAL (Prompt, Tools, Injections)", tokens: snapshot.totalTokens, depth: 0 });
 	return rows;
+}
+
+/**
+ * Status-bar fields of one item row: where its changes live and, for a
+ * changed leaf other than a `system prompt` row, who made them. An editor pi
+ * does not report is unknown, never the row's source group.
+ */
+function rowStatus(item: InjectionItem): { scope?: ChangeScope; editors?: readonly ChangeEditor[] } {
+	const scope = itemScope(item);
+	if (scope === undefined) return {};
+	const leaf = (item.children ?? []).length === 0 && item.diffOnly !== true;
+	return leaf ? { scope, editors: item.editors ?? [UNKNOWN_EDITOR] } : { scope };
+}
+
+/**
+ * Where one item's changes live. A parent combines its children and the
+ * removal of children only the session has, which is request-only. A
+ * `system prompt` row combines its saved and request-only changes like a
+ * parent. A forced prompt without parts exists only in this request.
+ */
+function itemScope(item: InjectionItem): ChangeScope | undefined {
+	const children = item.children ?? [];
+	if (children.length > 0) return combineScopes(children.map(itemScope), removesChildren(item, children));
+	if (item.source.id === PAYLOAD_CHANGES_SOURCE_ID) return "payload";
+	if (item.diffOnly === true) {
+		if (item.requestOnly !== true) return item.diff === undefined ? undefined : "saved";
+		return item.savedChange === true ? "partly" : "request";
+	}
+	if (item.requestOnly === true) {
+		if (item.savedChange === true) return "saved-and-edit";
+		return item.change === "added" || item.sessionOriginal === false ? "request-new" : "request-edit";
+	}
+	if (item.change === "forced") return "request-edit";
+	return item.diff === undefined ? undefined : "saved";
+}
+
+/** Whether a parent's diff removes more than its children's: children only the session has. */
+function removesChildren(parent: InjectionItem, children: readonly InjectionItem[]): boolean {
+	const shown = sumTokenDiffs(children.map((child) => child.diff));
+	return (parent.diff?.added ?? 0) > (shown?.added ?? 0) || (parent.diff?.removed ?? 0) > (shown?.removed ?? 0);
+}
+
+/**
+ * One aggregate scope: saved, request-only, or partly both. Payload changes
+ * share no group with other changes; mixed with them, they count as
+ * request-only, since the session keeps neither.
+ */
+function combineScopes(scopes: ReadonlyArray<ChangeScope | undefined>, request = false): ChangeScope | undefined {
+	let saved = false;
+	let payload = false;
+	for (const scope of scopes) {
+		if (scope === undefined) continue;
+		if (scope === "payload") {
+			payload = true;
+			continue;
+		}
+		if (scope === "saved" || scope === "saved-and-edit" || scope === "partly") saved = true;
+		if (scope !== "saved") request = true;
+	}
+	if (saved) return request || payload ? "partly" : "saved";
+	if (request) return "request";
+	return payload ? "payload" : undefined;
 }
 
 /**

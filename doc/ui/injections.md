@@ -199,6 +199,62 @@ request version. `TOTAL (Prompt, Tools, Injections)` covers these contributions 
 unchanged ordinary conversation; it is neither the full context nor a
 provider-payload size.
 
+### Selected-row status bar
+
+The selected row's status bar sits above the description, outside the scrollable
+list and its counter. It changes with selection and returns unchanged after a
+preview. It shows only relevant change or state details, never raw text, the
+row's source, or its location. Capture status stays in the view-wide description
+and degraded warning, separate from selected-row details.
+
+Each field occupies its own line: four-space indent, `muted` field names, `dim`
+values, and six-space hanging continuation lines. `+N` uses `toolDiffAdded` and
+`-N` uses `toolDiffRemoved`, including when narrow list rows omit their diff
+columns. The extra indent and brighter field names distinguish the bar from the
+description. Fields appear in this order:
+
+| Field | When shown | Meaning |
+| --- | --- | --- |
+| `Change` | A diff, a request-only change, or a forced prompt | Actual `+N -N`, when nonzero, followed by where the changes live |
+| `Changed By` | A changed leaf, except a diff-only row | Known extension editors, with `(guess)` when inferred, or `Unknown` |
+| `Already counted in System Prompt` | A diff-only `system prompt` row | Why the row has no value; replaces `Changed By` |
+| `Dropped` | A dropped part | `a custom system prompt replaced this part; counted nowhere` |
+| `Moved` | A moved part | `in a different position in the system prompt than usual` |
+| `Forced` | System Prompt carries `Forced` | `an extension’s prompt replaced pi’s system prompt for this request` |
+
+Marker field names use their markers' fixed colors. `Change` replaces the list's
+`+N -N` and `Request-Only` legend bullets; the state fields replace its `Dropped`,
+`Moved`, and `Forced` bullets. Previews keep all their full legend explanations.
+
+`Change` uses these phrases:
+
+- `saved in the session` when the session keeps every change.
+- `only in this request; the session keeps the original` for a request-only
+  edit or deletion. An addition with no session original says
+  `only in this request; not in the session` instead.
+- `saved in the session, with an edit only in this request` for a leaf whose
+  saved extension text also has a request-only edit folded into its diff.
+- `only in this request` on a parent, group, or diff-only row whose changes
+  are all request-only; `, partly only in this request` after the diff when
+  some are saved and some request-only.
+- `only in the provider payload` for payload-change rows and their group.
+
+Parents and groups summarize only the rows they count, including removals of
+session-only children. Their bars omit `Changed By`; diff-only rows count in
+neither their groups nor totals. An editor is never inferred from a source
+group, tool name, customType, or section tag. Exactly matched tool lines and
+guessed additions name editors only on saved prompt parts. Any request-only
+edit has an unknown editor, even if the edited part keeps a known extension's
+lines. Remaining saved additions and every removal also have unknown editors.
+
+A row with no change and no state marker leaves one empty reserved line. A
+changed row reserves only its own wrapped fields, reducing the list viewport
+instead of collapsing. The bar never collapses with the description or because
+of a resize. If the normal frame cannot fit even one list row, remove spare
+blank rows and reduce the header and hints, keeping the selected row and the
+full bar whenever physically possible; below that minimum, keep both borders
+and clip content. Height-only resizing restores the regular frame.
+
 ### Token diffs
 
 `+N` and `-N` are the tokens a row gained and lost against its base. Counted
@@ -333,17 +389,10 @@ collapses it by itself. When capture is degraded, wrap the precise reason below
 the header and show a `Degraded: pi-native fallback used` indicator beside the
 description, with only `Degraded` in `warning` color and the colon and explanation
 in `dim`, keeping the fallback hierarchy usable. Below both come, when shown, the probe bullet,
-the guard-status bullet, the [hidden-tools bullet](#hidden-tools), one
-[legend bullet](previews.md#marker-legend) per marker the rows carry —
-`Dropped`, `Moved`, `Forced`, or none — then one `+N -N` bullet while any row
-has a diff, one `Request-Only` bullet while any row carries it, then the
-payload-changes bullet. All of them collapse with the rest of the block. The
-diff bullet names no base, since rows compare with different ones:
-
-```text
-- +N -N Tokens extensions added or removed.
-- Request-Only Includes changes made only in this request, not saved in the session.
-```
+the guard-status bullet, the [hidden-tools bullet](#hidden-tools), then the
+payload-changes bullet. All collapse with the rest of the description block.
+The [selected-row status bar](#selected-row-status-bar), above the description,
+explains changes and markers instead of list-wide legend bullets.
 
 ## Injection preview
 

@@ -62,6 +62,17 @@ edits and deletions, request-only line comparison, plain-text previews,
 terminal sanitization, theme invalidation, and width/height reflow. These are
 pure composition and render tests; real-PTY checks remain explicit opt-in.
 
+### Selected-row status bar
+
+`injections`, `system-prompt-rows`, `injections-model`, `status-bar`, and
+`injections-view` test saved, request-only, mixed, and payload-only changes,
+known and guessed saved-line editors, unknown request editors, session-original
+presence, parent removals, and diff-only accounting. Render cases cover field
+colors, sanitized names, selection and preview return, description collapse,
+height-only resize, narrow wrapping, empty reserved lines, theme invalidation,
+and the compact frame that keeps the selected row and bar on short terminals.
+`model` checks that editor metadata owns its sources and arrays.
+
 ## Lifecycle Smoke Tests
 
 For lifecycle changes, load `test/fixtures/marker.ts`,

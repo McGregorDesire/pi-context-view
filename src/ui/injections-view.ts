@@ -34,22 +34,21 @@ import {
 	wrapDescriptionLines,
 } from "./layout.ts";
 import {
-	type ContextMarker,
 	type DiffBase,
 	diffMarker,
 	formatDiffAdded,
 	formatDiffRemoved,
-	markerLegendLines,
 	noteBulletLines,
-	partMarkers,
 	stateMarkers,
 } from "./markers.ts";
 import { previewBodyLines, previewLegendLines } from "./section-preview.ts";
+import { statusBarLines } from "./status-bar.ts";
 import { DEFAULT_WHEEL_SCROLL_LINES, parseWheelDirection, readWheelScrollLines } from "./wheel.ts";
 
 /**
- * List frame rows excluding the collapsible description: both borders and their
- * blank rows, one header row, and the hint row above its own blank row.
+ * List frame rows excluding the status bar and the collapsible description:
+ * both borders and their blank rows, one header row, and the hint row above
+ * its own blank row.
  */
 const LIST_FIXED_LINE_COUNT = 8;
 const PREVIEW_FIXED_LINE_COUNT = 8;
@@ -197,12 +196,16 @@ export class InjectionsView {
 		const border = theme.fg("border", "─".repeat(Math.max(1, width)));
 		const headerLines = this.headerLines(width);
 		const warningLines = this.degradedWarningLines(width);
+		// The status bar never collapses: the list and the description give way to it
+		const statusLines = this.statusLines(width);
+		const statusRows = descriptionBlockRows(statusLines);
 		const availableRows = Math.max(
 			1,
-			terminalRows - LIST_FIXED_LINE_COUNT - (headerLines.length - 1) - warningLines.length,
+			terminalRows - LIST_FIXED_LINE_COUNT - (headerLines.length - 1) - warningLines.length - statusRows,
 		);
 		const descriptionLines = this.fittedDescriptionLines(width, availableRows);
-		const extraLineCount = headerLines.length - 1 + warningLines.length + descriptionBlockRows(descriptionLines);
+		const extraLineCount = headerLines.length - 1 + warningLines.length + statusRows
+			+ descriptionBlockRows(descriptionLines);
 		const viewport = calculateViewport(this.rows.length, terminalRows, LIST_FIXED_LINE_COUNT, extraLineCount);
 		this.navigator.setVisibleCount(viewport.visibleCount);
 		const lines: string[] = [border, "", ...headerLines, "", ...warningLines];
@@ -211,21 +214,18 @@ export class InjectionsView {
 		if (viewport.showScroll) lines.push(this.scrollLine(width));
 		const paddingCount = viewport.visibleCount - listLines.length;
 		for (let pad = 0; pad < paddingCount; pad++) lines.push("");
+		if (statusLines.length > 0) lines.push("", ...statusLines);
 		if (descriptionLines.length > 0) lines.push("", ...descriptionLines);
-		lines.push("");
-		lines.push(
-			this.fit(
-				hintRow(this.theme, [
-					[STEP_KEY_HINT, "Navigate"],
-					["Enter", "Preview"],
-					["Esc", "Close"],
-				]),
-				width,
-			),
-		);
-		lines.push("", border);
+		const hints = this.fit(hintRow(theme, [
+			[STEP_KEY_HINT, "Navigate"], ["Enter", "Preview"], ["Esc", "Close"],
+		]), width);
+		lines.push("", hints, "", border);
 
-		const fittedLines = fitToTerminalHeight(lines, terminalRows, border);
+		const fittedLines = lines.length <= terminalRows ? lines : compactListLines({
+			border, header: headerLines[0], warnings: warningLines,
+			selected: listLines[this.navigator.selected - this.navigator.offset],
+			status: statusLines, hints, terminalRows,
+		});
 		this.cachedWidth = width;
 		this.cachedTerminalRows = terminalRows;
 		this.cachedLines = fittedLines;
@@ -551,6 +551,13 @@ export class InjectionsView {
 		);
 	}
 
+	/** The selected row's wrapped fields, or one empty reserved line without a change or marker. */
+	private statusLines(width: number): string[] {
+		const row = this.rows[this.navigator.selected];
+		const lines = row === undefined ? [] : statusBarLines(this.theme, row, width);
+		return lines.length > 0 ? lines : [""];
+	}
+
 	/** Wrapped degraded-capture reason placed below the dialog header. */
 	private degradedWarningLines(width: number): string[] {
 		const warnings: string[] = [];
@@ -573,8 +580,8 @@ export class InjectionsView {
 
 	/**
 	 * Wrapped dialog description: the list sentence, the degraded-capture
-	 * indicator, request notes, one legend bullet per marker the rows show, and
-	 * the note that explains payload changes further.
+	 * indicator, request notes, and the note that explains payload changes
+	 * further. The status bar, not a legend, explains the selected row's markers.
 	 */
 	private descriptionLines(width: number): string[] {
 		const lines = wrapDescriptionLines(this.theme, LIST_DESCRIPTION, "dim", width);
@@ -596,19 +603,10 @@ export class InjectionsView {
 		if (guardNote !== undefined) lines.push(...noteBulletLines(this.theme, guardNote, width));
 		const hiddenNote = hiddenToolsNote(this.input.snapshot.hiddenTools ?? []);
 		if (hiddenNote !== undefined) lines.push(...noteBulletLines(this.theme, hiddenNote, width));
-		lines.push(...markerLegendLines(this.theme, this.rowMarkers(), width));
 		for (const note of findingNotes([...this.itemsById.values()])) {
 			lines.push(...noteBulletLines(this.theme, note, width));
 		}
 		return lines;
-	}
-
-	/** Markers and diffs the hierarchy rows carry, whatever the current width leaves room to render. */
-	private rowMarkers(): ContextMarker[] {
-		return this.rows.flatMap((row) => {
-			if (row.kind === "group") return partMarkers({ diff: row.diff });
-			return row.kind === "item" ? partMarkers(row) : [];
-		});
 	}
 
 	private spread(left: string, right: string, width: number): string {
@@ -624,6 +622,31 @@ export class InjectionsView {
 		this.cachedTerminalRows = undefined;
 		this.cachedLines = undefined;
 	}
+}
+
+/** Parts of an emergency list frame, in which the bar has priority over frame spacing. */
+interface CompactListInput {
+	readonly border: string;
+	readonly header?: string;
+	readonly warnings: readonly string[];
+	readonly selected?: string;
+	readonly status: readonly string[];
+	readonly hints: string;
+	readonly terminalRows: number;
+}
+
+/**
+ * When the normal frame cannot fit even a one-row list, keep the selected
+ * row and full bar between borders. Add warnings, hints, and one header row
+ * only while they fit. Below that physical minimum, clip content as usual.
+ */
+function compactListLines(input: CompactListInput): string[] {
+	const { border, header, warnings, selected, status, hints, terminalRows } = input;
+	const lines = [border, ...(selected === undefined ? [] : [selected]), ...status, border];
+	if (lines.length + warnings.length <= terminalRows) lines.splice(1, 0, ...warnings);
+	if (lines.length + 1 <= terminalRows) lines.splice(lines.length - 1, 0, hints);
+	if (header !== undefined && lines.length + 1 <= terminalRows) lines.splice(1, 0, header);
+	return fitToTerminalHeight(lines, terminalRows, border);
 }
 
 /**

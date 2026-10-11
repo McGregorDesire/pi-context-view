@@ -152,6 +152,21 @@ preview uses the existing part text, with session text for deletions; the
 extension preview uses only its own lines. Preview rules live in
 [ui/injections.md](../ui/injections.md#injection-preview).
 
+Each row records whether some changes are saved (`savedChange`). An extension's
+row is saved when the session holds its lines; the unattributed row is saved
+when a contributing diff includes a saved custom section or unowned extension
+lines the session holds. Known owners' saved lines never turn the unknown
+request-only edit beside them into a saved change.
+
+The same source split supplies a saved System Prompt part's `editors`: known
+extensions in prompt order, preserving guessed attribution, then `unknown`
+for any remaining additions and every removal. Request-only parts always have
+an unknown editor: ownership of their saved lines cannot identify who edited
+them. Other changed leaves default to unknown in the row model. The selected
+row's status bar uses this metadata, never the affected source group, tool name,
+customType, or section name, to name an editor. Parents and groups omit editors,
+and diff-only rows explain their accounting instead.
+
 ## Totals and Structured Previews
 
 - Children break down their parent; they are never extra tokens in a total.
