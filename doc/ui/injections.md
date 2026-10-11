@@ -248,10 +248,11 @@ provider-payload size.
 ### Selected-row status bar
 
 The selected row's status bar sits above the description, outside the scrollable
-list and its counter. In the normal frame, exactly one empty row separates it
-from the last list row, or from the scroll counter when visible. Do not pad a
-short list with unused viewport rows. It changes with selection and returns
-unchanged after a preview. It shows only relevant change or state details, never
+list and its counter. The fixed `TOTAL (Prompt, Tools, Injections)` row sits
+between the list (and counter when visible) and the bar, with exactly one empty
+row above and below the total in the normal frame. Do not pad a short list with
+unused viewport rows. The bar changes with selection and returns unchanged after
+a preview. It shows only relevant change or state details, never
 raw text, the row's source, or its location. Compact capture status stays in the header and
 degraded warning, with detailed explanations in the view-wide description,
 separate from selected-row details.
@@ -304,9 +305,9 @@ changed row reserves only its own wrapped fields, reducing the list viewport
 instead of collapsing. The bar never collapses with the description or because
 of a resize. If the normal frame cannot fit even one list row, remove spare
 blank rows and the title. Wrap the origin label and payload status together,
-joined by a dim ` · `, and keep the degraded reason, selected row, and full bar
-whenever physically possible. Add hints only when they fit. Below that minimum,
-keep both borders and clip content. Height-only resizing restores the regular
+joined by a dim ` · `, and keep the degraded reason, selected row, fixed total,
+and full bar whenever physically possible. Add hints only when they fit. Below
+that minimum, keep both borders and clip content. Height-only resizing restores the regular
 frame.
 
 ### Token diffs
@@ -436,11 +437,16 @@ on diff-only `system prompt` rows; as width shrinks, shorten or remove
 leaders before truncating labels or token values, and retain tree connectors
 where space permits.
 
-Place one empty row before `TOTAL (Prompt, Tools, Injections)`. It is the last
-row in the scrollable list, counts only the shown snapshot's contributions, and
-is not selectable: cursor navigation, the selectable-row counter, and Enter
-preview skip it. At narrow widths, truncate the label before the token value,
-like other list labels.
+Keep `TOTAL (Prompt, Tools, Injections)` outside the scrollable list, below its
+counter when visible and above the selected-row status bar. Reserve its row and
+one preceding empty row so the total stays visible from the first render through
+navigation and resizing, even when the description collapses. It counts only the
+shown snapshot's contributions and shares the tree's value column. Neither the
+total nor its separator participates in the viewport, cursor navigation,
+selectable-row counter, or Enter preview. At narrow widths, truncate the label
+before the token value, like other list labels. The compact frame omits the
+separator but keeps the total whenever physically possible. Raw previews do not
+show the list total.
 
 The list description survives scrolling, per the floor in
 [Descriptions](../UI.md#descriptions); the `(current/total)` counter never

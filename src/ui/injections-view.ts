@@ -47,10 +47,10 @@ import { DEFAULT_WHEEL_SCROLL_LINES, parseWheelDirection, readWheelScrollLines }
 
 /**
  * List frame rows excluding the status bar and the collapsible description:
- * both borders and their blank rows, one header row, and the hint row above
- * its own blank row.
+ * both borders and their blank rows, one header row, the fixed total with its
+ * preceding blank row, and the hint row above its own blank row.
  */
-const LIST_FIXED_LINE_COUNT = 8;
+const LIST_FIXED_LINE_COUNT = 10;
 const PREVIEW_FIXED_LINE_COUNT = 8;
 const LIST_DESCRIPTION = "Injections into the model context, with token estimates.";
 const PAYLOAD_CHANGES_NOTE = "Payload changes appear only in the provider payload. Their sources are unknown.";
@@ -140,7 +140,8 @@ export class InjectionsView {
 		this.getTerminalRows = getTerminalRows;
 		this.wheelScrollLines = wheelScrollLines;
 		this.rows = buildInjectionRows(input.snapshot);
-		this.navigator = new ListNavigator(this.rows.length, 1, this.rows.length - 2);
+		// The trailing separator and total belong to the fixed footer, not the viewport
+		this.navigator = new ListNavigator(this.rows.length - 2, 1);
 		this.itemsById = collectItemsById(input.snapshot);
 	}
 
@@ -172,7 +173,7 @@ export class InjectionsView {
 		} else if (matchesKey(data, Key.home)) {
 			if (this.navigator.moveTo(0)) this.clearCache();
 		} else if (matchesKey(data, Key.end)) {
-			if (this.navigator.moveTo(this.rows.length - 1)) this.clearCache();
+			if (this.navigator.moveTo(this.navigator.selectableCount - 1)) this.clearCache();
 		}
 	}
 
@@ -206,12 +207,16 @@ export class InjectionsView {
 		const descriptionLines = this.fittedDescriptionLines(width, availableRows);
 		const extraLineCount = headerLines.length - 1 + warningLines.length + statusRows
 			+ descriptionBlockRows(descriptionLines);
-		const viewport = calculateViewport(this.rows.length, terminalRows, LIST_FIXED_LINE_COUNT, extraLineCount);
+		const viewport = calculateViewport(
+			this.navigator.selectableCount, terminalRows, LIST_FIXED_LINE_COUNT, extraLineCount,
+		);
 		this.navigator.setVisibleCount(viewport.visibleCount);
 		const lines: string[] = [border, "", ...headerLines, "", ...warningLines];
 		const listLines = this.listLines(width);
 		lines.push(...listLines);
 		if (viewport.showScroll) lines.push(this.scrollLine(width));
+		const total = this.totalLine(width);
+		lines.push("", total);
 		if (statusLines.length > 0) lines.push("", ...statusLines);
 		if (descriptionLines.length > 0) lines.push("", ...descriptionLines);
 		const hints = this.fit(hintRow(theme, [
@@ -222,7 +227,7 @@ export class InjectionsView {
 		const fittedLines = lines.length <= terminalRows ? lines : compactListLines({
 			border, header: this.headerLines(width, true), warnings: warningLines,
 			selected: listLines[this.navigator.selected - this.navigator.offset],
-			status: statusLines, hints, terminalRows,
+			total, status: statusLines, hints, terminalRows,
 		});
 		this.cachedWidth = width;
 		this.cachedTerminalRows = terminalRows;
@@ -425,6 +430,15 @@ export class InjectionsView {
 		return lines;
 	}
 
+	/** Render the fixed snapshot total with the hierarchy's shared value column and no cursor. */
+	private totalLine(width: number): string {
+		const row = this.rows.at(-1);
+		if (row?.kind !== "total") return "";
+		const contentWidth = Math.max(1, width - CURSOR_COLUMN_WIDTH);
+		const content = this.injectionLine(row, this.injectionColumns(contentWidth), contentWidth, false);
+		return this.fit(`${BODY_INDENT}${content}`, width);
+	}
+
 	/**
 	 * Choose the earliest useful shared value column, capped on wide terminals,
 	 * and size the diff columns from the widest `+N` and `-N` in the whole tree.
@@ -583,8 +597,9 @@ export class InjectionsView {
 	 */
 	private fittedDescriptionLines(width: number, availableRows: number): string[] {
 		const lines = this.descriptionLines(width);
-		const floor = Math.min(LIST_DESCRIPTION_MIN_ROWS, this.rows.length);
-		const viewport = calculateViewport(this.rows.length, availableRows - descriptionBlockRows(lines), 0);
+		const rowCount = this.navigator.selectableCount;
+		const floor = Math.min(LIST_DESCRIPTION_MIN_ROWS, rowCount);
+		const viewport = calculateViewport(rowCount, availableRows - descriptionBlockRows(lines), 0);
 		return viewport.visibleCount >= floor ? lines : [];
 	}
 
@@ -640,6 +655,7 @@ interface CompactListInput {
 	readonly header: readonly string[];
 	readonly warnings: readonly string[];
 	readonly selected?: string;
+	readonly total: string;
 	readonly status: readonly string[];
 	readonly hints: string;
 	readonly terminalRows: number;
@@ -647,12 +663,13 @@ interface CompactListInput {
 
 /**
  * When even a one-row list cannot fit, remove spare spacing and the title.
- * Keep capture status, degraded reasons, the selected row, and its bar between
- * borders; add hints only if they fit. Below that physical minimum, clip content.
+ * Keep capture status, degraded reasons, the selected row, the total, and the
+ * bar between borders; add hints only if they fit. Below that physical minimum,
+ * clip content.
  */
 function compactListLines(input: CompactListInput): string[] {
-	const { border, header, warnings, selected, status, hints, terminalRows } = input;
-	const lines = [border, ...header, ...warnings, ...(selected === undefined ? [] : [selected]), ...status, border];
+	const { border, header, warnings, selected, total, status, hints, terminalRows } = input;
+	const lines = [border, ...header, ...warnings, ...(selected === undefined ? [] : [selected]), total, ...status, border];
 	if (lines.length + 1 <= terminalRows) lines.splice(lines.length - 1, 0, hints);
 	return fitToTerminalHeight(lines, terminalRows, border);
 }

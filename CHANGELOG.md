@@ -9,9 +9,9 @@ injections that were invisible before: changes from later handlers, deleted or m
 forced prompts, and tools Pi hides.
 
 ### New
-* `[injections]` Update the injections view UI: clearer grouping, `+N`/`-N` diffs indicators, and previews.
 * `[injections]` Use the latest request instead of the frozen Initial snapshot.
 * `[injections]` Show payload changes and tools Pi hides.
+* `[injections]` Update the injections view UI: clearer grouping, `+N`/`-N` diffs indicators, and previews.
 
 ### Changed
 * `[usage]` Apply the latest request's added/modified/deleted messages instead of first-turn copies.
@@ -22,6 +22,7 @@ forced prompts, and tools Pi hides.
 * `[package]` Require Pi 1.1 and report older versions, drop the pre-0.86 prompt parser.
 * `[injections]` Keep filenames visible by shortening the middle of long instruction-file paths.
 * `[injections]` Group messages and payload changes into single rows with (N) counter.
+* `[injections]` Keep TOTAL visible below the scrollable contribution tree.
 
 ### Fixed
 * `[injections]` Fixed the issue reported in PR [#9](https://github.com/dimk90/pi-context-view/pull/9) by [@Drakejiejie](https://github.com/Drakejiejie) and adopted the PR’s tests.

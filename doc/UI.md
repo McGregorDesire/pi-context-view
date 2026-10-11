@@ -127,19 +127,20 @@ partial and never ellipsized.
 | Description | Renders while |
 | --- | --- |
 | Usage dashboard | Map, complete legend, and full key all fit |
-| Injections list | `LIST_DESCRIPTION_MIN_ROWS` (26) rows visible, or a shorter list in full |
+| Injections list | `LIST_DESCRIPTION_MIN_ROWS` (26) contribution rows visible, or a shorter list in full |
 | Preview marker legend | `DESCRIPTION_MIN_CONTENT_ROWS` (22) content rows visible, or a shorter preview in full |
 
 Hints, borders, degraded-capture warnings, configuration notices, and the
-Injections capture header and selected-row status bar are not descriptions and
-never collapse. The Injections detailed probe, guard-status, hidden-tools, and
-payload-change bullets and the `Degraded: …` indicator belong to its description
+Injections capture header, fixed total, and selected-row status bar are not
+descriptions and never collapse. The Injections detailed probe, guard-status,
+hidden-tools, and payload-change bullets and the `Degraded: …` indicator belong to its description
 block and collapse with it, while the compact request-origin label, payload
 status, and wrapped degraded reason near the header stay. Hidden tools have no
-header status. The selected-row bar explains changes instead of marker-legend
-bullets, reserves its own wrapped height, and reduces the list viewport. On exceptionally short
-terminals the list compacts its frame to keep capture status, the degraded
-reason, and the bar whenever physically possible; its
+header status. The fixed total reserves its own row and separator outside the
+scrollable list. The selected-row bar explains changes instead of marker-legend
+bullets, reserves its own wrapped height, and reduces the list viewport. On
+exceptionally short terminals the list compacts its frame to keep capture status,
+the degraded reason, the total, and the bar whenever physically possible; its
 [per-view contract](ui/injections.md#selected-row-status-bar) owns that fallback.
 The Usage thinking-notation explanation is view content, not a description,
 and also never collapses.
@@ -195,7 +196,8 @@ UI cases `pnpm check` must cover, beyond the general matrix in
 - both map scales, the header label's line-splitting fallback, the conditions
   hiding the zoom binding, and every map-key degradation;
 - a configured map size larger than the width and the height can render;
-- overflow navigation, preview return position, and theme invalidation;
+- overflow navigation, fixed Injections total, preview return position, and
+  theme invalidation;
 - selected-row status changes, empty reserved lines, diff-only accounting,
   unknown editors, wrapping, and the compact short-terminal frame;
 - persistent capture-origin and payload status, partial comparisons with no

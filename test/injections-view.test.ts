@@ -224,6 +224,63 @@ test("InjectionsView clarifies the total scope and preserves its estimate at nar
 	}
 });
 
+test("InjectionsView pins TOTAL below the viewport through navigation, resize, and preview return", () => {
+	let height = 24;
+	const data = snapshot(30);
+	const view = new InjectionsView(createTheme(), { snapshot: data }, () => {}, () => height);
+	for (const width of [24, 60, 80, 120]) {
+		for (height of [10, 12, 16, 24, 40, 90, 24]) {
+			view.handleInput("\u001b[H");
+			let fixedTotal: string | undefined;
+			let fixedIndex: number | undefined;
+			for (const key of ["", "j", "\u001b[6~", "\u001b[F", "\u001b[<65;20;5M", "\u001b[H"]) {
+				view.handleInput(key);
+				const frame = view.render(width);
+				const plain = frame.map(stripSgr);
+				const total = plain.findIndex((line) => line.startsWith("  TOTAL"));
+				assert.ok(total >= 0, `${width}x${height}: TOTAL is always visible`);
+				assert.equal(plain.filter((line) => line.startsWith("  TOTAL")).length, 1);
+				assert.match(plain[total] ?? "", new RegExp(`${data.totalTokens.toLocaleString("en-US")}$`));
+				assert.doesNotMatch(plain[total] ?? "", /→|\+\d|-[\d,]+/);
+				const selected = plain.findIndex((line) => line.startsWith("→"));
+				assert.ok(selected >= 0 && selected < total, "the selected row stays above TOTAL");
+				const counter = plain.findIndex((line) => /^  \(\d+\/62\)$/.test(line));
+				if (counter >= 0) assert.equal(total, counter + 2, "TOTAL follows the counter and one blank row");
+				if (fixedTotal === undefined) {
+					fixedTotal = frame[total];
+					fixedIndex = total;
+				} else {
+					assert.equal(frame[total], fixedTotal, "navigation does not change TOTAL");
+					assert.equal(total, fixedIndex, "navigation does not move TOTAL");
+				}
+				assert.ok(frame.length <= height);
+				assert.ok(frame.every((line) => visibleWidth(line) <= width));
+			}
+		}
+		height = 24;
+		view.handleInput("\u001b[F");
+		const before = view.render(width);
+		view.handleInput("\r");
+		assert.ok(!view.render(width).map(stripSgr).some((line) => line.startsWith("  TOTAL")),
+			"the fixed total belongs to the list, not raw previews");
+		view.handleInput("\u001b");
+		assert.deepEqual(view.render(width), before);
+	}
+});
+
+test("InjectionsView keeps a fixed zero total when the contribution tree is empty", () => {
+	const view = new InjectionsView(createTheme(), {
+		snapshot: { groups: [], totalTokens: 0 },
+	}, () => {}, () => 24);
+	const before = view.render(80);
+	assert.match(before.map(stripSgr).join("\n"), /TOTAL \(Prompt, Tools, Injections\) .*0/);
+	assert.doesNotMatch(before.map(stripSgr).join("\n"), /→|\(\d+\/\d+\)/);
+	for (const key of ["j", "\u001b[F", "\r"]) {
+		view.handleInput(key);
+		assert.deepEqual(view.render(80), before);
+	}
+});
+
 test("InjectionsView right-aligns token values across every hierarchy level", () => {
 	const children: InjectionItem[] = [
 		{ ...item("wide", "pi", true, 1_234_560), label: "wide" },
@@ -394,7 +451,7 @@ test("InjectionsView wraps narrow descriptions instead of truncating them", () =
 test("InjectionsView keeps the description while the list window stays readable", () => {
 	const scrollCounter = /\(\d+\/\d+\)/;
 	const visibleRowCount = (lines: string[]) => lines.filter((line) => /\s[\d,]+$/.test(line)).length;
-	// Sixteen items per group build a 36-row list, so it outgrows the 26-row description floor.
+	// Sixteen items per group build a 34-row list, excluding the fixed footer.
 	let rows = 48;
 	const view = createView(16, undefined, () => rows);
 	const full = view.render(80).map(stripSgr);
@@ -402,13 +459,13 @@ test("InjectionsView keeps the description while the list window stays readable"
 	assert.ok(!full.some((line) => scrollCounter.test(line)), "every row fits beside the description");
 
 	// A scrolling list keeps its description: the counter alone never collapses it.
-	rows = 39;
+	rows = 41;
 	const scrolled = view.render(80).map(stripSgr);
 	assert.ok(scrolled.some((line) => line.includes("Injections into the model context")));
 	assert.ok(scrolled.some((line) => scrollCounter.test(line)));
 
 	// One row further, the window would drop below the floor, so the description goes whole.
-	rows = 38;
+	rows = 40;
 	const descriptionless = view.render(80).map(stripSgr);
 	assert.ok(!descriptionless.some((line) => line.includes("Injections into")));
 	const hintsIndex = descriptionless.findIndex((line) => line.includes("↑↓/jk Navigate"));
@@ -425,7 +482,7 @@ test("InjectionsView keeps the description while the list window stays readable"
 });
 
 test("InjectionsView keeps the description for lists shorter than the floor", () => {
-	// Two items per group build an 8-row list, so the floor is the list itself.
+	// Two items per group build a 6-row list, so the floor is the list itself.
 	let rows = 20;
 	const view = createView(2, undefined, () => rows);
 	assert.ok(view.render(80).map(stripSgr).some((line) => line.includes("Injections into the model context")));
@@ -1025,7 +1082,7 @@ test("InjectionsView scrolls with the mouse wheel and honors pi's own wheel step
 	assert.equal(frame(arrows), previewTop);
 });
 
-test("InjectionsView navigation scrolls the non-selectable total and Escape closes", () => {
+test("InjectionsView navigation skips the fixed total and Escape closes", () => {
 	let closed = false;
 	const view = new InjectionsView(createTheme(), { snapshot: snapshot(30) }, () => {
 		closed = true;
@@ -1619,7 +1676,7 @@ test("InjectionsView pins selected-row details above the description, separate f
 	], "return from preview restores the same selection and bar");
 });
 
-test("InjectionsView leaves exactly one blank row before the bar, after the list or its counter", () => {
+test("InjectionsView separates the fixed total from the list counter and selected-row bar", () => {
 	let height = 40;
 	const view = new InjectionsView(createTheme(), { snapshot: changedSnapshot() }, () => {}, () => height);
 	view.handleInput("j");
@@ -1631,9 +1688,10 @@ test("InjectionsView leaves exactly one blank row before the bar, after the list
 			const total = plain.findIndex((line) => line.startsWith("  TOTAL"));
 			assert.ok(change >= 0, `${width}x${height}: the selected row's bar is visible`);
 			assert.equal(counter >= 0, height === 16, `${width}x${height}: counter only when the list overflows`);
-			if (counter < 0) assert.ok(total >= 0, `${width}x${height}: the complete list ends with TOTAL`);
-			assert.equal(change, (counter >= 0 ? counter : total) + 2,
-				`${width}x${height}: exactly one blank row after the list or counter`);
+			assert.ok(total >= 0, `${width}x${height}: TOTAL stays visible even when the list overflows`);
+			if (counter >= 0) assert.equal(total, counter + 2, "one blank row separates the counter and TOTAL");
+			assert.equal(plain[total - 1], "");
+			assert.equal(change, total + 2, `${width}x${height}: exactly one blank row after TOTAL`);
 			assert.equal(plain[change - 1], "");
 		}
 	}
@@ -1648,13 +1706,15 @@ test("InjectionsView keeps the full wrapped bar when descriptions collapse or th
 	view.handleInput("j");
 	const expected = "Change: +3 -1,234 only in this request; the session keeps the original Changed By: Unknown";
 	for (const width of [24, 60, 80, 120]) {
-		for (height of [12, 16, 24, 50]) {
+		// At 24 columns the compact header, selected row, fixed total, and full bar need 13 rows
+		for (height of [13, 16, 24, 50]) {
 			const frame = view.render(width);
 			const plain = frame.map(stripSgr);
 			assert.ok(frame.length <= height, `${width}x${height}: height`);
 			assert.ok(frame.every((line) => visibleWidth(line) <= width), `${width}x${height}: width`);
 			assert.equal(statusBar(frame).join(" "), expected, `${width}x${height}: the bar never collapses or clips`);
 			assert.ok(plain.some((line) => line.startsWith("→")), "the selected row stays visible");
+			assert.ok(plain.some((line) => line.startsWith("  TOTAL")), "the fixed total stays visible");
 			assert.match(plain[0] ?? "", /^─+$/);
 			assert.match(plain.at(-1) ?? "", /^─+$/);
 			const text = plain.join(" ").replace(/\s+/g, " ");
@@ -1840,7 +1900,7 @@ test("InjectionsView keeps payload attention states visible without the descript
 	];
 	for (const [guard, state] of cases) {
 		const theme = createTheme();
-		const view = new InjectionsView(theme, { snapshot: guardedSnapshot(), guard }, () => {}, () => 12);
+		const view = new InjectionsView(theme, { snapshot: guardedSnapshot(), guard }, () => {}, () => 14);
 		const lines = view.render(120);
 		const header = lines.find((line) => stripSgr(line).startsWith("Context Injections")) ?? "";
 		assert.ok(header.includes(theme.fg("mdHeading", theme.bold("[Latest Request]"))));
@@ -1988,6 +2048,7 @@ test("InjectionsView retains the sanitized degraded reason in a compact descript
 			assert.ok(plain.join(" ").replace(/\s+/g, " ").includes(reason));
 			assert.ok(plain.some((line) => line.includes("[Latest Request]")));
 			assert.ok(plain.some((line) => line.startsWith("→")));
+			assert.ok(plain.some((line) => line.startsWith("  TOTAL")));
 		}
 	}
 });
