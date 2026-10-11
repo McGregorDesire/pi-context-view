@@ -10,8 +10,8 @@ Its header is:
 Context Injections · [Latest Request]
 ```
 
-`[Latest Request]` and a silent probe's `[Request Probe]` label use `muted`,
-without bold. Runtime inspection is roadmap-only, so no Runtime label, switching
+`[Latest Request]` and a silent probe's `[Request Probe]` label use bold
+`mdHeading`. Runtime inspection is roadmap-only, so no Runtime label, switching
 key, or Runtime status renders until that step lands.
 
 Compact payload status uses a `muted` `Payload` label with a `dim` colon and

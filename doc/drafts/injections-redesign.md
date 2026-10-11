@@ -121,8 +121,8 @@ payload status only when it needs attention:
 | Payload comparison pending    | `Context Injections · [Latest Request]` … `Payload: pending`        |
 | Payload comparison incomplete | `Context Injections · [Latest Request]` … `Payload: partly checked` |
 
-Request-origin and `Payload` labels use `muted`; payload values and separators
-use `dim`, without bold or warning highlighting. At 90 columns, a probe header reads:
+Request-origin labels use bold `mdHeading`. The `Payload` label uses `muted`;
+payload values and separators use `dim`, without bold or warning highlighting. At 90 columns, a probe header reads:
 
 ```text
 Context Injections · [Request Probe]                                  Payload: not checked

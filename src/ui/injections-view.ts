@@ -386,7 +386,7 @@ export class InjectionsView {
 		const theme = this.theme;
 		const separator = theme.fg("dim", " · ");
 		const probe = this.input.probe === true;
-		const label = theme.fg("muted", probe ? "[Request Probe]" : "[Latest Request]");
+		const label = theme.fg("mdHeading", theme.bold(probe ? "[Request Probe]" : "[Latest Request]"));
 		const payloadState = payloadCheckStatus(this.input.guard);
 		const status = payloadState === undefined ? ""
 			: theme.fg("muted", "Payload") + theme.fg("dim", `: ${payloadState}`);

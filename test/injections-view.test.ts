@@ -124,7 +124,7 @@ test("InjectionsView follows pi selector styling and cursor alignment", () => {
 	assert.equal(lines[headerIndex + 1], "");
 	assert.equal(stripSgr(lines[headerIndex] ?? "").indexOf("Context Injections"), 0);
 	assert.equal(stripSgr(lines[tabIndex] ?? ""), "Context Injections · [Latest Request]");
-	assert.ok((lines[tabIndex] ?? "").includes(theme.fg("muted", "[Latest Request]")));
+	assert.ok((lines[tabIndex] ?? "").includes(theme.fg("mdHeading", theme.bold("[Latest Request]"))));
 	// Runtime stays hidden until the runtime-inspection roadmap step.
 	assert.ok(!lines.some((line) => stripSgr(line).includes("RUNTIME")));
 	assert.ok(!lines.some((line) => stripSgr(line).includes("Runtime Logging:")));
@@ -1811,7 +1811,7 @@ test("InjectionsView keeps payload attention states visible without the descript
 		const view = new InjectionsView(theme, { snapshot: guardedSnapshot(), guard }, () => {}, () => 12);
 		const lines = view.render(120);
 		const header = lines.find((line) => stripSgr(line).startsWith("Context Injections")) ?? "";
-		assert.ok(header.includes(theme.fg("muted", "[Latest Request]")));
+		assert.ok(header.includes(theme.fg("mdHeading", theme.bold("[Latest Request]"))));
 		assert.doesNotMatch(lines.map(stripSgr).join("\n"), /Injections into|hidden by pi|No payload|channel failed/);
 		if (state === undefined) {
 			assert.equal(stripSgr(header), "Context Injections · [Latest Request]");
@@ -1823,19 +1823,24 @@ test("InjectionsView keeps payload attention states visible without the descript
 	}
 });
 
-test("InjectionsView keeps request origins muted and complete payload status quiet", () => {
+test("InjectionsView keeps request origins bold mdHeading and complete payload status quiet", () => {
 	const theme = createTheme();
 	for (const probe of [true, false]) {
+		let height = 16;
 		const view = new InjectionsView(theme, {
 			snapshot: snapshot(2), probe,
 			guard: { status: "complete", dispatch: { provider: "fixture", api: "fixture", model: "fixture" }, findings: [] },
-		}, () => {}, () => 16);
+		}, () => {}, () => height);
 		const header = view.render(90)[2] ?? "";
 		const label = probe ? "[Request Probe]" : "[Latest Request]";
+		const styledLabel = theme.fg("mdHeading", theme.bold(label));
 		assert.equal(stripSgr(header), `Context Injections · ${label}`);
-		assert.ok(header.includes(theme.fg("muted", label)));
+		assert.ok(header.includes(styledLabel));
 		assert.ok(header.includes(theme.fg("dim", " · ")));
 		assert.doesNotMatch(stripSgr(header), /Payload/);
+		assert.ok(view.render(24).some((line) => line.includes(styledLabel)), "split header keeps label styling");
+		height = 6;
+		assert.ok(view.render(90).some((line) => line.includes(styledLabel)), "compact header keeps label styling");
 	}
 });
 
@@ -1963,10 +1968,12 @@ test("InjectionsView rebuilds persistent capture colors after theme invalidation
 	const before = view.render(80);
 	assert.strictEqual(view.render(80), before, "unchanged renders reuse the cache");
 	const originalFg = theme.fg.bind(theme);
-	theme.fg = (color, text) => originalFg(color === "muted" || color === "dim" ? "syntaxFunction" : color, text);
+	theme.fg = (color, text) => originalFg(
+		color === "mdHeading" || color === "muted" || color === "dim" ? "syntaxFunction" : color, text,
+	);
 	view.invalidate();
 	const header = view.render(80)[2] ?? "";
-	assert.ok(header.includes(theme.fg("muted", "[Request Probe]")));
+	assert.ok(header.includes(theme.fg("mdHeading", theme.bold("[Request Probe]"))));
 	assert.ok(header.endsWith(theme.fg("muted", "Payload") + theme.fg("dim", ": pending")));
 	assert.notEqual(header, before[2]);
 });
