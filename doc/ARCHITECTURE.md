@@ -120,6 +120,7 @@ flowchart TD
 | `src/pi-version.ts`          | Check the running Pi version against the oldest supported release.                                            |
 | `src/injections.ts`          | Rebuild the latest snapshot's baseline; measure it with marked changes, token diffs, and guard findings.      |
 | `src/token-diff.ts`          | Compare two texts word by word; turn changed characters into token diffs that reconcile with both estimates.  |
+| `src/system-prompt-rows.ts`  | Split Injections prompt diffs into uncounted `system prompt` rows by source, without guessing editors.          |
 | `src/projection.ts`          | Rebuild filtered projections; apply the latest snapshot's conversation and fresh system changes for Usage.    |
 | `src/replay.ts`              | Replay recorded system state and changes; Usage prompt/tools and the live fallback.                           |
 | `src/message-preview.ts`     | Content-only message previews, redacting session images and omitting opaque signatures.                       |

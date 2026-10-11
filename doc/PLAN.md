@@ -35,12 +35,14 @@
     - Preview headers, System Prompt part subheaders, and message parts carry it too.
     Decided: `Request-Only` replaces the `Added`, `Modified`, and `Deleted` markers in previews too, as in the draft; payload-change previews keep only `+N -N`. Pi never saves a forced prompt, so a forced prompt's parts, instruction files, and skills that differ from the session's version carry `Request-Only`; System Prompt keeps only `Forced`. A part that stands for a child row (System Prompt parts, built-in tools, instruction files, skills) carries it in its subheader; a tool's own `Definition` part does not. Per-message parts wait for the message preview item; until then the message preview header carries it.
     Verified on Pi 1.1.0: `pnpm check` (755 tests). No real-PTY run.
-  - [ ] **Extension `system prompt` row** ([injections.md](ui/injections.md#contribution-tree)):
+  - [x] **Extension `system prompt` row** ([injections.md](ui/injections.md#contribution-tree)):
     - Rename `system prompt additions` to `system prompt`.
     - It shows only `+N`/`-N`, never a plain value: dots fill the value column, and it counts toward neither its group nor `TOTAL`, since System Prompt counts the text.
     - It holds the extension's tool lines (exact owner) and attributed additions (guessed owner).
     - Under an extension it shows only `+N` in practice: Pi does not report who modified or deleted prompt content, so those changes appear under `unattributed`.
     - Under `unattributed` it sums every prompt change with an unknown source, saved or request-only.
+    Decided: `unattributed` also includes Instruction Files and Skills diffs. Extension rows carry `Request-Only` when their attributed lines differ from the session, not merely when their containing part is request-only. Enter previews plain text in labeled parts: an extension's own lines, or an unattributed part's whole request text (session text for deletions), with no token estimates; the header says `counted in System Prompt`, and guessed parts carry `(guess)`. Word-level diff lines wait for later preview work. Usage categories stay unchanged. Generated instruction-file and skill children now detect request-only edits, and replaced or deleted generated sections keep their measured session aggregate as the diff base.
+    Verified on Pi 1.1.0: `pnpm check` (770 tests). No real-PTY run.
   - [ ] **Selected-row status bar** ([injections.md](ui/injections.md#request-only-changes)):
     - Place the bar above the description, outside the scrollable list, and update it when selection changes.
     - Show only relevant change/state details, including `Change` and `Changed By`; do not repeat source or location, or expose raw text.

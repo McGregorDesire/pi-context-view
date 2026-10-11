@@ -471,7 +471,164 @@ test("pi's rows compare with pi's default prompt, so saved and request-only exte
 		added: (prompt?.diff?.added ?? 0) + (items.get("tool:builtin")?.diff?.added ?? 0),
 		removed: prompt?.diff?.removed,
 	}, "a group sums its items");
-	assert.equal(snapshot.groups.find((group) => group.source.label === "web")?.diff, undefined);
+	assert.equal(snapshot.groups.find((group) => group.source.label === "npm:web")?.diff, undefined,
+		"the system prompt row repeats System Prompt changes, so the group leaves its diff out");
+});
+
+test("system prompt rows split pi's prompt changes by source and count toward no group", () => {
+	const session = createExtensionSession();
+	const snapshot = buildInjectionsSnapshot({
+		...input(session, { system: [
+			{ type: "section", name: "cwd", text: "<cwd>\n/tmp/project\nwith a note\n</cwd>" },
+			{ type: "section", name: "docs", text: null },
+			{ type: "section", name: "fixture-obsolete", text: null },
+			{ type: "section", name: "fixture-added", text: "<fixture-added>\nRequest-only section.\n</fixture-added>" },
+		] }),
+		allTools: [...BUILTIN_TOOLS, SEARCH_INFO],
+	});
+	const items = itemsById(snapshot);
+	const web = snapshot.groups.find((group) => group.source.label === "npm:web");
+	const unattributed = snapshot.groups.find((group) => group.source.id === AGGREGATE_SOURCE_ID);
+	const webRow = web?.items.find((item) => item.label === "system prompt");
+	const unattributedRow = unattributed?.items.find((item) => item.label === "system prompt");
+
+	// Available Tools +6 and Guidelines +7 are the search tool's lines; the rest has no known source
+	assert.deepEqual(web?.items.map((item) => item.label), ["search", "system prompt"]);
+	assert.deepEqual([webRow?.tokens, webRow?.diffOnly, webRow?.diff, webRow?.requestOnly], [0, true, { added: 13,
+		removed: 0 }, undefined], "the extension's lines are saved");
+	assert.deepEqual(webRow?.sections?.map((section) => [section.label, section.text, section.diff, section.diffOnly]), [
+		["Available Tools", "\n- search: Search the web", { added: 6, removed: 0 }, true],
+		["Guidelines", "\n- Use search to verify claims", { added: 7, removed: 0 }, true],
+	]);
+	assert.deepEqual([unattributedRow?.diff, unattributedRow?.requestOnly], [{ added: 15, removed: 11 }, true]);
+	assert.deepEqual(unattributedRow?.sections?.map((section) => [section.label, section.diff?.added,
+		section.diff?.removed, section.requestOnly === true]), [
+		["Current Dir", 3, 0, true],
+		["fixture-review", 7, 0, false],
+		["fixture-added", 5, 0, true],
+		["Documentation", 0, 7, true],
+		["fixture-obsolete", 0, 4, true],
+	]);
+	const prompt = items.get("base-prompt");
+	assert.deepEqual({
+		added: (webRow?.diff?.added ?? 0) + (unattributedRow?.diff?.added ?? 0),
+		removed: (webRow?.diff?.removed ?? 0) + (unattributedRow?.diff?.removed ?? 0),
+	}, prompt?.diff, "together the rows repeat the System Prompt diff");
+
+	assert.deepEqual([web?.totalTokens, web?.diff], [items.get("tool:npm:web:search")?.tokens, undefined],
+		"a group counts neither the row's value nor its diff");
+	assert.equal(unattributed?.diff, undefined);
+	const counted = snapshot.groups.flatMap((group) => group.items).filter((item) => item.diffOnly !== true);
+	assert.equal(snapshot.totalTokens, counted.reduce((sum, item) => sum + item.tokens, 0));
+});
+
+test("an extension's system prompt row is request-only when its lines differ from the session", () => {
+	const session = createExtensionSession();
+	const snapshot = buildInjectionsSnapshot({
+		...input(session, { system: [
+			{ type: "section", name: "tools", text: "<tools>\n- read: Read files\n- bash: Run commands\n</tools>" },
+		] }),
+		allTools: [...BUILTIN_TOOLS, SEARCH_INFO],
+	});
+	const web = snapshot.groups.find((group) => group.source.label === "npm:web");
+	const row = web?.items.find((item) => item.label === "system prompt");
+
+	assert.deepEqual([row?.diff, row?.requestOnly], [{ added: 7, removed: 0 }, true],
+		"the request dropped the snippet line the session keeps");
+	assert.deepEqual(row?.sections?.map((section) => section.label), ["Guidelines"]);
+});
+
+test("system prompt rows hold guessed additions, and an unchanged prompt has none", () => {
+	const live = [
+		"You are a test assistant.",
+		"<tools>\n- read: Read files\n</tools>",
+		"<cwd>\n/tmp/project\n</cwd>",
+		"Search tips live in npm:web docs.",
+		"An addition without a source.",
+	].join("\n\n");
+	const snapshot = buildFallbackInjectionsSnapshot({
+		systemPrompt: live, options: { cwd: "/tmp/project" }, allTools: [...BUILTIN_TOOLS, SEARCH_INFO],
+		activeToolNames: ["read", "search"], promptSources: [{ source: "npm:web", path: "/ext/web" }],
+	});
+	const rows = snapshot.groups.flatMap((group) => group.items).filter((item) => item.diffOnly === true);
+	const additions = itemsById(snapshot).get("base-prompt:additions");
+
+	assert.deepEqual(rows.map((row) => [row.source.label, row.diff, row.requestOnly]), [
+		["npm:web", { added: 9, removed: 0 }, undefined],
+		["unattributed", { added: (additions?.diff?.added ?? 0) - 9, removed: 0 }, undefined],
+	], "the degraded fallback compares the live prompt with itself, so nothing is request-only");
+	assert.deepEqual(rows[0]?.sections?.map((section) => [section.label, section.text.trim(), section.attribution]), [
+		["Extension Additions", "Search tips live in npm:web docs.", "guess"],
+	]);
+	assert.equal(rows[1]?.sections?.[0]?.text, additions?.text, "unattributed previews the whole part");
+
+	const plain = buildFallbackInjectionsSnapshot({
+		systemPrompt: "You are a test assistant.\n\n<cwd>\n/tmp/project\n</cwd>", options: { cwd: "/tmp/project" },
+		allTools: BUILTIN_TOOLS, activeToolNames: ["read"],
+	});
+	assert.ok(plain.groups.every((group) => group.items.every((item) => item.diffOnly !== true)));
+});
+
+/** Recorded generated instruction-file and skill sections, as Pi supplies them. */
+function createPromptRecordsSession(): SessionManager {
+	const session = SessionManager.inMemory("/tmp/project");
+	session.appendMessage({
+		role: "system", content: "", toolsAdded: [READ], timestamp: 1,
+		sections: {
+			...SECTIONS,
+			project_context: "<project_context>\n<project_instructions path=\"/tmp/AGENTS.md\">\nOriginal file\n" +
+				"</project_instructions>\n</project_context>",
+			skills: "<skills>\n<available_skills>\n<skill>\n<name>test-skill</name>\n" +
+				"<description>Original description</description>\n<location>/tmp/SKILL.md</location>\n" +
+				"</skill>\n</available_skills>\n</skills>",
+		},
+	});
+	session.appendMessage({ role: "user", content: "prompt", timestamp: 2 });
+	return session;
+}
+
+test("the unattributed system prompt row includes request-only instruction-file and skill edits", () => {
+	const session = createPromptRecordsSession();
+	const snapshot = buildInjectionsSnapshot(input(session, { system: [
+		{ type: "section", name: "project_context", text: "<project_context>\n" +
+			"<project_instructions path=\"/tmp/AGENTS.md\">\nChanged file\n</project_instructions>\n</project_context>" },
+		{ type: "section", name: "skills", text: "<skills>\n<available_skills>\n<skill>\n<name>test-skill</name>\n" +
+			"<description>Changed description</description>\n<location>/tmp/SKILL.md</location>\n" +
+			"</skill>\n</available_skills>\n</skills>" },
+	] }));
+	const items = itemsById(snapshot);
+	const row = snapshot.groups.find((group) => group.source.id === AGGREGATE_SOURCE_ID)?.items[0];
+	const file = items.get("context-files");
+	const skill = items.get("skills");
+	assert.ok(file?.diff && skill?.diff);
+	assert.deepEqual(row?.diff, {
+		added: file.diff.added + skill.diff.added, removed: file.diff.removed + skill.diff.removed,
+	});
+	assert.equal(row?.requestOnly, true);
+	assert.ok(file.children?.every((child) => child.requestOnly === true));
+	assert.ok(skill.children?.every((child) => child.requestOnly === true));
+	assert.deepEqual(row?.sections?.map((section) => [section.label, section.requestOnly]), [
+		["/tmp/AGENTS.md", true], ["test-skill", true],
+	]);
+});
+
+test("deleting generated instruction files and skills keeps their removals in prompt diffs", () => {
+	const session = createPromptRecordsSession();
+	const saved = itemsById(buildInjectionsSnapshot(input(session)));
+	const snapshot = buildInjectionsSnapshot(input(session, { system: [
+		{ type: "section", name: "project_context", text: null },
+		{ type: "section", name: "skills", text: null },
+	] }));
+	const items = itemsById(snapshot);
+	const row = snapshot.groups.find((group) => group.source.id === AGGREGATE_SOURCE_ID)?.items[0];
+	const removed = (saved.get("context-files")?.tokens ?? 0) + (saved.get("skills")?.tokens ?? 0);
+	assert.ok(removed > 0);
+	assert.deepEqual(items.get("base-prompt")?.diff, { added: 0, removed });
+	assert.deepEqual(row?.diff, { added: 0, removed });
+	assert.equal(row?.requestOnly, true);
+	assert.deepEqual(row?.sections?.map((section) => [section.label, section.text.includes("Original")]), [
+		["Instruction Files", true], ["Skills", true],
+	], "removed session sections remain available behind Enter");
 });
 
 test("tool and message rows compare with the session; deletions remove the session estimate", () => {

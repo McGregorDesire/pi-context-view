@@ -28,6 +28,13 @@ instruction file, a skill, a built-in tool — also carries the row's
 ` · `, and its [`Request-Only` marker](injections.md#request-only-changes)
 among its markers: `Current Dir · 31 tokens · +14 · Request-Only`.
 
+Diff-only Injections [`system prompt` rows](injections.md#system-prompt-rows)
+and their parts have no token estimate. Part subheaders show only their diffs,
+such as `Available Tools · +20`. A part attributed by guess adds dim
+` (guess)` after its diff and triggers the same guess legend as a guessed
+source annotation. These parts repeat text and changes counted elsewhere;
+their 0-token model fields are not displayed as token shares.
+
 A moved block out of pi's normal order keeps its ordinary token share and
 adds the [`Moved` marker](../UI.md#color-and-casing) after it. This applies in
 both views, including the direct System Prompt Usage preview and standalone
@@ -116,7 +123,9 @@ A bullet renders only where its mark is visible on that frame:
 
 - `Highlighted` and `(guess)` follow injected-reference metadata, so native-only
   System Prompt and part previews, sibling parts without references, and
-  owning-tool previews show neither. Extension lines appear in the System Prompt
+  owning-tool previews show neither. A diff-only `system prompt` part's
+  guessed attribution also triggers `(guess)`, without `Highlighted` when
+  its own lines have no source annotations. Extension lines appear in the System Prompt
   preview of both views, including the direct single-entry Usage preview, in the
   standalone `Available Tools` and `Guidelines` children in Injections, and in
   multi-entry Usage streams and their full content levels.

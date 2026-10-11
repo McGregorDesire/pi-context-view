@@ -71,6 +71,9 @@ base, from a word-level comparison in `src/token-diff.ts`:
   prompt. Custom sections and Extension Additions have no default, except that
   a deleted custom section compares with the session. Tools, instruction
   files, and skills compare with the session; parents sum their children.
+  A request that replaces or deletes a generated instruction-file or skill
+  section keeps it as a System Prompt part, comparing with the session's
+  measured record aggregate rather than losing that base.
 - **Messages.** A changed message compares its content-only preview with the
   session original's; an unchanged custom message has no diff.
 - **Payload changes.** A finding compares the lines the payload added with
@@ -80,13 +83,26 @@ A branch without recorded system state and the degraded fallback compare the
 live prompt with itself, so only extension text shows.
 [ui/injections.md](../ui/injections.md#token-diffs) holds the rules.
 
+Injections also builds diff-only `system prompt` rows per extension and under
+`unattributed`, splitting these prompt diffs by their available ownership
+signals. They repeat changes already counted under `pi`, including unknown
+instruction-file and skill changes, and increase neither group nor total
+estimates or group diffs. Only Injections builds them; Usage does not restore
+an Extensions category for prompt text.
+[measurement.md](measurement.md#system-prompt-rows) owns their attribution and
+rounding rules.
+
 A leaf row whose sent content differs from the session is request-only
 (`InjectionItem.requestOnly`): an added, modified, or deleted message, prompt
 part, or tool. Pi never saves a forced prompt, so under one, every prompt part,
 instruction file, or skill whose text differs from the session's version is
-request-only too. Parents, the System Prompt item, and payload changes never
+request-only too. Generated instruction-file and skill children compare their
+text with the session even without a forced prompt: a section patch marks
+only their parent aggregate. Parents, the System Prompt item, and payload changes never
 are. Sections that mirror child rows copy the flag, so previews mark the same
-parts as the list.
+parts as the list. An extension's `system prompt` row compares its attributed
+lines with the session's, rather than inheriting the containing part's flag;
+the unattributed row is request-only when any of its changes is.
 
 Prompt additions have no `before_agent_start` handler boundary: recorded
 structured edits already belong to the baseline, and the forced prompt is

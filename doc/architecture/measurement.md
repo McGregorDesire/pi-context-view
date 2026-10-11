@@ -120,6 +120,38 @@ System Prompt counts every addition in its Extension Additions part, in prompt
 order. Each addition has a preview reference to its guessed source, or to
 `unattributed`; no extension item counts the text again.
 
+## System Prompt Rows
+
+Injections splits its prompt diffs by source in `src/system-prompt-rows.ts`.
+Each extension gets one `system prompt` row: its exactly matched tool lines
+and the additions guessed to belong to it. `unattributed` gets every other
+prompt change, saved or request-only, including changes to instruction files
+and skills. Custom-section names identify parts, never owners. An
+unregistered recorded tool's snippet still has no known extension owner.
+
+These are diff-only items (`InjectionItem.diffOnly`): 0 characters and tokens,
+no displayed value, and no contribution to the group's value or diff. They
+repeat changes already counted under `pi`, so the extension rows and
+`unattributed` together sum to the System Prompt, Instruction Files, and
+Skills diffs. Usage does not build these rows; its categories stay unchanged.
+
+For each System Prompt part, group its non-unattributed references by source
+in first-appearance order. Allocate the part's added tokens from those lines'
+characters with cumulative chars/4 rounding, capped at the part's `+N`.
+Give all remaining additions and every removal to `unattributed`: Pi does not
+report who edited or deleted prompt content. Instruction-file and skill
+diffs go there whole, including the removal of session-only children. Dropped
+parts have no diff and contribute nothing.
+
+An extension row is request-only when its attributed lines, with their part
+IDs and prompt order, differ between the request and session. An unknown edit
+to pi text in the same part does not mark unchanged extension lines. The
+unattributed row is request-only when any of its contributing changes is,
+including an undivided forced prompt or a removed session-only child. Its
+preview uses the existing part text, with session text for deletions; the
+extension preview uses only its own lines. Preview rules live in
+[ui/injections.md](../ui/injections.md#injection-preview).
+
 ## Totals and Structured Previews
 
 - Children break down their parent; they are never extra tokens in a total.

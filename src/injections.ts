@@ -53,6 +53,7 @@ import type {
 	RequestMessage,
 	RequestSnapshot,
 } from "./snapshot.ts";
+import { buildSystemPromptRows } from "./system-prompt-rows.ts";
 import { type DiffSide, measureTokenDiff } from "./token-diff.ts";
 import { type SystemMessage, systemMessageText } from "./transcript.ts";
 
@@ -63,6 +64,12 @@ const PAYLOAD_CHANGE_LABELS: Readonly<Record<MessagePart, string>> = {
 	assistant: "assistant message",
 	"tool-call": "tool call",
 	"tool-result": "tool result",
+};
+
+/** Session aggregates backing prompt parts when a request replaces or deletes their generated sections. */
+const GENERATED_RECORD_ITEMS: Readonly<Record<string, string>> = {
+	"base-prompt:context-files": "context-files",
+	"base-prompt:skills": "skills",
 };
 
 /** Everything the composition reads besides the snapshot itself. */
@@ -336,7 +343,8 @@ function messageItem(id: string, message: RequestMessage, source: InjectionSourc
  * section compares with the session instead, so its deletion stays visible.
  * Tools, instruction files, and skills compare with the session. A parent sums
  * its children, plus the removal of children only the session has. Each leaf
- * also learns whether it is request-only.
+ * also learns whether it is request-only. The `system prompt` rows that split
+ * these prompt changes by source follow the items.
  */
 function withPromptDiffs(items: readonly InjectionItem[], session: readonly InjectionItem[]): InjectionItem[] {
 	const sessionById = new Map<string, InjectionItem>();
@@ -350,7 +358,8 @@ function withPromptDiffs(items: readonly InjectionItem[], session: readonly Inje
 		sentIds: new Set(items.map((item) => item.id)),
 		forced: items.some((item) => item.id === SYSTEM_PROMPT_ITEM_ID && item.change === "forced"),
 	};
-	return items.map((item) => withItemDiff(item, context, false));
+	const diffed = items.map((item) => withItemDiff(item, context, false));
+	return [...diffed, ...buildSystemPromptRows(diffed, session)];
 }
 
 /** The session's prompt and tool items that request items compare with. */
@@ -404,12 +413,15 @@ function withItemDiff(item: InjectionItem, context: DiffContext, promptPart: boo
 /**
  * Whether the request sent other content than the session keeps for one leaf:
  * a request-only addition, edit, or deletion, or forced prompt text that
- * differs from the session's version. Tool changes reach a forced prompt as
- * usual, and the undivided System Prompt carries only its `forced` change.
+ * differs from the session's version. Generated instruction files and skills
+ * compare their child text with the session too: section changes mark the
+ * aggregate, not its individual records. Tool changes reach a forced prompt
+ * as usual, and the undivided System Prompt carries only its `forced` change.
  */
 function isRequestOnly(item: InjectionItem, context: DiffContext): boolean {
 	if (item.change !== undefined && item.change !== "forced") return true;
-	if (!context.forced || item.kind === "tool" || item.id === SYSTEM_PROMPT_ITEM_ID) return false;
+	if (item.kind === "tool" || item.id === SYSTEM_PROMPT_ITEM_ID) return false;
+	if (!context.forced && item.kind !== "context-file" && item.kind !== "skills") return false;
 	return context.sessionById.get(item.id)?.text !== item.text;
 }
 
@@ -421,6 +433,10 @@ function isRequestOnly(item: InjectionItem, context: DiffContext): boolean {
  */
 function itemBase(item: InjectionItem, context: DiffContext, promptPart: boolean): DiffSide | undefined {
 	if (item.id === SYSTEM_PROMPT_ITEM_ID) return defaultPromptSide(context);
+	// A generated section changes into a prompt part when replaced or deleted
+	const recordId = GENERATED_RECORD_ITEMS[item.id];
+	const records = recordId === undefined ? undefined : context.sessionById.get(recordId);
+	if (promptPart && records !== undefined) return records;
 	const session = context.sessionById.get(item.id);
 	if (promptPart && !isPiPromptPart(item.id)) {
 		if (item.change !== "deleted") return undefined;

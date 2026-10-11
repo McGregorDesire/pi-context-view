@@ -150,7 +150,7 @@ function previewMarkers(contents: readonly SectionedContent[]): ContextMarker[] 
 	const marked = contents.flatMap((content) => [content, ...(content.sections ?? [])]);
 	const markers: ContextMarker[] = [];
 	if (referenced.length > 0) markers.push("highlighted");
-	if (referenced.some(hasGuessedReferences)) markers.push("guess");
+	if (referenced.some(hasGuessedReferences) || marked.some(isGuessedPart)) markers.push("guess");
 	// The legend orders and deduplicates markers itself
 	markers.push(...marked.flatMap(partMarkers));
 	return markers;
@@ -164,6 +164,11 @@ function hasInjectedReferences(part: SectionedContent): boolean {
 /** Whether a rendered reference names an inferred owner needing the extra caveat. */
 function hasGuessedReferences(part: SectionedContent): boolean {
 	return part.injectedReferences?.some((reference) => reference.attribution === "guess") === true;
+}
+
+/** Whether a part's diff belongs to an owner inferred from the text itself, marked on its subheader. */
+function isGuessedPart(part: SectionedContent | InjectionSection): boolean {
+	return "attribution" in part && part.attribution === "guess";
 }
 
 /** Body parts carrying reference metadata: the item's sections, or the item itself. */
@@ -240,13 +245,16 @@ function headingKey(text: string): string {
 
 /**
  * Bold subheader naming one part, its share of the parent estimate, its token
- * diff, and its markers. Parts use `syntaxKeyword` rather than the usual
- * `mdHeading` subheader color, because they nest under item and entry headings
- * that already carry `mdHeading`.
+ * diff, a guessed owner, and its markers. A diff-only part has no share.
+ * Parts use `syntaxKeyword` rather than the usual `mdHeading` subheader color,
+ * because they nest under item and entry headings that already carry `mdHeading`.
  */
 function sectionHeaderLines(theme: Theme, section: InjectionSection, wrapWidth: number): string[] {
 	const label = theme.fg("syntaxKeyword", theme.bold(normalizeInlineText(section.label)));
-	const tokens = theme.fg("muted", ` · ${section.tokens.toLocaleString("en-US")} tokens`);
-	const header = `${label}${tokens}${diffMarker(theme, section.diff)}${stateMarkers(theme, section)}`;
+	const tokens = section.diffOnly === true
+		? ""
+		: theme.fg("muted", ` · ${section.tokens.toLocaleString("en-US")} tokens`);
+	const guess = section.attribution === "guess" ? guessMarker(theme) : "";
+	const header = `${label}${tokens}${diffMarker(theme, section.diff)}${guess}${stateMarkers(theme, section)}`;
 	return wrapTextWithAnsi(header, wrapWidth).map((line) => `${BODY_INDENT}${line}`);
 }

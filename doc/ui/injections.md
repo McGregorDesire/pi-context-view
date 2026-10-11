@@ -109,10 +109,38 @@ Present the request's contributions in this order:
   extension shares, without `/index.ts` (`hidden-tools.ts`, `my-ext`)
   - one child per active tool, counting only its definition: its prompt lines
     count in System Prompt
+  - [`system prompt`](#system-prompt-rows) when that source contributed prompt
+    lines, showing only their `+N`/`-N`, with no value or children
   - injected messages identified by `customType` where available
-- `unattributed` for request-only changes to messages without a `customType`
+- `unattributed` for prompt changes with an unknown source, saved or
+  request-only, in one [`system prompt`](#system-prompt-rows) row, and for
+  request-only changes to messages without a `customType`
 - `payload changes` for changes found only in the provider payload
   ([Payload changes](#payload-changes))
+
+### System prompt rows
+
+The extension and `unattributed` `system prompt` rows repeat prompt changes
+already counted under `pi`: they show only `+N`/`-N`, never a token value. Dim
+dot leaders run through the empty value column. Their changes count toward
+neither their group diff nor `TOTAL (Prompt, Tools, Injections)`; a source
+with only this row therefore reads 0 tokens with no group diff. No row appears
+without a nonzero diff. Within each source, it follows tools and precedes
+messages.
+
+An extension's row holds its tools' exactly matched prompt lines and additions
+attributed to it by a guess. It shows only `+N` in practice: Pi reports no
+editor for prompt modifications or deletions. The `unattributed` row holds all
+remaining changes, including custom sections, unowned additions, edits and
+deletions, and changes to Instruction Files and Skills. Together these rows
+sum to the prompt diffs under `pi`, excluding tool definitions. The split and
+rounding contract lives in
+[measurement.md](../architecture/measurement.md#system-prompt-rows).
+
+The extension row carries `Request-Only` when its attributed lines differ
+from those in the session, not merely when pi's containing part is
+request-only. The `unattributed` row carries it when any of its contributing
+changes is request-only. Source ownership never identifies an unknown editor.
 
 ### Request-only changes
 
@@ -173,14 +201,15 @@ provider-payload size.
 
 ### Token diffs
 
-`+N` and `-N` are the tokens a row gained and lost against its base. They are
-rounded so that the base estimate plus `+N` minus `-N` equals the value
-exactly:
+`+N` and `-N` are the tokens a row gained and lost against its base. Counted
+rows round so that the base estimate plus `+N` minus `-N` equals the value
+exactly; diff-only `system prompt` rows repeat these changes without a value:
 
 | Rows                         | Base                                                                                |
 | ---------------------------- | ----------------------------------------------------------------------------------- |
 | Under `pi`                   | Pi's default prompt: the session's version of a pi part without its extension lines |
 | Extension tools and messages | The session                                                                         |
+| `system prompt` rows         | The prompt diffs already measured under `pi`, split by source                       |
 | Payload changes              | The captured request: the finding's removed lines                                   |
 
 - **Saved extension text.** Rows under `pi` show saved and request-only
@@ -202,7 +231,8 @@ exactly:
   estimates leave out, such as JSON around content blocks, would otherwise
   inflate it, so such a row reads as a whole replacement.
 - **Parents and groups.** A parent or group row sums the diffs of the rows it
-  counts, plus the removal of parts or children only the session has.
+  counts, plus the removal of parts or children only the session has. Group
+  diffs leave out diff-only `system prompt` rows.
   `TOTAL (Prompt, Tools, Injections)` shows no diff.
 - **Known limits.** A request-only edit of an extension's own section folds
   into its `+N`. A saved edit inside pi's own section text is not detectable:
@@ -286,7 +316,8 @@ selected row. A row leaves a column blank when that side is zero, and ends
 without trailing blanks unless a marker follows. Markers follow the right edge
 of the `-N` column. When the diff columns do not fit the width, every row drops
 them whole, like a marker; markers then follow the value column.
-Fill label/value gaps with dim dot leaders; as width shrinks, shorten or remove
+Fill label/value gaps with dim dot leaders, running through the value column
+on diff-only `system prompt` rows; as width shrinks, shorten or remove
 leaders before truncating labels or token values, and retain tree connectors
 where space permits.
 
@@ -329,8 +360,24 @@ stay separated by two blank rows instead of running together. The whole preview
 is full content, so marked JSON expands here, in an aggregate part as much as in
 a tool's own definition.
 
-The preview header carries the item's token diff, then its markers, after its
-estimate: `pi · 547 tokens · +200 -466 · Forced`. A narrow header drops the
+A `system prompt` row previews one labeled part per affected prompt part, in
+prompt order, with no token estimates. Its header reads
+`source · +N -N · counted in System Prompt`, followed by `Request-Only` when
+applicable. Parts read `Available Tools · +20`; a guessed owner adds dim
+` (guess)` after its diff, such as `Extension Additions · +63 (guess)`, with
+the usual guess legend bullet. An extension's part shows only its own lines,
+without source annotations. At narrow widths, the header drops the marker
+first, then the accounting note, then the diff. An unattributed part shows the
+whole request part with its existing source annotations, or the session text
+of a deleted part.
+Instruction-file and skill changes follow System Prompt parts. Session-only
+children omitted from the request appear as a reference part with their
+removed text. These previews are plain text for now; word-level diff lines
+come later. The diff legend names pi's default prompt, like the original pi
+parts whose diffs these rows repeat.
+
+The preview header of a counted item carries its token diff, then its markers,
+after its estimate: `pi · 547 tokens · +200 -466 · Forced`. A narrow header drops the
 markers first, then the diff. A [labeled part](previews.md#labeled-parts)
 that stands for a child row carries the row's diff and markers the same way:
 `Current Dir · 31 tokens · +14 · Request-Only`. Like the list, previews show

@@ -34,6 +34,8 @@ export type InjectionRow =
 		readonly diff?: TokenDiff;
 		/** Whether the request sent other content than the session keeps. */
 		readonly requestOnly?: boolean;
+		/** Whether the row shows only a diff of text other rows count, without a value. */
+		readonly diffOnly?: boolean;
 		/** Stable preview target id from the snapshot. */
 		readonly itemId: string;
 	}
@@ -86,6 +88,7 @@ export function buildInjectionRows(snapshot: InjectionSnapshot): InjectionRow[] 
 				change: item.change,
 				diff: item.diff,
 				requestOnly: item.requestOnly,
+				diffOnly: item.diffOnly,
 				itemId: item.id,
 			});
 			const children = item.children ?? [];

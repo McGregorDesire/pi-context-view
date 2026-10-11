@@ -89,7 +89,10 @@ Injections shows the tokens extensions added or removed as fixed `+N`
 (`toolDiffAdded`) and `-N` (`toolDiffRemoved`)
 [token diffs](ui/injections.md#token-diffs): in their own columns after the
 estimate in hierarchy rows, and after the estimate behind a dim ` · ` in preview
-headers and subheaders. After the diff, hierarchy rows, preview headers, and
+headers and subheaders. Diff-only `system prompt` rows have no estimate: their
+list leaders fill the value column, and their preview metadata says where
+those tokens count; [ui/injections.md](ui/injections.md#system-prompt-rows)
+owns the exception. After the diff, hierarchy rows, preview headers, and
 part subheaders carry two fixed change markers: `Forced` (`warning`) and
 `Request-Only` (`dim`), which marks content the session does not keep.
 [ui/injections.md](ui/injections.md#request-only-changes) defines them. They follow the same separator, fit, and configuration rules as

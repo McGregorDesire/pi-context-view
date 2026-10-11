@@ -55,6 +55,8 @@ const LIST_FIXED_LINE_COUNT = 8;
 const PREVIEW_FIXED_LINE_COUNT = 8;
 const LIST_DESCRIPTION = "Injections into the model context of the latest request, with token estimates.";
 const PAYLOAD_CHANGES_NOTE = "Payload changes appear only in the provider payload. Their sources are unknown.";
+/** Where a diff-only row's changes count, in place of its preview estimate. */
+const DIFF_ONLY_NOTE = "counted in System Prompt";
 /** List rows that must stay visible for the description to keep its own rows. */
 const LIST_DESCRIPTION_MIN_ROWS = 26;
 const CURSOR_COLUMN_WIDTH = 2;
@@ -302,14 +304,21 @@ export class InjectionsView {
 		const lines: string[] = [border, ""];
 		const title = theme.fg("accent", theme.bold(normalizeInlineText(item.label)));
 		const source = normalizeInlineText(item.source.label);
-		const meta = theme.fg("muted", `${source} · ${item.tokens.toLocaleString("en-US")} tokens`);
+		const meta = theme.fg("muted", item.diffOnly === true
+			? source
+			: `${source} · ${item.tokens.toLocaleString("en-US")} tokens`);
 		const diff = diffMarker(theme, item.diff);
+		const note = item.diffOnly === true
+			? theme.fg("dim", " · ") + theme.fg("muted", DIFF_ONLY_NOTE)
+			: "";
 		const marker = stateMarkers(theme, { moved: item.moved, change: item.change, requestOnly: item.requestOnly });
-		// Drop the marker first when space runs out, then the diff
+		// Drop the marker first when space runs out, then the accounting note, then the diff
 		const headerWidth = visibleWidth(title) + visibleWidth(meta) + 2;
 		const fitsDiff = headerWidth + visibleWidth(diff) <= width;
-		const fitsMarker = fitsDiff && headerWidth + visibleWidth(diff) + visibleWidth(marker) <= width;
-		lines.push(this.spread(title, `${meta}${fitsDiff ? diff : ""}${fitsMarker ? marker : ""} `, width));
+		const fitsNote = fitsDiff && headerWidth + visibleWidth(diff) + visibleWidth(note) <= width;
+		const fitsMarker = fitsNote && headerWidth + visibleWidth(diff) + visibleWidth(note) + visibleWidth(marker) <= width;
+		lines.push(this.spread(title,
+			`${meta}${fitsDiff ? diff : ""}${fitsNote ? note : ""}${fitsMarker ? marker : ""} `, width));
 		lines.push("");
 
 		const start = this.previewScroller.offset;
@@ -416,7 +425,7 @@ export class InjectionsView {
 		const labelWidth = Math.max(1, ...contentRows.map((row) => visibleWidth(this.plainRowLabel(row))));
 		const tokenWidth = Math.max(
 			1,
-			...contentRows.map((row) => row.tokens.toLocaleString("en-US").length),
+			...contentRows.filter((row) => !isDiffOnly(row)).map((row) => row.tokens.toLocaleString("en-US").length),
 		);
 		const diffs = contentRows.map(rowDiff);
 		const idealValue = Math.min(MAX_TOKEN_VALUE_COLUMN, labelWidth + TOKEN_LEADER_GAP);
@@ -432,7 +441,8 @@ export class InjectionsView {
 
 	/**
 	 * One hierarchy row with dim leaders and a full token estimate when width
-	 * permits, then its diff columns and state markers. Narrow widths drop the
+	 * permits, then its diff columns and state markers. A diff-only row has no
+	 * estimate: its leaders run through the value column. Narrow widths drop the
 	 * diff columns whole for every row, and a marker that does not fit.
 	 */
 	private injectionLine(
@@ -443,14 +453,15 @@ export class InjectionsView {
 	): string {
 		const labelWidth = Math.max(1, columns.value - 1);
 		const left = fitLine(this.styledRowLabel(row, selected, labelWidth), labelWidth);
-		const leader = this.tokenLeader(columns.value - visibleWidth(left));
-		const value = row.tokens.toLocaleString("en-US").padStart(columns.valueWidth);
+		const diffOnly = isDiffOnly(row);
+		const value = diffOnly ? "" : row.tokens.toLocaleString("en-US").padStart(columns.valueWidth);
+		const leader = this.tokenLeader(columns.value - visibleWidth(left) + (diffOnly ? columns.valueWidth : 0));
 		const tokens = row.kind === "total"
 			? this.theme.bold(this.theme.fg("text", value))
 			: this.theme.fg(selected ? "accent" : "muted", value);
 		const marker = this.rowMarker(row);
 		const diff = rowDiff(row);
-		let lineWidth = columns.value + value.length;
+		let lineWidth = columns.value + columns.valueWidth;
 		let diffs = "";
 		const diffWidth = diffColumnsWidth(columns);
 		// Blank diff columns only keep a following marker aligned
@@ -635,6 +646,11 @@ function shortenInstructionPath(path: string, width: number): string {
 	return visibleWidth(tail) <= width ? tail : fitLine(path.slice(lastSeparator.index + 1), width);
 }
 
+/** Whether a list row shows only a diff, with no estimate in the value column. */
+function isDiffOnly(row: InjectionRow): boolean {
+	return row.kind === "item" && row.diffOnly === true;
+}
+
 /** Token diff a list row shows; the total and the separator have none. */
 function rowDiff(row: InjectionRow): TokenDiff | undefined {
 	return row.kind === "group" || row.kind === "item" ? row.diff : undefined;
@@ -649,12 +665,13 @@ function diffColumnsWidth(columns: InjectionColumns): number {
 
 /**
  * What a preview's token diffs compare with: pi's default prompt for pi's
- * contributions, the captured request for a payload change, and the session
- * for everything else.
+ * contributions and `system prompt` rows, the captured request for a payload
+ * change, and the session for everything else.
  */
 function previewDiffBase(item: InjectionItem): DiffBase {
 	if (item.source.id === PAYLOAD_CHANGES_SOURCE_ID) return "captured-request";
-	return item.source.native ? "default-prompt" : "session";
+	// A `system prompt` row splits pi's prompt changes by source
+	return item.source.native || item.diffOnly === true ? "default-prompt" : "session";
 }
 
 /**

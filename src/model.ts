@@ -109,6 +109,7 @@ export type RequestChange = "added" | "modified" | "deleted" | "forced";
  * for rows under pi, the session for extension tools and messages, and the
  * captured request for payload changes. Rounded so that the base estimate plus
  * `added` minus `removed` equals the contribution's estimate exactly.
+ * Diff-only rows repeat these numbers without a value of their own.
  */
 export interface TokenDiff {
 	readonly added: number;
@@ -177,7 +178,7 @@ export interface InjectionSection {
 	readonly label: string;
 	/** Slice of the parent item's text; sections concatenate back to it, except when dropped. */
 	readonly text: string;
-	/** Share of the parent estimate; sections sum exactly to the item total. */
+	/** Share of the parent estimate; sections sum exactly to the item total. A diff-only part has no share. */
 	readonly tokens: number;
 	/**
 	 * True when a `--system-prompt` replacement suppressed this part: pi never
@@ -195,6 +196,10 @@ export interface InjectionSection {
 	readonly diff?: TokenDiff;
 	/** True when the child row this part stands for is request-only; see `InjectionItem.requestOnly`. */
 	readonly requestOnly?: boolean;
+	/** True for a part of a diff-only item: its subheader shows the diff without a token share. */
+	readonly diffOnly?: boolean;
+	/** Present when the part's diff belongs to an owner inferred from the text itself. */
+	readonly attribution?: "guess";
 	/** Serialized JSON inside `text`, e.g. a tool's parameter schema. */
 	readonly jsonSpan?: JsonSpan;
 	/** Extension lines inside `text`, annotated with their source in previews. */
@@ -234,6 +239,13 @@ export interface InjectionItem {
 	 */
 	readonly requestOnly?: boolean;
 	/**
+	 * True for a row that shows only the diff of text another row counts: an
+	 * extension's or unattributed `system prompt` row, whose changes System
+	 * Prompt and its siblings already count. It reads 0 tokens, and its diff
+	 * adds to neither its group nor the total.
+	 */
+	readonly diffOnly?: boolean;
+	/**
 	 * Changed lines of a payload change, in payload order. `text` holds only the
 	 * added lines, which the estimate counts.
 	 */
@@ -249,7 +261,7 @@ export interface InjectionGroup {
 	readonly source: InjectionSource;
 	readonly items: readonly InjectionItem[];
 	readonly totalTokens: number;
-	/** Sum of the items' token diffs; absent when none changed. */
+	/** Sum of the token diffs of the items it counts, leaving out diff-only items; absent when none changed. */
 	readonly diff?: TokenDiff;
 }
 
@@ -347,11 +359,12 @@ export function groupInjections(items: readonly InjectionItem[]): InjectionGroup
 			groups.set(item.source.id, group);
 		}
 		group.items.push(item);
-		group.totalTokens += item.tokens;
+		group.totalTokens += item.diffOnly === true ? 0 : item.tokens;
 	}
 	for (const group of groups.values()) {
 		group.items.sort(compareItems);
-		group.diff = sumTokenDiffs(group.items.map((item) => item.diff));
+		// A diff-only row repeats changes other rows already count
+		group.diff = sumTokenDiffs(group.items.filter((item) => item.diffOnly !== true).map((item) => item.diff));
 	}
 	return [...groups.values()].sort(compareGroups);
 }
@@ -423,7 +436,8 @@ function copyJsonSpan(span: JsonSpan | undefined): JsonSpan | undefined {
 /**
  * Order items within a group by the order pi assembles them into a request:
  * base prompt, appended prompt, context files, skills, built-in tools, other
- * tools, and finally everything else by size descending.
+ * tools, an extension's `system prompt` row, and finally everything else by
+ * size descending.
  */
 function compareItems(a: InjectionItem, b: InjectionItem): number {
 	const rankDelta = itemRank(a) - itemRank(b);
@@ -444,8 +458,10 @@ function itemRank(item: InjectionItem): number {
 			return 3;
 		case "tool":
 			return item.id === "tool:builtin" ? 4 : 5;
-		default:
+		case "prompt-addition":
 			return 6;
+		default:
+			return 7;
 	}
 }
 

@@ -1226,6 +1226,102 @@ test("InjectionsView previews System Prompt parts with their diffs against pi's 
 	]);
 });
 
+test("InjectionsView shows a system prompt row's diff without a value and previews its parts", () => {
+	const theme = createTheme();
+	const tool: InjectionItem = { ...item("tool", "npm:web", false, 1_000), label: "search" };
+	const row: InjectionItem = {
+		...item("system-prompt:npm:web", "npm:web", false, 0),
+		kind: "prompt-addition",
+		label: "system prompt",
+		diffOnly: true,
+		diff: { added: 27, removed: 0 },
+		sections: [
+			{ label: "Available Tools", text: "\n- search: Search the web", tokens: 0, diffOnly: true,
+				diff: { added: 7, removed: 0 } },
+			{ label: "Extension Additions", text: "\n\nSearch tips.", tokens: 0, diffOnly: true,
+				diff: { added: 20, removed: 0 }, attribution: "guess" },
+		],
+	};
+	const snapshot: InjectionSnapshot = { groups: [group("npm:web", false, [tool, row])], totalTokens: 1_000 };
+	let height = 40;
+	const view = new InjectionsView(theme, { snapshot }, () => {}, () => height);
+	const plain = view.render(100).map(stripSgr);
+	const line = (label: string) => plain.find((candidate) => candidate.includes(label)) ?? "";
+
+	assert.match(line("system prompt"), /└─ system prompt \.+ {3}\+27$/, "dots run through the empty value column");
+	assert.equal(line("system prompt").length, line("search").length + "  +27".length,
+		"the diff column follows the shared value column");
+	assert.match(line("TOTAL"), / 1,000$/);
+	assert.doesNotMatch(plain.join("\n"), /Search tips/, "raw text stays behind Enter");
+	assert.doesNotMatch(view.render(40).map(stripSgr).find((candidate) => candidate.includes("system prompt")) ?? "",
+		/\+27|\b0\b/, "a narrow row drops the diff whole without inventing a zero value");
+
+	view.handleInput("\u001b[B");
+	view.handleInput("\u001b[B");
+	const selected = view.render(100).find((candidate) => stripSgr(candidate).startsWith("→")) ?? "";
+	assert.ok(selected.includes(theme.fg("toolDiffAdded", "+27")), "the selected row keeps its diff color");
+	view.handleInput("\r");
+	const lines = view.render(100);
+	const preview = lines.map(stripSgr);
+	assert.match(preview.find((candidate) => candidate.startsWith("system prompt")) ?? "",
+		/npm:web · \+27 · counted in System Prompt $/, "the header names where the tokens count instead of a value");
+	assert.ok(preview.includes("  Available Tools · +7"), "a part shows its diff without a token share");
+	assert.ok(preview.includes("  Extension Additions · +20 (guess)"));
+	assert.ok(lines.some((candidate) => candidate.includes(theme.fg("dim", " (guess)"))));
+	assert.deepEqual(preview.filter((candidate) => candidate.startsWith("  - ") && !candidate.includes("search:")), [
+		"  - (guess) sources are inferred from the injected text itself.",
+		"  - +N -N Tokens extensions added or removed, compared with pi’s default prompt.",
+	]);
+	for (const width of [24, 40, 60, 80, 120]) {
+		for (height of [12, 24, 40]) {
+			const frame = view.render(width);
+			assert.ok(frame.length <= height, `${width}x${height}: preview stays within the height`);
+			assert.ok(frame.every((candidate) => visibleWidth(candidate) <= width), `${width}x${height}: width`);
+		}
+	}
+	view.handleInput("\u001b");
+	assert.match(view.render(100).map(stripSgr).find((candidate) => candidate.startsWith("→")) ?? "",
+		/system prompt/, "Escape returns to the same diff-only row");
+	for (const width of [24, 40, 60, 80, 120]) {
+		for (height of [12, 24, 40]) {
+			const frame = view.render(width);
+			assert.ok(frame.length <= height, `${width}x${height}: list stays within the height`);
+			assert.ok(frame.every((candidate) => visibleWidth(candidate) <= width), `${width}x${height}: width`);
+		}
+	}
+});
+
+test("InjectionsView previews an unattributed system prompt deletion without a token estimate", () => {
+	const theme = createTheme();
+	const row: InjectionItem = {
+		...item("system-prompt:unattributed", "unattributed", false, 0), label: "system prompt", kind: "prompt-addition",
+		diffOnly: true, diff: { added: 0, removed: 7 }, requestOnly: true,
+		sections: [{ label: "Documentation", text: "Deleted\u001b[2J documentation", tokens: 0, diffOnly: true,
+			diff: { added: 0, removed: 7 }, requestOnly: true }],
+	};
+	const snapshot: InjectionSnapshot = { groups: [group("unattributed", false, [row])], totalTokens: 0 };
+	const view = new InjectionsView(theme, { snapshot }, () => {}, () => 40);
+	const list = view.render(100).map(stripSgr);
+	assert.match(list.find((candidate) => candidate.includes("system prompt")) ?? "",
+		/system prompt \.+ {3}-7 · Request-Only$/);
+	assert.doesNotMatch(list.join("\n"), /Deleted|documentation/);
+	view.handleInput("j");
+	view.handleInput("\r");
+	const preview = view.render(100).map(stripSgr);
+	assert.match(preview.find((candidate) => candidate.startsWith("system prompt")) ?? "",
+		/unattributed · -7 · counted in System Prompt · Request-Only $/);
+	assert.ok(preview.includes("  Documentation · -7 · Request-Only"));
+	assert.ok(preview.includes("  Deleted documentation"), "the removed text is terminal-sanitized");
+	assert.doesNotMatch(preview.join("\n"), /0 tokens/);
+	assert.match(view.render(70).map(stripSgr)[2] ?? "", /counted in System Prompt $/,
+		"a narrow header drops the marker before the accounting note");
+	const originalFg = theme.fg.bind(theme);
+	theme.fg = (color, text) => originalFg(color === "syntaxKeyword" ? "success" : color, text);
+	view.invalidate();
+	assert.ok(view.render(100).some((candidate) => candidate.includes(theme.fg("syntaxKeyword", theme.bold("Documentation")))),
+		"theme invalidation rebuilds diff-only part subheaders");
+});
+
 test("InjectionsView describes a probe snapshot and notes an unavailable payload comparison", () => {
 	const theme = createTheme();
 	const input = {

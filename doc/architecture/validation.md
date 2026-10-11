@@ -52,6 +52,16 @@ mode: run them in a real PTY as the `pi-extension` skill describes.
 
 Test names refer to `test/<name>.test.ts`. `pnpm check` runs all of them.
 
+### Prompt source rows
+
+`system-prompt-rows`, `injections`, and `injections-view` test the diff-only
+`system prompt` rows: exact tool lines, guessed additions, unknown edits and
+deletions, cumulative rounding, and unchanged group values and diffs. Cases
+include forced prompts, dropped blocks, fallback, instruction-file and skill
+edits and deletions, request-only line comparison, plain-text previews,
+terminal sanitization, theme invalidation, and width/height reflow. These are
+pure composition and render tests; real-PTY checks remain explicit opt-in.
+
 ## Lifecycle Smoke Tests
 
 For lifecycle changes, load `test/fixtures/marker.ts`,
