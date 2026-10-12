@@ -1,6 +1,6 @@
 {
 	"name": "pi-context-view",
-	"version": "0.6.0",
+	"version": "0.7.0",
 	"description": "Pi extension to visualize context usage and inspect the hidden parts: base prompt, tools defs, and extension injections",
 	"type": "module",
 	"license": "MIT",
@@ -30,7 +30,7 @@
 		"README.md"
 	],
 	"scripts": {
-		"test": "node --test test/*.test.ts",
+		"test": "node test/run.ts",
 		"check": "tsc --noEmit && pnpm test"
 	},
 	"pi": {

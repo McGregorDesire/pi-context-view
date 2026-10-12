@@ -1,7 +1,7 @@
 # Changelog
 
 
-## Unreleased
+## `[v0.7.0]` - 12.10.2026
 
 Injection capture has been redesigned for Pi 1.1. Instead of freezing the first request (Initial),
 it now captures every request and compares it with the saved session. This shows request-only
