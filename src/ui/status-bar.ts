@@ -22,7 +22,7 @@ const CONTINUATION_INDENT = "      ";
 const SCOPE_PHRASES: Record<ChangeScope, string> = {
 	saved: "saved in the session",
 	"saved-and-edit": "saved in the session, with an edit only in this request",
-	partly: "partly only in this request",
+	partly: "some saved in the session, some only in this request",
 	request: "only in this request",
 	"request-edit": "only in this request; the session keeps the original",
 	"request-new": "only in this request; not in the session",

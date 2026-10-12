@@ -1793,9 +1793,9 @@ test("InjectionsView explains saved and guessed editors, mixed changes, and diff
 	};
 	const theme = createTheme();
 	const view = new InjectionsView(theme, { snapshot }, () => {}, () => 40);
-	assert.deepEqual(statusBar(view.render(120)), ["Change: +24, partly only in this request"]);
+	assert.deepEqual(statusBar(view.render(120)), ["Change: +24, some saved in the session, some only in this request"]);
 	view.handleInput("j");
-	assert.deepEqual(statusBar(view.render(120)), ["Change: +24, partly only in this request"]);
+	assert.deepEqual(statusBar(view.render(120)), ["Change: +24, some saved in the session, some only in this request"]);
 	view.handleInput("j");
 	assert.deepEqual(statusBar(view.render(120)), ["Change: +4 saved in the session", "Changed By: npm:web"]);
 	view.handleInput("j");

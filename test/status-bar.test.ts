@@ -36,7 +36,7 @@ test("status bar distinguishes saved, request-only, mixed, and payload changes",
 	const phrases: Record<ChangeScope, string> = {
 		saved: "saved in the session",
 		"saved-and-edit": "saved in the session, with an edit only in this request",
-		partly: ", partly only in this request",
+		partly: ", some saved in the session, some only in this request",
 		request: "only in this request",
 		"request-edit": "only in this request; the session keeps the original",
 		"request-new": "only in this request; not in the session",
@@ -106,7 +106,7 @@ test("status bar explains state markers in their fixed colors, after change deta
 test("status bar wraps fields with hanging indents without truncation, including narrow widths and Unicode", () => {
 	const theme = createTheme();
 	const entry: InjectionRow = {
-		...row("saved"), diff: { added: 12_345, removed: 1_234 },
+		...row("partly"), diff: { added: 12_345, removed: 1_234 },
 		editors: [{ type: "extension", source: { id: "ext", label: "npm:日本語-review", native: false } }],
 	};
 	const whole = plain(statusBarLines(theme, entry, 120)).map((line) => line.trim()).join(" ");

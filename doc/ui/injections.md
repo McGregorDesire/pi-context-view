@@ -287,8 +287,9 @@ Marker field names use their markers' fixed colors. `Change` replaces the list's
 - `saved in the session, with an edit only in this request` for a leaf whose
   saved extension text also has a request-only edit folded into its diff.
 - `only in this request` on `messages (N)`, or a parent, group, or diff-only
-  row whose changes are all request-only; `, partly only in this request`
-  after the diff when some are saved and some request-only.
+  row whose changes are all request-only;
+  `, some saved in the session, some only in this request` after the diff when
+  some are saved and some request-only.
 - `only in the provider payload` for `payload changes (N)` and a group whose
   counted changes are payload-only. Mixed request and payload changes use
   `only in this request`, since the session keeps neither.
