@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { afterEach, beforeEach, mock, test } from "node:test";
+import { randomUUID } from "node:crypto";
+import { test } from "node:test";
 
 import { type ExtensionAPI, type ExtensionCommandContext, SettingsManager } from "@earendil-works/pi-coding-agent";
 
@@ -8,15 +9,10 @@ import { ProbeFilter } from "../src/probe/filter.ts";
 import { SilentProbe } from "../src/probe/silent-probe.ts";
 import { ProbeTrigger } from "../src/probe/trigger.ts";
 import { SnapshotStore } from "../src/snapshot.ts";
+import { useSettings } from "./harness/settings.ts";
 
 /** Settings accepted by Pi's in-memory manager. */
 type Settings = NonNullable<Parameters<typeof SettingsManager.inMemory>[0]>;
-
-beforeEach(() => {
-	// Never read the developer's global settings during unit tests
-	mock.method(SettingsManager, "create", () => SettingsManager.inMemory());
-});
-afterEach(() => mock.restoreAll());
 
 /** A safe idle command context; a send ends immediately instead of running an agent. */
 function createHarness(settings: Settings = {}) {
@@ -31,7 +27,8 @@ function createHarness(settings: Settings = {}) {
 		},
 	} as unknown as ExtensionAPI;
 	const context = {
-		cwd: "/tmp",
+		// Never created; global settings are registered per directory
+		cwd: `/probe-guards/${randomUUID()}`,
 		model: { provider: "test", id: "model", api: "openai-completions", contextWindow: 100_000 },
 		modelRegistry: { hasConfiguredAuth: () => true },
 		hasPendingMessages: () => false,
@@ -81,11 +78,12 @@ test("probe guards reject idle warming from the live settings snapshot", async (
 });
 
 test("a project warming override cannot hide the global idle setting", async (t) => {
-	t.mock.method(SettingsManager, "create", (...args: Parameters<typeof SettingsManager.create>) => {
-		assert.equal(args[2]?.projectTrusted, false);
+	const harness = createHarness({ cacheWarming: "off" });
+	useSettings(t, harness.context.cwd, (_cwd, _agentDir, options) => {
+		assert.equal(options?.projectTrusted, false);
 		return SettingsManager.inMemory({ cacheWarming: "idle" });
 	});
-	await assertSkipped(createHarness({ cacheWarming: "off" }), "idle cache warming is enabled.");
+	await assertSkipped(harness, "idle cache warming is enabled.");
 });
 
 test("probe guards use Pi's default auto-compaction reserve", async () => {
@@ -108,8 +106,9 @@ test("probe guards fail closed on invalid compaction settings", async () => {
 });
 
 test("probe guards fail closed on unreadable global warming settings without exposing the error", async (t) => {
-	t.mock.method(SettingsManager, "create", () => { throw new Error("sensitive file contents"); });
-	await assertSkipped(createHarness(), "Pi settings could not be checked.");
+	const harness = createHarness();
+	useSettings(t, harness.context.cwd, () => { throw new Error("sensitive file contents"); });
+	await assertSkipped(harness, "Pi settings could not be checked.");
 });
 
 for (const scenario of [

@@ -1,6 +1,6 @@
 /** Mock launcher checks use scratch config and local HTTP only; no real provider or PTY is involved. */
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 
 import { MOCK_REPLY, startDemoMockProvider } from "../scripts/demo-mock-provider.ts";
 import { copySelectedThemes } from "../scripts/demo-mock-themes.ts";
+import { runCommand } from "./harness/run-command.ts";
 
 const SCRIPT = fileURLToPath(new URL("../scripts/demo-injections.sh", import.meta.url));
 const MONITOR = fileURLToPath(new URL("../src/index.ts", import.meta.url));
@@ -85,8 +86,8 @@ for (const { after, codemode } of LAUNCH_CASES) {
 	test(`--mock selects a local model with appearance-only config, after=${after}, codemode=${codemode}`, async (t) => {
 		const setup = await prepareLauncher(t);
 		const flags = ["--mock", "--payload", ...(after ? ["--after"] : []), ...(codemode ? ["--codemode-only"] : [])];
-		const result = spawnSync("bash", [SCRIPT, ...flags, "a prompt with spaces"], {
-			cwd: setup.directory, env: setup.env, encoding: "utf8", timeout: 15_000,
+		const result = await runCommand("bash", [SCRIPT, ...flags, "a prompt with spaces"], {
+			cwd: setup.directory, env: setup.env,
 		});
 		assert.equal(result.status, 0, result.stderr);
 		assert.equal(result.stdout, "");
@@ -131,8 +132,8 @@ for (const { after, codemode } of LAUNCH_CASES) {
 		const setup = await prepareLauncher(t);
 		const inherited = await prepareLocalExtensions(setup);
 		const flags = after ? ["--local", "--mock", "--after"] : ["--mock", "--local"];
-		const result = spawnSync("bash", [SCRIPT, ...flags, "--payload", ...(codemode ? ["--codemode-only"] : []),
-			"a prompt with spaces"], { cwd: setup.directory, env: setup.env, encoding: "utf8", timeout: 15_000 });
+		const result = await runCommand("bash", [SCRIPT, ...flags, "--payload", ...(codemode ? ["--codemode-only"] : []),
+			"a prompt with spaces"], { cwd: setup.directory, env: setup.env });
 		assert.equal(result.status, 0, result.stderr);
 		const record = await readRecord(setup);
 		const fixtures = ["payload-changes", "payload-remove-tool"].map((fixture) =>
@@ -170,9 +171,7 @@ test("--mock preserves a selected installed package theme without loading packag
 		...SETTINGS, theme: "one-dark", packages: [{ source: "npm:@demo/themes", themes: ["-palettes/unused.json"] }],
 	};
 	await writeFile(join(setup.agentDir, "settings.json"), JSON.stringify(settings));
-	const result = spawnSync("bash", [SCRIPT, "--mock"], {
-		cwd: setup.directory, env: setup.env, encoding: "utf8", timeout: 15_000,
-	});
+	const result = await runCommand("bash", [SCRIPT, "--mock"], { cwd: setup.directory, env: setup.env });
 	assert.equal(result.status, 0, result.stderr);
 	const record = await readRecord(setup);
 	assert.equal(record.settings.theme, "one-dark");
@@ -188,7 +187,7 @@ test("--mock preserves a selected installed package theme without loading packag
 test("--mock works without inherited settings", async (t) => {
 	const setup = await prepareLauncher(t);
 	await rm(join(setup.agentDir, "settings.json"));
-	const result = spawnSync("bash", [SCRIPT, "--mock"], { env: setup.env, encoding: "utf8", timeout: 15_000 });
+	const result = await runCommand("bash", [SCRIPT, "--mock"], { env: setup.env });
 	assert.equal(result.status, 0, result.stderr);
 	const record = await readRecord(setup);
 	assert.equal(record.settings.theme, undefined);
@@ -199,9 +198,7 @@ test("--mock --local discovers global extensions without inherited settings", as
 	const setup = await prepareLauncher(t);
 	await rm(join(setup.agentDir, "settings.json"));
 	await writeLocalExtension(join(setup.agentDir, "extensions/auto.ts"), "auto");
-	const result = spawnSync("bash", [SCRIPT, "--mock", "--local"], {
-		cwd: setup.directory, env: setup.env, encoding: "utf8", timeout: 15_000,
-	});
+	const result = await runCommand("bash", [SCRIPT, "--mock", "--local"], { cwd: setup.directory, env: setup.env });
 	assert.equal(result.status, 0, result.stderr);
 	const record = await readRecord(setup);
 	assert.deepEqual(record.settings.extensions, [join(setup.agentDir, "extensions/auto.ts"),
@@ -216,9 +213,7 @@ test("--mock --local discovers global extensions without inherited settings", as
 for (const conflict of ["--model=real/model", "-c"]) {
 	test(`--mock rejects ${conflict} rather than overriding isolation`, async (t) => {
 		const setup = await prepareLauncher(t);
-		const result = spawnSync("bash", [SCRIPT, "--mock", conflict, "unused"], {
-			env: setup.env, encoding: "utf8", timeout: 15_000,
-		});
+		const result = await runCommand("bash", [SCRIPT, "--mock", conflict, "unused"], { env: setup.env });
 		assert.equal(result.status, 1, result.stderr);
 		assert.match(result.stderr, /--mock cannot be combined/);
 		assert.deepEqual(await readdir(setup.temporaryDir), []);
@@ -228,18 +223,14 @@ for (const conflict of ["--model=real/model", "-c"]) {
 
 test("--mock respects -- before literal prompt text", async (t) => {
 	const setup = await prepareLauncher(t);
-	const result = spawnSync("bash", [SCRIPT, "--mock", "--", "--model"], {
-		env: setup.env, encoding: "utf8", timeout: 15_000,
-	});
+	const result = await runCommand("bash", [SCRIPT, "--mock", "--", "--model"], { env: setup.env });
 	assert.equal(result.status, 0, result.stderr);
 	assert.deepEqual((await readRecord(setup)).args.slice(-2), ["--", "--model"]);
 });
 
 test("--mock cleans up when Pi fails and preserves its exit code", async (t) => {
 	const setup = await prepareLauncher(t);
-	const result = spawnSync("bash", [SCRIPT, "--mock"], {
-		env: { ...setup.env, DEMO_MOCK_EXIT: "42" }, encoding: "utf8", timeout: 15_000,
-	});
+	const result = await runCommand("bash", [SCRIPT, "--mock"], { env: { ...setup.env, DEMO_MOCK_EXIT: "42" } });
 	assert.equal(result.status, 42, result.stderr);
 	await assertCleanedUp(setup, await readRecord(setup));
 });
@@ -247,14 +238,14 @@ test("--mock cleans up when Pi fails and preserves its exit code", async (t) => 
 test("--mock cleans up on invalid inherited settings", async (t) => {
 	const setup = await prepareLauncher(t);
 	await writeFile(join(setup.agentDir, "settings.json"), "invalid JSON");
-	const result = spawnSync("bash", [SCRIPT, "--mock"], { env: setup.env, encoding: "utf8", timeout: 15_000 });
+	const result = await runCommand("bash", [SCRIPT, "--mock"], { env: setup.env });
 	assert.equal(result.status, 1);
 	assert.match(result.stderr, /Cannot read Pi display settings/);
 	assert.deepEqual(await readdir(setup.temporaryDir), []);
 });
 
 for (const [signal, exitCode] of [["SIGINT", 130], ["SIGTERM", 143]] as const) {
-	test(`--mock forwards ${signal} and cleans up the server and config`, { timeout: 15_000 }, async (t) => {
+	test(`--mock forwards ${signal} and cleans up the server and config`, { timeout: 30_000 }, async (t) => {
 		const setup = await prepareLauncher(t);
 		const child = spawn("bash", [SCRIPT, "--mock"], {
 			env: { ...setup.env, DEMO_MOCK_WAIT: "1" }, stdio: "ignore",
@@ -279,10 +270,10 @@ for (const [local, codemode] of [[false, false], [true, true]]) {
 		await writeFile(join(setup.directory, "pi"),
 			`#!/bin/bash\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(cli)} "$@"\n`);
 		const eventsPath = join(setup.directory, "local-events.jsonl");
-		const result = spawnSync("bash", [SCRIPT, "--mock", ...(local ? ["--local"] : []),
+		const result = await runCommand("bash", [SCRIPT, "--mock", ...(local ? ["--local"] : []),
 			"--context", "--system", "--payload", "--message", ...(codemode ? ["--codemode-only"] : []),
 			"--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files", "--print", "Review a workflow."], {
-			cwd: setup.directory, env: { ...setup.env, DEMO_LOCAL_EVENTS: eventsPath }, encoding: "utf8", timeout: 30_000,
+			cwd: setup.directory, env: { ...setup.env, DEMO_LOCAL_EVENTS: eventsPath }, timeout: 30_000,
 		});
 		assert.equal(result.status, 0, result.stderr);
 		assert.equal(result.stdout.trim(), MOCK_REPLY);
@@ -312,8 +303,8 @@ for (const [local, codemode] of [[false, false], [true, true]]) {
 test("--mock cleans up when the Pi executable is unavailable", async (t) => {
 	const setup = await prepareLauncher(t);
 	const runner = fileURLToPath(new URL("../scripts/demo-mock.ts", import.meta.url));
-	const result = spawnSync(process.execPath, [runner, "false", "false"], {
-		env: { ...setup.env, PATH: setup.temporaryDir }, encoding: "utf8", timeout: 15_000,
+	const result = await runCommand(process.execPath, [runner, "false", "false"], {
+		env: { ...setup.env, PATH: setup.temporaryDir },
 	});
 	assert.equal(result.status, 1);
 	assert.match(result.stderr, /spawn pi ENOENT/);
@@ -495,7 +486,8 @@ async function readRecord(setup: LauncherSetup): Promise<MockRunRecord> {
 
 /** Wait for the recorder to prove Pi has started before signaling the launcher. */
 async function waitForRecord(setup: LauncherSetup): Promise<MockRunRecord> {
-	for (let attempt = 0; attempt < 200; attempt++) {
+	// Concurrent tests slow the launcher's start; stay within the 30-second test timeout
+	for (let attempt = 0; attempt < 1_000; attempt++) {
 		try {
 			return await readRecord(setup);
 		} catch {
@@ -505,15 +497,16 @@ async function waitForRecord(setup: LauncherSetup): Promise<MockRunRecord> {
 	throw new Error("Mock Pi did not start");
 }
 
-/** Verify both resources were released and all inherited files stayed unchanged. */
+/**
+ * Verify the temporary config was removed and all inherited files stayed
+ * unchanged. The mock server lives in the exited launcher process, so it is
+ * gone too; probing its port could reach another concurrent test's server.
+ */
 async function assertCleanedUp(
 	setup: LauncherSetup, record: MockRunRecord, settings: Record<string, unknown> = SETTINGS,
 ): Promise<void> {
 	assert.notEqual(record.agentDir, setup.agentDir);
 	assert.deepEqual(await readdir(setup.temporaryDir), []);
-	await assert.rejects(fetch(`${record.models.providers["demo-mock"].baseUrl}/chat/completions`, {
-		signal: AbortSignal.timeout(1_000),
-	}));
 	assert.equal(await readFile(join(setup.agentDir, "settings.json"), "utf8"), JSON.stringify(settings));
 	assert.equal(await readFile(join(setup.agentDir, "keybindings.json"), "utf8"), KEYBINDINGS);
 	assert.equal(await readFile(join(setup.agentDir, "themes/custom.json"), "utf8"), THEME);

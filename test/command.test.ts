@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { type ExtensionAPI, type ExtensionCommandContext, SettingsManager } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
 import {
 	CONTEXT_COMMAND_DESCRIPTION,
@@ -20,6 +20,8 @@ import { SilentProbe } from "../src/probe/silent-probe.ts";
 import { ProbeTrigger } from "../src/probe/trigger.ts";
 import { type RequestSnapshot, SnapshotStore } from "../src/snapshot.ts";
 import { readProbeToken } from "../src/probe/token.ts";
+// Never read the developer's global settings during unit tests
+import "./harness/settings.ts";
 
 /** Collect what a command reports through the TUI notification path. */
 function createNotifyingContext(): {
@@ -132,8 +134,7 @@ test("reportConfigCreation reports every create outcome with its own severity", 
 	]);
 });
 
-test("resolveRequestSnapshot sends the synthetic prompt inside the probe token scope", async (t) => {
-	t.mock.method(SettingsManager, "create", () => SettingsManager.inMemory());
+test("resolveRequestSnapshot sends the synthetic prompt inside the probe token scope", async () => {
 	const probe = new SilentProbe(new ProbeFilter());
 	const compaction = new CompactionState();
 	let sentContent: string | undefined;

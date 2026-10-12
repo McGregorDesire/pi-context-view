@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { afterEach, beforeEach, mock, test } from "node:test";
+import { test } from "node:test";
 
-import { type ExtensionAPI, type ExtensionCommandContext, SettingsManager } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
 import { CompactionState } from "../src/compaction.ts";
 import { ProbeFilter } from "../src/probe/filter.ts";
@@ -9,14 +9,10 @@ import { SilentProbe } from "../src/probe/silent-probe.ts";
 import { readProbeToken } from "../src/probe/token.ts";
 import { ProbeTrigger } from "../src/probe/trigger.ts";
 import { type CaptureOrigin, type GuardResult, type RequestSnapshot, SnapshotStore } from "../src/snapshot.ts";
+// Never read the developer's global settings during unit tests
+import "./harness/settings.ts";
 
 const INCOMPLETE: GuardResult = { status: "incomplete", reason: "No provider payload was observed for this request." };
-
-beforeEach(() => {
-	// Never read the developer's global settings during unit tests
-	mock.method(SettingsManager, "create", () => SettingsManager.inMemory());
-});
-afterEach(() => mock.restoreAll());
 
 /** A minimal snapshot with no changes. */
 function snapshot(id: number, origin: CaptureOrigin, guard: GuardResult): RequestSnapshot {

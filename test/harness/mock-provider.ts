@@ -13,18 +13,11 @@ export type MockApi = "openai-completions" | "openai-responses" | "anthropic-mes
 /** One scripted answer; the queue falls back to `DEFAULT_REPLY` when empty. */
 export type MockReply =
 	| { readonly type: "text"; readonly text: string; readonly delayMs?: number }
-	| {
-		readonly type: "tool-call";
-		readonly name: string;
-		readonly arguments: Record<string, unknown>;
-		readonly delayMs?: number;
-	}
+	| { readonly type: "tool-call"; readonly name: string; readonly arguments: Record<string, unknown> }
 	| { readonly type: "error"; readonly status: number; readonly message: string };
 
 /** One HTTP request as the provider received it. */
 export interface RecordedRequest {
-	readonly api: MockApi;
-	readonly path: string;
 	readonly body: Record<string, unknown>;
 }
 
@@ -57,14 +50,13 @@ export async function startMockProvider(): Promise<MockProvider> {
 
 	/** Record the request, take the next reply and answer in the request's API format. */
 	async function handleRequest(request: IncomingMessage, response: ServerResponse): Promise<void> {
-		const path = request.url ?? "";
-		const api = apiForPath(path);
+		const api = apiForPath(request.url ?? "");
 		if (!api) {
 			response.writeHead(404).end();
 			return;
 		}
 		const body = JSON.parse(await readBody(request)) as Record<string, unknown>;
-		requests.push({ api, path, body });
+		requests.push({ body });
 		for (const notify of waiters) notify();
 		const reply = replies.shift() ?? DEFAULT_REPLY;
 		replyCount++;
@@ -75,7 +67,7 @@ export async function startMockProvider(): Promise<MockProvider> {
 		}
 		response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
 		response.flushHeaders();
-		if (reply.delayMs) await sleep(reply.delayMs);
+		if (reply.type === "text" && reply.delayMs) await sleep(reply.delayMs);
 		const model = typeof body.model === "string" ? body.model : "mock";
 		response.end(streamEvents(api, reply, model, replyCount).join(""));
 	}

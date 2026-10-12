@@ -18,6 +18,7 @@ import { buildUsageSnapshot } from "../src/replay.ts";
 import { SnapshotStore } from "../src/snapshot.ts";
 import { computeUsage } from "../src/usage.ts";
 import { type MockApi, startMockProvider } from "./harness/mock-provider.ts";
+import { useSettings } from "./harness/settings.ts";
 
 const ACTIVE = ["read", "bash", "edit", "write", "codemode"];
 const HIDDEN = ["read", "bash", "edit", "write"];
@@ -128,7 +129,7 @@ async function createRuntime(t: TestContext, api: MockApi) {
 		cacheWarming: "off", compaction: { enabled: false }, retry: { enabled: false },
 		defaultTools: ACTIVE, codemode: { mode: "only" },
 	});
-	t.mock.method(SettingsManager, "create", () => settingsManager);
+	useSettings(t, directory, () => settingsManager);
 	const modelRuntime = await ModelRuntime.create({
 		authPath: join(directory, "auth.json"), modelsPath: null, refreshOnCreate: false, allowModelNetwork: false,
 	});

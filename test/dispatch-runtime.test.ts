@@ -26,6 +26,7 @@ import {
 
 import { PAYLOAD_SHAPE_CHECKS } from "../src/capture/payload.ts";
 import { type MockApi, type MockProvider, startMockProvider } from "./harness/mock-provider.ts";
+import { useSettings } from "./harness/settings.ts";
 
 const APIS = ["openai-completions", "openai-responses", "anthropic-messages"] as const satisfies readonly MockApi[];
 
@@ -264,7 +265,7 @@ async function createRuntime(t: TestContext, options: RuntimeOptions): Promise<R
 	const settingsManager = SettingsManager.inMemory({
 		cacheWarming: "off", compaction: { enabled: false }, retry: { enabled: false },
 	});
-	t.mock.method(SettingsManager, "create", () => settingsManager);
+	useSettings(t, directory, () => settingsManager);
 	const modelRuntime = await ModelRuntime.create({
 		authPath: join(directory, "auth.json"), modelsPath: null, refreshOnCreate: false, allowModelNetwork: false,
 	});

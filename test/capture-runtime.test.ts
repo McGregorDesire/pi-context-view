@@ -54,6 +54,7 @@ import sectionPatch, { SECTION_PATCH_SECTIONS } from "./fixtures/section-patch.t
 import systemAddMessage, { SYSTEM_ADD_MESSAGE_TEXT, SYSTEM_ADD_MESSAGE_TYPE } from "./fixtures/system-add-message.ts";
 import systemAppend, { SYSTEM_APPEND_TEXT } from "./fixtures/system-append.ts";
 import { type MockProvider, startMockProvider } from "./harness/mock-provider.ts";
+import { useSettings } from "./harness/settings.ts";
 
 const PROVIDER = "capture-test";
 const NO_PAYLOAD = { status: "incomplete", reason: "No provider payload was observed for this request." };
@@ -534,7 +535,7 @@ async function createRuntime(t: TestContext, provider: MockProvider, options: Ru
 	const settingsManager = SettingsManager.inMemory({
 		cacheWarming: "off", compaction: { enabled: false, keepRecentTokens: 1 },
 	});
-	t.mock.method(SettingsManager, "create", () => settingsManager);
+	useSettings(t, directory, () => settingsManager);
 	const modelRuntime = await ModelRuntime.create({
 		authPath: join(directory, "auth.json"), modelsPath: null, refreshOnCreate: false, allowModelNetwork: false,
 	});

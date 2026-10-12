@@ -24,6 +24,7 @@ import { PROBE_IDENTITIES_CUSTOM_TYPE } from "../src/probe/filter.ts";
 import forcedPrompt from "./fixtures/forced-prompt.ts";
 import inputTransform from "./fixtures/input-transform.ts";
 import marker from "./fixtures/marker.ts";
+import { useSettings } from "./harness/settings.ts";
 
 /** Loopback-only provider that records requests and returns a deterministic assistant response. */
 async function startProvider(t: TestContext) {
@@ -61,7 +62,7 @@ async function createRuntime(t: TestContext, baseUrl: string, factories: Extensi
 	const directory = await mkdtemp(join(tmpdir(), "context-probe-test-"));
 	t.after(() => rm(directory, { recursive: true, force: true }));
 	const settingsManager = SettingsManager.inMemory({ cacheWarming: "off", compaction: { enabled: false } });
-	t.mock.method(SettingsManager, "create", () => settingsManager);
+	useSettings(t, directory, () => settingsManager);
 	const runtime = await ModelRuntime.create({
 		authPath: join(directory, "auth.json"),
 		modelsPath: null,

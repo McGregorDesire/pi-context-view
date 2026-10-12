@@ -1,11 +1,12 @@
 /** Demo launcher argument and load-order checks, without starting a provider. */
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { access, chmod, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
+
+import { runCommand } from "./harness/run-command.ts";
 
 const SCRIPT = fileURLToPath(new URL("../scripts/demo-injections.sh", import.meta.url));
 const MONITOR = fileURLToPath(new URL("../src/index.ts", import.meta.url));
@@ -147,9 +148,8 @@ async function runLauncher(t: TestContext, args: string[], settings?: string): P
 		PI_CODING_AGENT_DIR: realAgentDir,
 		DEMO_TEST_DIR: directory,
 	};
-	const result = spawnSync("bash", [SCRIPT, ...args], { cwd: directory, env, encoding: "utf8" });
+	const result = await runCommand("bash", [SCRIPT, ...args], { cwd: directory, env });
 	assert.equal(result.status, 0, result.stderr);
-	assert.equal(result.error, undefined);
 	const recorded = (name: string) => readFile(join(directory, name), "utf8");
 	return {
 		args: result.stdout.split("\0").slice(0, -1),

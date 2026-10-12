@@ -24,6 +24,7 @@ import payloadChanges, {
 	PAYLOAD_CHANGE_ADDED, PAYLOAD_CHANGE_DELETED, PAYLOAD_CHANGE_MODIFIED, PAYLOAD_CHANGE_ORIGINAL,
 } from "./fixtures/payload-changes.ts";
 import { type MockApi, type MockProvider, startMockProvider } from "./harness/mock-provider.ts";
+import { useSettings } from "./harness/settings.ts";
 
 const APIS = ["openai-completions", "openai-responses", "anthropic-messages"] as const;
 const MCP_SERVER = fileURLToPath(new URL("./fixtures/mcp-server.ts", import.meta.url));
@@ -578,12 +579,15 @@ async function exerciseToolChanges(runtime: Runtime): Promise<void> {
 async function createRuntime(t: TestContext, options: RuntimeOptions = {}): Promise<Runtime> {
 	const provider = await startMockProvider();
 	t.after(() => provider.close());
+	// After hooks run in registration order: a late warm refresh must stop before its auth file is removed
+	let stopSession: (() => Promise<void>) | undefined;
+	t.after(() => stopSession?.());
 	const directory = await temporaryDirectory(t);
 	const settingsManager = SettingsManager.inMemory({
 		cacheWarming: "off", compaction: { enabled: false }, retry: { enabled: false, provider: { maxRetries: 0 } },
 		defaultTools: ["read", "write"], ...options.settings,
 	});
-	t.mock.method(SettingsManager, "create", () => settingsManager);
+	useSettings(t, directory, () => settingsManager);
 	const modelRuntime = await ModelRuntime.create({
 		authPath: join(directory, "auth.json"), modelsPath: null, refreshOnCreate: false, allowModelNetwork: false,
 	});
@@ -619,7 +623,10 @@ async function createRuntime(t: TestContext, options: RuntimeOptions = {}): Prom
 		model: models.find((model) => model.api === (options.api ?? "openai-completions") && model.id === (options.modelId ?? "vision")),
 		thinkingLevel: "off",
 	});
-	t.after(async () => { await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" }); session.dispose(); });
+	stopSession = async () => {
+		await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
+		session.dispose();
+	};
 	assert.deepEqual(extensionsResult.errors, []);
 	const errors: string[] = [];
 	await session.bindExtensions({ mode: "rpc", onError: (error) => { errors.push(`${error.event}: ${error.error}`); } });

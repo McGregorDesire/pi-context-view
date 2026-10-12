@@ -34,5 +34,6 @@ The command accepts only `usage`, `injections`, and `config`; keep both views un
 pnpm check
 ```
 
+- **Shared test process.** `pnpm test` runs every test file concurrently in one process: no top-level hooks, no observable process-wide state changes, and no mocks that change a shared static method's behavior. `doc/architecture/validation.md` lists the safe patterns.
 - **Lifecycle changes.** Load `test/fixtures/marker.ts`, `test/fixtures/forced-prompt.ts`, and `test/fixtures/input-transform.ts` in both extension orders and use an `after_provider_response` sentinel to prove a probe makes no provider request. Runtime tests use the mock provider in `test/harness/`; `doc/architecture/validation.md` maps each validation case to its tests.
 - **TUI changes.** Run real-PTY UI checks and provider smoke tests only when explicitly requested. When requested, follow the `pi-extension` skill and exercise the dimensions and interactions required by `doc/UI.md`.

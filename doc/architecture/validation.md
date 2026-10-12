@@ -12,13 +12,25 @@ Runtime tests run the pinned Pi packages in process, through
 | Path                            | Purpose                                                                                                                                                                                               |
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `test/harness/mock-provider.ts` | `startMockProvider()`: loopback OpenAI Completions, OpenAI Responses, and Anthropic streaming with scripted replies, tool calls, delayed stream events, and HTTP failures; records every request body |
+| `test/harness/settings.ts`      | Replaces `SettingsManager.create()` once: `useSettings()` registers a test's settings for its own working directory; any other directory gets empty in-memory settings                                |
+| `test/harness/run-command.ts`   | `runCommand()`: runs a launcher without blocking the event loop, so concurrent launcher tests overlap                                                                                                 |
+| `test/run.ts`                   | `pnpm test` entry point: all test files in one process, with the top-level tests of every file running concurrently                                                                                   |
 | `test/fixtures/`                | Independent regular-test extensions; the header comment states the expected result in both load orders                                                                                              |
 | `scripts/fixtures/`             | Demo-only extensions, independent of `test/fixtures/`; changes here do not change regular-test behavior                                                                                               |
 | `scripts/demo-injections.sh`    | Starts Pi with selected groups from `scripts/fixtures/` in either load order; [demo-injections.md](../../scripts/demo-injections.md) records the results per version                                  |
 
 Runtime tests disable discovered resources, including Pi's built-in extensions,
 and add the built-ins they need as extension factories, such as
-`createCodemodeExtension()`. `demo-injections.test.ts` checks launcher
+`createCodemodeExtension()`.
+
+Because every test shares one process and runs concurrently, a test must not
+change process-wide state in a way other tests can observe, and a file must not
+register top-level hooks, which would apply to every file. Mock
+shared static methods through a registry such as `test/harness/settings.ts`,
+keyed by a per-test temporary directory. Use asynchronous child processes, and
+never probe a closed loopback port: another test may already have reused it.
+
+`demo-injections.test.ts` checks launcher
 selection, order, and demo fixture paths without starting a provider.
 `demo-mock.test.ts` checks the launcher's optional `--mock` mode: a separate,
 Completions-only loopback endpoint that discards bodies, appearance-only
