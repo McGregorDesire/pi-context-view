@@ -132,7 +132,7 @@ flowchart TD
 | `src/model.ts`               | Define types, ownership, hierarchy, and grouping.                                                             |
 | `src/text.ts`                | Sanitize dynamic text before terminal display.                                                                |
 | `src/ui/`                    | Handle navigation, layout, previews, and fullscreen rendering.                                                |
-| `test/harness/`              | Mock provider and RPC driver for runtime tests; see [validation.md](architecture/validation.md).              |
+| `test/harness/`              | Mock provider for runtime tests; see [validation.md](architecture/validation.md).                             |
 | `test/fixtures/`             | Independent regular-test extensions that change requests at each lifecycle point, for both load orders.       |
 | `scripts/fixtures/`          | Demo-only extensions for `scripts/demo-injections.sh`; share no fixture modules with regular tests.            |
 

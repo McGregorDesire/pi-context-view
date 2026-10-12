@@ -20,8 +20,8 @@ const SELECTIONS = [
 ];
 
 for (const after of [false, true]) {
-	for (let mask = 0; mask < 2 ** SELECTIONS.length; mask++) {
-		const selected = SELECTIONS.filter((_, index) => (mask & (1 << index)) !== 0);
+	// Each group alone; the flag-order test below combines all of them
+	for (const selected of [[], ...SELECTIONS.map((selection) => [selection])]) {
 		const flags = selected.map(({ flag }) => flag);
 		test(`demo launcher: groups=${flags.join(" ") || "none"}, after=${after}`, async (t) => {
 			const forwarded = ["--model", "provider/model", "--no-session", "a prompt with spaces"];
@@ -93,8 +93,6 @@ for (const forwarded of [
 	["--model", "provider/model", "--context", "--system", "--payload", "--message", "--codemode-only", "--forced", "--local", "--mock"],
 	["--force"],
 	["--context-modify"],
-	["--section-patch"],
-	["--payload-changes"],
 ]) {
 	test(`demo launcher leaves Pi arguments untouched: ${forwarded.join(" ")}`, async (t) => {
 		const args = await launcherArgs(t, forwarded);

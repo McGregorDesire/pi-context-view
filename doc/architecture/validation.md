@@ -6,19 +6,19 @@ Rendering checks belong to [UI.md](../UI.md#responsive-rendering).
 
 ## Harness
 
-Runtime tests run the pinned Pi CLI against a local mock provider:
+Runtime tests run the pinned Pi packages in process, through
+`createAgentSession()`, against a local mock provider:
 
 | Path                            | Purpose                                                                                                                                                                                               |
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `test/harness/mock-provider.ts` | `startMockProvider()`: loopback OpenAI Completions, OpenAI Responses, and Anthropic streaming with scripted replies, tool calls, delayed stream events, and HTTP failures; records every request body |
-| `test/harness/pi-rpc.ts`        | `startPi()`: Pi in RPC mode with an isolated `PI_CODING_AGENT_DIR`, a scratch working directory, no discovered resources, a `vision` and a text-only model per mock API, and deterministic settings   |
-| `test/harness.test.ts`          | Checks the harness and every fixture's effect on the request                                                                                                                                          |
 | `test/fixtures/`                | Independent regular-test extensions; the header comment states the expected result in both load orders                                                                                              |
 | `scripts/fixtures/`             | Demo-only extensions, independent of `test/fixtures/`; changes here do not change regular-test behavior                                                                                               |
 | `scripts/demo-injections.sh`    | Starts Pi with selected groups from `scripts/fixtures/` in either load order; [demo-injections.md](../../scripts/demo-injections.md) records the results per version                                  |
 
-`--no-extensions` also disables Pi's built-in extensions; runtime tests add the
-ones they need with `builtin:<name>`. `demo-injections.test.ts` checks launcher
+Runtime tests disable discovered resources, including Pi's built-in extensions,
+and add the built-ins they need as extension factories, such as
+`createCodemodeExtension()`. `demo-injections.test.ts` checks launcher
 selection, order, and demo fixture paths without starting a provider.
 `demo-mock.test.ts` checks the launcher's optional `--mock` mode: a separate,
 Completions-only loopback endpoint that discards bodies, appearance-only

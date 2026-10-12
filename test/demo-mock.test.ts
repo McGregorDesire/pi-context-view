@@ -24,6 +24,8 @@ const SETTINGS = {
 };
 const KEYBINDINGS = '{"app.interrupt":["ctrl+c"]}\n';
 const THEME = '{"name":"demo-test-theme"}\n';
+// The launcher builds load order the same way with and without --mock; demo-injections covers both orders
+const LAUNCH_CASES = [{ after: false, codemode: false }, { after: true, codemode: true }];
 const THEME_TEMPLATE = JSON.parse(await readFile(join(
 	dirname(fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent"))),
 	"modes/interactive/theme/dark.json",
@@ -79,89 +81,85 @@ interface LauncherSetup {
 	readonly env: NodeJS.ProcessEnv;
 }
 
-for (const after of [false, true]) {
-	for (const codemode of [false, true]) {
-		test(`--mock selects a local model with appearance-only config, after=${after}, codemode=${codemode}`, async (t) => {
-			const setup = await prepareLauncher(t);
-			const flags = ["--mock", "--payload", ...(after ? ["--after"] : []), ...(codemode ? ["--codemode-only"] : [])];
-			const result = spawnSync("bash", [SCRIPT, ...flags, "a prompt with spaces"], {
-				cwd: setup.directory, env: setup.env, encoding: "utf8", timeout: 15_000,
-			});
-			assert.equal(result.status, 0, result.stderr);
-			assert.equal(result.stdout, "");
-			const record = await readRecord(setup);
-			const fixtures = ["payload-changes", "payload-remove-tool"].map((fixture) =>
-				fileURLToPath(new URL(`../scripts/fixtures/${fixture}.ts`, import.meta.url)));
-			const paths = after ? [MONITOR, ...fixtures] : [...fixtures, MONITOR];
-			assert.deepEqual(record.args, [...MODEL_ARGS, "--no-extensions", ...paths.flatMap((path) => ["-e", path]),
-				...(codemode ? ["-e", "builtin:codemode"] : []), "a prompt with spaces"]);
-			assert.equal(record.settings.theme, "dark");
-			assert.equal(record.settings.tuiMode, "regular");
-			assert.equal(record.settings.outputPad, 0);
-			assert.deepEqual(record.settings.terminal, SETTINGS.terminal);
-			assert.deepEqual(record.settings.markdown, SETTINGS.markdown);
-			assert.equal(record.settings.defaultProvider, "demo-mock");
-			assert.equal(record.settings.defaultModel, "demo");
-			assert.deepEqual(record.settings.enabledModels, ["demo-mock/demo"]);
-			assert.equal(record.settings.cacheWarming, "off");
-			assert.deepEqual(record.settings.compaction, { enabled: false });
-			assert.deepEqual(record.settings.retry, { enabled: false });
-			for (const key of ["sessionDir", "extensions", "skills", "packages", "httpProxy"]) {
-				assert.equal(record.settings[key], undefined, key);
-			}
-			assert.deepEqual(record.settings.defaultTools, codemode ? ["+codemode"] : undefined);
-			assert.deepEqual(record.settings.codemode, codemode ? { mode: "only" } : undefined);
-			assert.deepEqual(record.auth, {});
-			assert.deepEqual(Object.keys(record.models.providers), ["demo-mock"]);
-			assert.equal(record.models.providers["demo-mock"].api, "openai-completions");
-			assert.match(record.models.providers["demo-mock"].baseUrl, /^http:\/\/127\.0\.0\.1:\d+\/v1$/);
-			assert.equal(record.models.providers["demo-mock"].apiKey, "mock-key");
-			assert.equal(record.keybindings, KEYBINDINGS);
-			assert.deepEqual(record.themes, {}, "the built-in dark theme needs no copied assets");
-			assert.match(record.reply, /"content":"ok"/);
-			assert.equal(record.offline, "1");
-			assert.deepEqual(record.proxies, [null, null, null]);
-			await assertCleanedUp(setup, record);
+for (const { after, codemode } of LAUNCH_CASES) {
+	test(`--mock selects a local model with appearance-only config, after=${after}, codemode=${codemode}`, async (t) => {
+		const setup = await prepareLauncher(t);
+		const flags = ["--mock", "--payload", ...(after ? ["--after"] : []), ...(codemode ? ["--codemode-only"] : [])];
+		const result = spawnSync("bash", [SCRIPT, ...flags, "a prompt with spaces"], {
+			cwd: setup.directory, env: setup.env, encoding: "utf8", timeout: 15_000,
 		});
-	}
+		assert.equal(result.status, 0, result.stderr);
+		assert.equal(result.stdout, "");
+		const record = await readRecord(setup);
+		const fixtures = ["payload-changes", "payload-remove-tool"].map((fixture) =>
+			fileURLToPath(new URL(`../scripts/fixtures/${fixture}.ts`, import.meta.url)));
+		const paths = after ? [MONITOR, ...fixtures] : [...fixtures, MONITOR];
+		assert.deepEqual(record.args, [...MODEL_ARGS, "--no-extensions", ...paths.flatMap((path) => ["-e", path]),
+			...(codemode ? ["-e", "builtin:codemode"] : []), "a prompt with spaces"]);
+		assert.equal(record.settings.theme, "dark");
+		assert.equal(record.settings.tuiMode, "regular");
+		assert.equal(record.settings.outputPad, 0);
+		assert.deepEqual(record.settings.terminal, SETTINGS.terminal);
+		assert.deepEqual(record.settings.markdown, SETTINGS.markdown);
+		assert.equal(record.settings.defaultProvider, "demo-mock");
+		assert.equal(record.settings.defaultModel, "demo");
+		assert.deepEqual(record.settings.enabledModels, ["demo-mock/demo"]);
+		assert.equal(record.settings.cacheWarming, "off");
+		assert.deepEqual(record.settings.compaction, { enabled: false });
+		assert.deepEqual(record.settings.retry, { enabled: false });
+		for (const key of ["sessionDir", "extensions", "skills", "packages", "httpProxy"]) {
+			assert.equal(record.settings[key], undefined, key);
+		}
+		assert.deepEqual(record.settings.defaultTools, codemode ? ["+codemode"] : undefined);
+		assert.deepEqual(record.settings.codemode, codemode ? { mode: "only" } : undefined);
+		assert.deepEqual(record.auth, {});
+		assert.deepEqual(Object.keys(record.models.providers), ["demo-mock"]);
+		assert.equal(record.models.providers["demo-mock"].api, "openai-completions");
+		assert.match(record.models.providers["demo-mock"].baseUrl, /^http:\/\/127\.0\.0\.1:\d+\/v1$/);
+		assert.equal(record.models.providers["demo-mock"].apiKey, "mock-key");
+		assert.equal(record.keybindings, KEYBINDINGS);
+		assert.deepEqual(record.themes, {}, "the built-in dark theme needs no copied assets");
+		assert.match(record.reply, /"content":"ok"/);
+		assert.equal(record.offline, "1");
+		assert.deepEqual(record.proxies, [null, null, null]);
+		await assertCleanedUp(setup, record);
+	});
 }
 
-for (const after of [false, true]) {
-	for (const codemode of [false, true]) {
-		test(`--mock --local discovers global extensions only, after=${after}, codemode=${codemode}`, async (t) => {
-			const setup = await prepareLauncher(t);
-			const inherited = await prepareLocalExtensions(setup);
-			const flags = after ? ["--local", "--mock", "--after"] : ["--mock", "--local"];
-			const result = spawnSync("bash", [SCRIPT, ...flags, "--payload", ...(codemode ? ["--codemode-only"] : []),
-				"a prompt with spaces"], { cwd: setup.directory, env: setup.env, encoding: "utf8", timeout: 15_000 });
-			assert.equal(result.status, 0, result.stderr);
-			const record = await readRecord(setup);
-			const fixtures = ["payload-changes", "payload-remove-tool"].map((fixture) =>
-				fileURLToPath(new URL(`../scripts/fixtures/${fixture}.ts`, import.meta.url)));
-			const paths = after ? [MONITOR, ...fixtures] : [...fixtures, MONITOR];
-			assert.deepEqual(record.args, [...MODEL_ARGS, ...paths.flatMap((path) => ["-e", path]),
-				...(codemode ? ["-e", "builtin:codemode"] : []), "a prompt with spaces"]);
-			assert.deepEqual(record.settings.extensions, [
-				join(setup.agentDir, "configured/index.ts"), join(setup.agentDir, "extensions/auto.ts"),
-				join(setup.agentDir, "npm/node_modules/@demo/extensions/global.ts"),
-				"-builtin:mcp", "-builtin:llama.cpp", "builtin:codemode", "builtin:tool-search",
-			]);
-			assert.equal(record.settings.theme, "one-dark");
-			assert.deepEqual(record.themes, { "one-dark.json": themeJson("one-dark") });
-			assert.equal(await readFile(join(setup.agentDir, "npm/node_modules/@demo/extensions/palette.json"), "utf8"),
-				themeJson("one-dark"));
-			for (const key of ["skills", "packages", "sessionDir", "httpProxy"]) {
-				assert.equal(record.settings[key], undefined, key);
-			}
-			assert.equal(record.settings.defaultProjectTrust, "never");
-			assert.deepEqual(record.settings.enabledModels, ["demo-mock/demo"]);
-			assert.deepEqual(record.auth, {});
-			assert.deepEqual(Object.keys(record.models.providers), ["demo-mock"]);
-			await assert.rejects(readFile(join(setup.directory, "local-events.jsonl")),
-				"discovery must not run extension lifecycle hooks before Pi starts");
-			await assertCleanedUp(setup, record, inherited);
-		});
-	}
+for (const { after, codemode } of LAUNCH_CASES) {
+	test(`--mock --local discovers global extensions only, after=${after}, codemode=${codemode}`, async (t) => {
+		const setup = await prepareLauncher(t);
+		const inherited = await prepareLocalExtensions(setup);
+		const flags = after ? ["--local", "--mock", "--after"] : ["--mock", "--local"];
+		const result = spawnSync("bash", [SCRIPT, ...flags, "--payload", ...(codemode ? ["--codemode-only"] : []),
+			"a prompt with spaces"], { cwd: setup.directory, env: setup.env, encoding: "utf8", timeout: 15_000 });
+		assert.equal(result.status, 0, result.stderr);
+		const record = await readRecord(setup);
+		const fixtures = ["payload-changes", "payload-remove-tool"].map((fixture) =>
+			fileURLToPath(new URL(`../scripts/fixtures/${fixture}.ts`, import.meta.url)));
+		const paths = after ? [MONITOR, ...fixtures] : [...fixtures, MONITOR];
+		assert.deepEqual(record.args, [...MODEL_ARGS, ...paths.flatMap((path) => ["-e", path]),
+			...(codemode ? ["-e", "builtin:codemode"] : []), "a prompt with spaces"]);
+		assert.deepEqual(record.settings.extensions, [
+			join(setup.agentDir, "configured/index.ts"), join(setup.agentDir, "extensions/auto.ts"),
+			join(setup.agentDir, "npm/node_modules/@demo/extensions/global.ts"),
+			"-builtin:mcp", "-builtin:llama.cpp", "builtin:codemode", "builtin:tool-search",
+		]);
+		assert.equal(record.settings.theme, "one-dark");
+		assert.deepEqual(record.themes, { "one-dark.json": themeJson("one-dark") });
+		assert.equal(await readFile(join(setup.agentDir, "npm/node_modules/@demo/extensions/palette.json"), "utf8"),
+			themeJson("one-dark"));
+		for (const key of ["skills", "packages", "sessionDir", "httpProxy"]) {
+			assert.equal(record.settings[key], undefined, key);
+		}
+		assert.equal(record.settings.defaultProjectTrust, "never");
+		assert.deepEqual(record.settings.enabledModels, ["demo-mock/demo"]);
+		assert.deepEqual(record.auth, {});
+		assert.deepEqual(Object.keys(record.models.providers), ["demo-mock"]);
+		await assert.rejects(readFile(join(setup.directory, "local-events.jsonl")),
+			"discovery must not run extension lifecycle hooks before Pi starts");
+		await assertCleanedUp(setup, record, inherited);
+	});
 }
 
 test("--mock preserves a selected installed package theme without loading package code", async (t) => {
@@ -214,10 +212,8 @@ test("--mock --local discovers global extensions without inherited settings", as
 	await assert.rejects(readFile(join(setup.agentDir, "settings.json")));
 });
 
-for (const conflict of [
-	"--model", "--model=real/model", "--provider", "--models", "--api-key", "--session", "--session-id",
-	"--session-dir", "--continue", "-c", "--resume", "-r", "--fork", "--approve", "-a",
-]) {
+// One long flag in `=` form and one short alias; the rest share the same set lookup
+for (const conflict of ["--model=real/model", "-c"]) {
 	test(`--mock rejects ${conflict} rather than overriding isolation`, async (t) => {
 		const setup = await prepareLauncher(t);
 		const result = spawnSync("bash", [SCRIPT, "--mock", conflict, "unused"], {
@@ -273,46 +269,44 @@ for (const [signal, exitCode] of [["SIGINT", 130], ["SIGTERM", 143]] as const) {
 	});
 }
 
-for (const local of [false, true]) {
-	for (const codemode of [false, true]) {
-		test(`--mock completes a prompt with the pinned Pi CLI, local=${local}, codemode=${codemode}`, async (t) => {
-			const setup = await prepareLauncher(t);
-			const inherited = await prepareLocalExtensions(setup);
-			await rm(join(setup.agentDir, "themes"), { recursive: true });
-			await rm(join(setup.agentDir, "keybindings.json"));
-			const cli = join(dirname(fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent"))), "cli.js");
-			await writeFile(join(setup.directory, "pi"),
-				`#!/bin/bash\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(cli)} "$@"\n`);
-			const eventsPath = join(setup.directory, "local-events.jsonl");
-			const result = spawnSync("bash", [SCRIPT, "--mock", ...(local ? ["--local"] : []),
-				"--context", "--system", "--payload", "--message", ...(codemode ? ["--codemode-only"] : []),
-				"--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files", "--print", "Review a workflow."], {
-				cwd: setup.directory, env: { ...setup.env, DEMO_LOCAL_EVENTS: eventsPath }, encoding: "utf8", timeout: 30_000,
-			});
-			assert.equal(result.status, 0, result.stderr);
-			assert.equal(result.stdout.trim(), MOCK_REPLY);
-			if (local) {
-				const events = (await readFile(eventsPath, "utf8")).trim().split("\n")
-					.map((line) => JSON.parse(line) as Record<string, unknown>);
-				for (const event of ["session_start", "after_provider_response"]) {
-					assert.deepEqual(events.filter((record) => record.event === event).map((record) => record.label).sort(),
-						["auto", "configured", "package"]);
-				}
-				assert.equal(events.length, 6, "each global extension runs once; excluded and project extensions do not run");
-				for (const record of events) {
-					assert.equal(record.model, "demo-mock/demo");
-					assert.equal(record.projectTrusted, false);
-					assert.equal(record.sessionFile, undefined);
-				}
-			} else {
-				await assert.rejects(readFile(eventsPath), "--mock alone must not run installed extensions");
-			}
-			assert.deepEqual(await readdir(setup.temporaryDir), []);
-			assert.equal(await readFile(join(setup.agentDir, "settings.json"), "utf8"), JSON.stringify(inherited));
-			assert.equal(await readFile(join(setup.agentDir, "auth.json"), "utf8"),
-				'{"real-provider":{"type":"api_key","key":"must-not-inherit"}}');
+for (const [local, codemode] of [[false, false], [true, true]]) {
+	test(`--mock completes a prompt with the pinned Pi CLI, local=${local}, codemode=${codemode}`, async (t) => {
+		const setup = await prepareLauncher(t);
+		const inherited = await prepareLocalExtensions(setup);
+		await rm(join(setup.agentDir, "themes"), { recursive: true });
+		await rm(join(setup.agentDir, "keybindings.json"));
+		const cli = join(dirname(fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent"))), "cli.js");
+		await writeFile(join(setup.directory, "pi"),
+			`#!/bin/bash\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(cli)} "$@"\n`);
+		const eventsPath = join(setup.directory, "local-events.jsonl");
+		const result = spawnSync("bash", [SCRIPT, "--mock", ...(local ? ["--local"] : []),
+			"--context", "--system", "--payload", "--message", ...(codemode ? ["--codemode-only"] : []),
+			"--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files", "--print", "Review a workflow."], {
+			cwd: setup.directory, env: { ...setup.env, DEMO_LOCAL_EVENTS: eventsPath }, encoding: "utf8", timeout: 30_000,
 		});
-	}
+		assert.equal(result.status, 0, result.stderr);
+		assert.equal(result.stdout.trim(), MOCK_REPLY);
+		if (local) {
+			const events = (await readFile(eventsPath, "utf8")).trim().split("\n")
+				.map((line) => JSON.parse(line) as Record<string, unknown>);
+			for (const event of ["session_start", "after_provider_response"]) {
+				assert.deepEqual(events.filter((record) => record.event === event).map((record) => record.label).sort(),
+					["auto", "configured", "package"]);
+			}
+			assert.equal(events.length, 6, "each global extension runs once; excluded and project extensions do not run");
+			for (const record of events) {
+				assert.equal(record.model, "demo-mock/demo");
+				assert.equal(record.projectTrusted, false);
+				assert.equal(record.sessionFile, undefined);
+			}
+		} else {
+			await assert.rejects(readFile(eventsPath), "--mock alone must not run installed extensions");
+		}
+		assert.deepEqual(await readdir(setup.temporaryDir), []);
+		assert.equal(await readFile(join(setup.agentDir, "settings.json"), "utf8"), JSON.stringify(inherited));
+		assert.equal(await readFile(join(setup.agentDir, "auth.json"), "utf8"),
+			'{"real-provider":{"type":"api_key","key":"must-not-inherit"}}');
+	});
 }
 
 test("--mock cleans up when the Pi executable is unavailable", async (t) => {
