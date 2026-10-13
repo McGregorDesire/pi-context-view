@@ -41,6 +41,9 @@ so Pi's resource APIs are imported once in the shared test process. These cases
 use separate scratch directories without changing the process environment.
 Subprocess tests cover launcher wiring, argument rejection, signals, startup and
 child failures, and the real CLI; detailed config cases do not relaunch Pi.
+Missing npm packages have one focused launcher case with a child-only npm stub
+that permits only `npm root -g`. Shared config fixtures avoid missing npm
+packages so Pi's synchronous global-package lookup cannot block other tests.
 Theme cases cover selected installed-package assets, automatic
 light/dark pairs, manifest paths and exclusions, configured paths, and local
 packages, without executing package extensions during discovery or installing

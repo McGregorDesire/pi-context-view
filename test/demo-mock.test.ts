@@ -22,7 +22,7 @@ const SETTINGS = {
 	theme: "dark", tuiMode: "regular", outputPad: 0, terminal: { showImages: false }, markdown: { mermaid: "off" },
 	defaultProvider: "real-provider", defaultModel: "real-model", enabledModels: ["real-provider/*"],
 	defaultTools: ["read"], sessionDir: "/must-not-use", cacheWarming: "idle", httpProxy: "http://must-not-use",
-	extensions: ["/must-not-load"], skills: ["/must-not-load"], packages: ["npm:must-not-install"],
+	extensions: ["/must-not-load"], skills: ["/must-not-load"], packages: ["./must-not-install"],
 };
 const KEYBINDINGS = '{"app.interrupt":["ctrl+c"]}\n';
 const THEME = '{"name":"demo-test-theme"}\n';
@@ -236,6 +236,40 @@ test("--mock passes isolated config and arguments to Pi and cleans up after fail
 	await assertCleanedUp(setup, record);
 });
 
+test("--mock --local skips missing npm packages without installing them", async (t) => {
+	const setup = await prepareLauncher(t);
+	const settings = { ...SETTINGS, packages: ["npm:must-not-install"] };
+	await writeFile(join(setup.agentDir, "settings.json"), JSON.stringify(settings));
+	const globalRoot = join(setup.directory, "global-node-modules");
+	await mkdir(globalRoot);
+	const npmLog = join(setup.directory, "npm-calls.jsonl");
+	const npm = join(setup.directory, "npm");
+	// Keep npm calls inside this child environment; reject installation or network commands
+	await writeFile(npm, `#!${process.execPath}
+import { appendFileSync } from "node:fs";
+const args = process.argv.slice(2);
+appendFileSync(${JSON.stringify(npmLog)}, JSON.stringify(args) + "\\n");
+if (args.length === 2 && args[0] === "root" && args[1] === "-g") {
+	console.log(${JSON.stringify(globalRoot)});
+} else {
+	process.exitCode = 1;
+}
+`);
+	await chmod(npm, 0o755);
+	const result = await runCommand("bash", [SCRIPT, "--mock", "--local"], { env: setup.env });
+	assert.equal(result.status, 0, result.stderr);
+	const record = await readRecord(setup);
+	assert.deepEqual(record.settings.extensions,
+		["builtin:mcp", "builtin:llama.cpp", "builtin:codemode", "builtin:tool-search"]);
+	assert.equal(record.settings.packages, undefined);
+	assert.equal(await readFile(npmLog, "utf8"), '["root","-g"]\n');
+	assert.deepEqual(await readdir(globalRoot), []);
+	await assert.rejects(readFile(join(setup.agentDir, "npm/node_modules/must-not-install/package.json")),
+		{ code: "ENOENT" });
+	assert.deepEqual(await readdir(setup.temporaryDir), []);
+	await assertOriginalsUnchanged(setup, settings);
+});
+
 test("--mock cleans up on invalid inherited settings", async (t) => {
 	const setup = await prepareLauncher(t);
 	await writeFile(join(setup.agentDir, "settings.json"), "invalid JSON");
@@ -340,7 +374,7 @@ test("mock theme copying keeps only the selected light/dark pair from an install
 	await writeThemePackage(packageRoot);
 	await copySelectedThemes({
 		sourceDir: setup.agentDir, agentDir: destination,
-		settings: { theme: "day / one-dark", packages: ["npm:@demo/themes", "npm:must-not-install"] },
+		settings: { theme: "day / one-dark", packages: ["npm:@demo/themes"] },
 	});
 	assert.deepEqual((await readdir(join(destination, "themes"))).sort(), ["day.json", "one-dark.json"]);
 	assert.equal(await readFile(join(destination, "themes/day.json"), "utf8"), themeJson("day"));
@@ -404,7 +438,7 @@ async function prepareLocalExtensions(setup: ConfigSetup): Promise<Record<string
 	await writeFile(join(setup.directory, ".pi/settings.json"), JSON.stringify({ defaultModel: "project-must-not-use" }));
 	const settings = {
 		...SETTINGS, theme: "one-dark", extensions: ["./configured", "-extensions/skip.ts", "-builtin:mcp", "!builtin:llama.*"],
-		packages: [{ source: "npm:@demo/extensions", extensions: ["-skip.ts"] }, "npm:must-not-install"],
+		packages: [{ source: "npm:@demo/extensions", extensions: ["-skip.ts"] }],
 	};
 	await writeFile(join(setup.agentDir, "settings.json"), JSON.stringify(settings));
 	return settings;
