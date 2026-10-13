@@ -16,8 +16,8 @@ Runtime tests run the pinned Pi packages in process, through
 | `test/harness/run-command.ts`   | `runCommand()`: runs a launcher without blocking the event loop, so concurrent launcher tests overlap                                                                                                 |
 | `test/run.ts`                   | `pnpm test` entry point: all test files in one process, with the top-level tests of every file running concurrently                                                                                   |
 | `test/fixtures/`                | Independent regular-test extensions; the header comment states the expected result in both load orders                                                                                              |
-| `scripts/fixtures/`             | Demo-only extensions, independent of `test/fixtures/`; changes here do not change regular-test behavior                                                                                               |
-| `scripts/demo-injections.sh`    | Starts Pi with selected groups from `scripts/fixtures/` in either load order; [demo-injections.md](../../scripts/demo-injections.md) records the results per version                                  |
+| `scripts/demo-injections/`      | Demo-only extensions, independent of `test/fixtures/`, and the `--mock` runner (`demo-mock*.ts`); fixture changes do not change regular-test behavior                                                 |
+| `scripts/demo-injections.sh`    | Starts Pi with selected groups from `scripts/demo-injections/` in either load order; [demo-injections.md](../../scripts/demo-injections.md) records the results per version                           |
 
 Runtime tests disable discovered resources, including Pi's built-in extensions,
 and add the built-ins they need as extension factories, such as

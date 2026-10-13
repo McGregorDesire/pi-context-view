@@ -101,7 +101,7 @@ async function createRuntime(t: TestContext, baseUrl: string, factories: Extensi
 }
 
 for (const position of ["before", "after"] as const) {
-	test(`Pi 1.0 probe aborts, blanks and omits its entries with fixtures ${position}`, async (t) => {
+	test(`the probe aborts, blanks and omits its entries with fixtures ${position}`, async (t) => {
 		const provider = await startProvider(t);
 		const observed = { headers: 0, payloads: 0, responses: 0, contexts: 0, beforeSettle: 0, overlays: 0 };
 		const errors: string[] = [];

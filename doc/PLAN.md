@@ -117,10 +117,10 @@ each step.
     cases to the validation matrix; add `before_agent_start.messageType` and
     the run-start busy window to "After a Pi Upgrade".
 
-- [ ] **Pi 1.2: cleanup**:
-  - [ ] Rename the outdated `Pi 1.0 probe aborts, blanks and omits its
+- [x] **Pi 1.2: cleanup**:
+  - [x] Rename the outdated `Pi 1.0 probe aborts, blanks and omits its
     entries` test in `test/probe-runtime.test.ts`.
-  - [ ] Search `src/`, `doc/`, and `test/` for remaining outdated wording about
+  - [x] Search `src/`, `doc/`, and `test/` for remaining outdated wording about
     `before_agent_start`, `sendMessage`, and Pi `1.1`, and fix it.
 
 - [ ] **Pi 1.2: changelog and verification**:
