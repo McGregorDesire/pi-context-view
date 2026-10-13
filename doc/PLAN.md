@@ -4,8 +4,8 @@ Pi 1.2.0 support. Require Pi 1.2.0 and describe only its behavior: remove
 outdated text instead of describing both versions. Run `pnpm check` after
 each step.
 
-- [ ] **Pi 1.2: restore `pnpm check`**:
-  - [ ] Add `messageType: "user"` to the `before_agent_start` test events in
+- [x] **Pi 1.2: restore `pnpm check`**:
+  - [x] Add `messageType: "user"` to the `before_agent_start` test events in
     `test/capture-payload.test.ts` (lines 71, 98, 106) and
     `test/index-context.test.ts` (line 136).
 
