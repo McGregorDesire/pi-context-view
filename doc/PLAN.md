@@ -9,13 +9,13 @@ each step.
     `test/capture-payload.test.ts` (lines 71, 98, 106) and
     `test/index-context.test.ts` (line 136).
 
-- [ ] **Pi 1.2: require Pi 1.2.0**:
-  - [ ] `src/pi-version.ts`: set `MIN_PI_VERSION` to `"1.2.0"`.
-  - [ ] `test/pi-version.test.ts`: move `1.1.x` to the refused versions;
+- [x] **Pi 1.2: require Pi 1.2.0**:
+  - [x] `src/pi-version.ts`: set `MIN_PI_VERSION` to `"1.2.0"`.
+  - [x] `test/pi-version.test.ts`: move `1.1.x` to the refused versions;
     use `1.2.x` in the accepted examples (`v1.2.0`, `1.2.0-beta.1`, `1.2.1`).
-  - [ ] `test/command.test.ts`: build the expected `reportUnsupportedPi`
+  - [x] `test/command.test.ts`: build the expected `reportUnsupportedPi`
     message from `MIN_PI_VERSION` instead of a literal version.
-  - [ ] `doc/architecture/pi-requests.md`, "Supported Pi Versions": require
+  - [x] `doc/architecture/pi-requests.md`, "Supported Pi Versions": require
     `1.2.0` and add `before_agent_start.messageType` to the features it relies
     on; change the header to "Checked against Pi `1.2.0`".
 
