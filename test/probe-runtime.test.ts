@@ -26,10 +26,15 @@ import inputTransform from "./fixtures/input-transform.ts";
 import marker from "./fixtures/marker.ts";
 import { useSettings } from "./harness/settings.ts";
 
+/** The parts of an OpenAI chat-completions request body the tests read. */
+interface RequestBody {
+	messages: Array<{ role: string; content: string | Array<{ text?: string }> }>;
+}
+
 /** Loopback-only provider that records requests and returns a deterministic assistant response. */
 async function startProvider(t: TestContext) {
 	let requests = 0;
-	const bodies: Array<{ messages: Array<{ role: string }> }> = [];
+	const bodies: RequestBody[] = [];
 	const server = createServer((request, response) => {
 		// Count on arrival, so even a request that never completes is seen
 		requests++;
@@ -323,6 +328,68 @@ test("a nested custom-message run fails the attempt and the probe still claims i
 	assert.deepEqual(conversationRoles(projected), ["assistant"], "the nested run's reply stays visible");
 });
 
+for (const position of ["before", "after"] as const) {
+	test(`messages sent while the probe run starts stay visible with the sender ${position}`, async (t) => {
+		const provider = await startProvider(t);
+		const stopReasons: Array<[string, string | undefined]> = [];
+		let responses = 0;
+		const sentinel: ExtensionFactory = (pi) => {
+			pi.on("after_provider_response", () => { responses++; });
+			pi.on("message_end", (event) => {
+				if (event.message.role === "assistant") {
+					stopReasons.push([event.message.stopReason, event.message.errorMessage]);
+				}
+			});
+		};
+		// Pi counts the session as busy while a run starts, so both sends are queued into the probe run.
+		// The steered message inherits the probe token and usually shares the prompt's millisecond.
+		let sent = false;
+		const sender: ExtensionFactory = (pi) => {
+			pi.on("before_agent_start", () => {
+				if (sent) return;
+				sent = true;
+				pi.sendUserMessage("steered", { deliverAs: "steer" });
+				pi.sendMessage({ customType: "plain", content: "plain", display: true });
+			});
+		};
+		const ordered = position === "before" ? [sender, registerExtension] : [registerExtension, sender];
+		const session = await createRuntime(t, provider.baseUrl, [sentinel, ...ordered]);
+		const errors = await bindTui(session);
+		await session.prompt("/context injections");
+
+		assert.deepEqual(errors, []);
+		assert.equal(provider.requests(), 0, "the probe makes no provider request");
+		assert.equal(responses, 0);
+		// Pi delivers one queued message per turn: the custom one with the prompt, the steered one in an extra turn
+		assert.deepEqual(stopReasons, [["error", "This operation was aborted"], ["error", "This operation was aborted"]]);
+		const branch = session.sessionManager.getBranch();
+		const conversation = branch.flatMap((entry) => entry.type === "message"
+			&& (entry.message.role === "user" || entry.message.role === "assistant")
+			? [{ id: entry.id, message: entry.message }]
+			: []);
+		assert.deepEqual(conversation.map(({ message }) => [message.role, message.content]), [
+			["user", []],
+			["assistant", []],
+			["user", [{ type: "text", text: "steered" }]],
+			["assistant", []],
+		], "the probe prompt and both aborts are blanked, the steered message keeps its text");
+		assert.ok(conversation.every(({ message }) => message.role === "user" || message.stopReason === "stop"));
+		const steered = conversation[2];
+		assert.deepEqual(branch.filter((entry) => entry.type === "context_edit").map((entry) => entry.targetId),
+			conversation.filter((entry) => entry !== steered).map(({ id }) => id), "only probe entries are omitted");
+		const projected = session.sessionManager.buildSessionProjection().messages;
+		assert.deepEqual(projected.flatMap((message) => message.role === "custom" ? [message.customType] : []),
+			["plain"]);
+		assert.deepEqual(conversationRoles(projected), ["user"], "the steered message stays visible");
+
+		await session.prompt("real request");
+		assert.equal(provider.requests(), 1);
+		assert.deepEqual(userTexts(provider.bodies[0]), ["plain", "steered", "real request"],
+			"both messages reach the next real request");
+		assert.deepEqual(errors, []);
+	});
+}
+
 /**
  * Bind a session in TUI mode, where `/context` may probe; the view overlay
  * closes at once. Returns the extension errors reported from then on.
@@ -338,6 +405,16 @@ async function bindTui(session: AgentSession): Promise<string[]> {
 		} as unknown as ExtensionUIContext,
 	});
 	return errors;
+}
+
+/** Text of each user message in a request body; Pi sends custom messages as user messages. */
+function userTexts(body: RequestBody): string[] {
+	return body.messages.flatMap((message) => {
+		if (message.role !== "user") return [];
+		return typeof message.content === "string"
+			? [message.content]
+			: [message.content.map((part) => part.text ?? "").join("")];
+	});
 }
 
 /** Roles of the user and assistant messages, skipping custom and other session messages. */

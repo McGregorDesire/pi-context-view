@@ -45,7 +45,7 @@ test("SilentProbe sanitizes and filters only exact probe identities", async () =
 	assert.equal(concurrentAttempt.started, false);
 	assert.strictEqual(concurrentAttempt.completion, attempt.completion);
 	assert.strictEqual(concurrentAttempt.token, attempt.token);
-	assert.equal(probe.isProbeInput("extension", attempt.token), true);
+	assert.equal(probe.isProbeInput({ source: "extension" }, attempt.token), true);
 	assert.equal(probe.beginRun("user", attempt.token), true);
 
 	const probeUser = { role: "user", content: [], timestamp: 10 } satisfies ContextEvent["messages"][number];
@@ -133,15 +133,16 @@ test("SilentProbe claims its run by token when an input transform rewrites the p
 
 	// Another extension prepends instructions to the synthetic empty prompt.
 	const transformed = "Additional instructions\n";
-	assert.equal(probe.isProbeInput("extension", attempt.token), true);
+	assert.equal(probe.isProbeInput({ source: "extension" }, attempt.token), true);
 	assert.equal(probe.beginRun("user", attempt.token), true, "rewritten text must not hide the probe run");
 
 	const probePrompt = { role: "user", content: transformed, timestamp: 30 } satisfies ContextEvent["messages"][number];
 	probe.recordMessage(probePrompt);
 
-	// Blanked for the transcript, filtered out of every later model context.
-	assert.deepEqual(probe.sanitizeMessage(probePrompt), { role: "user", content: [], timestamp: 30 });
-	assert.deepEqual(filter.filterMessages([probePrompt]), []);
+	// Blanked for the transcript; Pi stores the blank prompt, which every later model context filters out
+	const sanitized = probe.sanitizeMessage(probePrompt);
+	assert.deepEqual(sanitized, { role: "user", content: [], timestamp: 30 });
+	assert.deepEqual(filter.filterMessages([sanitized]), []);
 	probe.settle();
 });
 
@@ -181,18 +182,59 @@ test("SilentProbe leaves a custom-message run with its token untouched and fails
 	assert.equal(probe.settle(), true);
 });
 
+test("SilentProbe records only the first user message of its run and every abort", () => {
+	const { filter, probe } = createProbe();
+	const attempt = probe.start(1_000);
+	assert.equal(probe.beginRun("user", attempt.token), true);
+
+	// Pi emits the run's starting messages first. A message queued while the run started gets an extra
+	// turn and usually shares the prompt's millisecond.
+	const probePrompt = {
+		role: "user", content: [{ type: "text", text: "" }], timestamp: 40,
+	} satisfies ContextEvent["messages"][number];
+	const firstAbort = assistantMessage("error", 41, "This operation was aborted");
+	const queued = { role: "user", content: "queued", timestamp: 40 } satisfies ContextEvent["messages"][number];
+	const extraAbort = assistantMessage("error", 42, "This operation was aborted");
+
+	// Each message_start records, each message_end may replace the message Pi then stores
+	const manager = SessionManager.inMemory("/tmp");
+	const stored = [probePrompt, firstAbort, queued, extraAbort].map((message) => {
+		probe.recordMessage(message);
+		const sanitized = probe.sanitizeMessage(message) ?? message;
+		assert.ok(sanitized.role === "user" || sanitized.role === "assistant");
+		return sanitized;
+	});
+	const ids = stored.map((message) => manager.appendMessage(message));
+
+	assert.deepEqual(filter.syntheticMessages, [
+		{ role: "user", timestamp: 40 },
+		{ role: "assistant", timestamp: 41 },
+		{ role: "assistant", timestamp: 42 },
+	]);
+	assert.deepEqual(stored[0], { ...probePrompt, content: [] }, "the prompt is blanked");
+	assert.strictEqual(stored[2], queued, "the queued message keeps its text");
+	assert.equal(stored[3].role === "assistant" && stored[3].stopReason, "stop", "the extra turn's abort is blanked");
+	assert.deepEqual(filter.filterMessages(stored), [queued]);
+	assert.deepEqual(probe.createContextEdits(manager.buildSessionProjection().entries).map((edit) => edit.targetId),
+		[ids[0], ids[1], ids[3]], "the queued message is not omitted");
+	probe.settle();
+});
+
 test("SilentProbe recognizes probe input only for its own token and source", () => {
 	const { probe } = createProbe();
-	assert.equal(probe.isProbeInput("extension", "any-token"), false, "no attempt is pending");
+	assert.equal(probe.isProbeInput({ source: "extension" }, "any-token"), false, "no attempt is pending");
 
 	const attempt = probe.start(1_000);
-	assert.equal(probe.isProbeInput("extension", undefined), false);
-	assert.equal(probe.isProbeInput("extension", `${attempt.token}-other`), false);
-	assert.equal(probe.isProbeInput("interactive", attempt.token), false);
-	assert.equal(probe.isProbeInput("rpc", attempt.token), false);
+	assert.equal(probe.isProbeInput({ source: "extension" }, undefined), false);
+	assert.equal(probe.isProbeInput({ source: "extension" }, `${attempt.token}-other`), false);
+	assert.equal(probe.isProbeInput({ source: "interactive" }, attempt.token), false);
+	assert.equal(probe.isProbeInput({ source: "rpc" }, attempt.token), false);
+	// Another extension's send from before_agent_start inherits the token but is queued into the starting run
+	assert.equal(probe.isProbeInput({ source: "extension", streamingBehavior: "steer" }, attempt.token), false);
+	assert.equal(probe.isProbeInput({ source: "extension", streamingBehavior: "followUp" }, attempt.token), false);
 
 	assert.equal(probe.beginRun("user", attempt.token), true);
-	assert.equal(probe.isProbeInput("extension", attempt.token), false, "the token is single-use");
+	assert.equal(probe.isProbeInput({ source: "extension" }, attempt.token), false, "the token is single-use");
 	probe.settle();
 });
 

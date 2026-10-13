@@ -38,21 +38,32 @@ each step.
     response, the attempt fails, and the probe prompt is claimed, aborted, and
     never sent to the provider.
 
-- [ ] **Pi 1.2: SilentProbe records only its own prompt**:
+- [x] **Pi 1.2: SilentProbe records only its own prompt**:
   - Bug: Pi now counts the session as busy while a run starts. A
     `pi.sendUserMessage(text, { deliverAs: "steer" })` sent from another
     extension's `before_agent_start` during the probe is delivered into the
     probe run, recorded as a probe identity, blanked, and omitted.
-  - [ ] `src/probe/silent-probe.ts`: record only the first user message of the
+  - [x] `src/probe/silent-probe.ts`: record only the first user message of the
     owned run; Pi emits the starting messages before queued ones. Keep
     recording every assistant message: the probe aborts each turn of its run
     at `turn_start`, including the extra turns Pi runs for queued messages.
-  - [ ] `test/silent-probe.test.ts`: a second user message in the probe run is
-    not recorded, blanked, or omitted.
-  - [ ] `test/probe-runtime.test.ts`: an extension steers a user message and
-    sends a plain custom message from `before_agent_start` during the probe.
-    Both stay visible in the session and in the next real request, the probe
-    makes no provider request, and the abort of the extra turn is blanked.
+  - [x] `src/probe/silent-probe.ts`: `isProbeInput()` also requires
+    `streamingBehavior === undefined`. A steer from an earlier extension's
+    `before_agent_start` inherits the token while the probe still waits, and
+    the `input` handler emptied its text.
+  - [x] `src/probe/filter.ts`: the queued message usually has the same
+    millisecond timestamp as the probe prompt. `matches()` accepts a user
+    identity only for a blank message (no parts, or one empty text part from
+    older versions), for omission and request filtering; `message_end` blanks
+    only the run's first user message.
+  - [x] `test/silent-probe.test.ts`, `test/probe-filter.test.ts`: a second user
+    message in the probe run, with the prompt's timestamp, is not recorded,
+    blanked, omitted, or filtered.
+  - [x] `test/probe-runtime.test.ts`, with the sender in both orders: an
+    extension steers a user message and sends a plain custom message from
+    `before_agent_start` during the probe. Both stay visible in the session
+    and in the next real request, the probe makes no provider request, and the
+    abort of the extra turn is blanked.
 
 - [ ] **Pi 1.2: hidden tools on every run**:
   - [ ] `src/capture/register.ts`: shorten the `hiddenTools` comment. Every
@@ -75,16 +86,28 @@ each step.
       `input` and handlers limited to `messageType === "user"`, so they are a
       worse approximation of a user prompt.
     - Lifecycle chart and "Identifying the Probe Run": claim only a
-      user-message run that carries the token.
+      user-message run that carries the token. The `input` handler resets only
+      idle input: queued input that inherits the token is never the probe's.
+    - "Keeping Probe Messages Out of Real Context": a user identity matches
+      only a blank message, because a message queued while the probe run
+      starts usually shares the prompt's timestamp; only the run's first user
+      message is blanked; omission checks the stored entry message. Trade-off:
+      if a later `message_end` handler adds content to the blank prompt, or a
+      `context_edit` replacement does, requests no longer filter it.
     - "Known Limitation: Nested Sends": only a nested `sendUserMessage()`
       remains. Simplify the steps: Pi rejects the original send while the
       nested run is active, so it reaches `before_agent_start` only after that
       run settled.
     - "What a Probe Snapshot Represents": contributions limited to
       custom-message runs are missing.
-    - "Side Effects": messages sent while the probe run starts are delivered
-      into it, stay visible, and get no reply; each queued message adds one
-      more aborted turn.
+    - "Side Effects": in the TUI, `ctx.abort()` goes through Pi's interactive
+      abort handler, which clears the queues at the probe's first
+      `turn_start`. User messages queued while the probe run starts go back to
+      the editor, and queued custom messages are dropped. Messages queued
+      later, or on hosts without that handler, are delivered into the probe
+      run, stay visible, and get no reply. Pi delivers one queued message per
+      turn, the first with the probe prompt, so each further one adds one more
+      aborted turn.
   - [ ] `doc/architecture/capture.md`, "Hidden Tools": remove the case of a
     run without `before_agent_start`.
   - [ ] `doc/ARCHITECTURE.md`, "Required Invariants": only a user-message run
