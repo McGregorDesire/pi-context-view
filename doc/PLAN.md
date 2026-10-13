@@ -19,20 +19,20 @@ each step.
     `1.2.0` and add `before_agent_start.messageType` to the features it relies
     on; change the header to "Checked against Pi `1.2.0`".
 
-- [ ] **Pi 1.2: SilentProbe claims only user-message runs**:
+- [x] **Pi 1.2: SilentProbe claims only user-message runs**:
   - Bug: `before_agent_start` now also fires for idle
     `pi.sendMessage(..., { triggerTurn: true })` runs. A nested `sendMessage()`
     from another extension's async `input` handler inherits the probe token, so
     its custom run is claimed and aborted, and the original empty prompt then
     reaches the provider.
-  - [ ] `src/probe/silent-probe.ts`: pass `event.messageType` to `beginRun()`
+  - [x] `src/probe/silent-probe.ts`: pass `event.messageType` to `beginRun()`
     and claim only `"user"` runs. A custom run, with or without the token, is
     foreign: fail the waiting attempt and never abort the run.
-  - [ ] Update the `beginRun()` calls in `test/silent-probe.test.ts` and
+  - [x] Update the `beginRun()` calls in `test/silent-probe.test.ts` and
     `test/probe-trigger.test.ts`. Add a unit case: a custom run with the token
     is not claimed and fails the attempt; a later user run with the token is
     still claimed.
-  - [ ] `test/probe-runtime.test.ts`: an earlier extension's async `input`
+  - [x] `test/probe-runtime.test.ts`: an earlier extension's async `input`
     handler sends `pi.sendMessage(..., { triggerTurn: true })` during the probe
     and waits until that run settles. The custom run gets its provider
     response, the attempt fails, and the probe prompt is claimed, aborted, and

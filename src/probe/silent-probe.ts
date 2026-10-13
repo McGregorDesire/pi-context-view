@@ -4,6 +4,7 @@
  * messages, and records and persists their identities through ProbeFilter.
  */
 import type {
+	BeforeAgentStartEvent,
 	ContextEditEntryDraft,
 	ContextEvent,
 	ExtensionAPI,
@@ -99,15 +100,16 @@ export class SilentProbe {
 	}
 
 	/**
-	 * Claim the run this probe started, identified by the token it carries. A run
-	 * without the token is not provably ours, so it fails the attempt instead of
+	 * Claim the run this probe started: a user-message run carrying the token.
+	 * Any other run is not provably ours, so it fails the attempt instead of
 	 * activating the abort guard: it may belong to the user or to another
-	 * extension and must run untouched. Ownership stays open afterwards so a
-	 * delayed probe run is still claimed.
+	 * extension and must run untouched. A custom-message run is foreign even
+	 * with the token, which another extension's nested `sendMessage()` inherits.
+	 * Ownership stays open afterwards so a delayed probe run is still claimed.
 	 */
-	public beginRun(token: ProbeToken | undefined): boolean {
+	public beginRun(messageType: BeforeAgentStartEvent["messageType"], token: ProbeToken | undefined): boolean {
 		if (this.phase !== "waiting") return false;
-		if (!this.ownsToken(token)) {
+		if (messageType !== "user" || !this.ownsToken(token)) {
 			this.fail("Another agent run started before the silent probe was recognized.");
 			return false;
 		}
@@ -238,8 +240,8 @@ export function registerSilentProbe(pi: ExtensionAPI, probe: SilentProbe): void 
 		return { action: "transform", text: "" } as const;
 	});
 
-	pi.on("before_agent_start", () => {
-		probe.beginRun(readProbeToken());
+	pi.on("before_agent_start", (event) => {
+		probe.beginRun(event.messageType, readProbeToken());
 	});
 
 	pi.on("turn_start", (_event, ctx) => {

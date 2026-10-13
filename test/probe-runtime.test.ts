@@ -243,6 +243,86 @@ test("filtering unomitted probe entries keeps mid-conversation system messages i
 	assert.deepEqual(provider.bodies[1].messages.map((message) => message.role), seen.afterFilter);
 });
 
+test("a nested custom-message run fails the attempt and the probe still claims its own prompt", { timeout: 30_000 }, async (t) => {
+	const provider = await startProvider(t);
+	const events: string[] = [];
+	const stopReasons: Array<[string, string | undefined]> = [];
+	let settledRuns = 0;
+	let resolveBothSettled: () => void = () => undefined;
+	const bothSettled = new Promise<void>((resolve) => { resolveBothSettled = resolve; });
+	const sentinel: ExtensionFactory = (pi) => {
+		pi.on("before_agent_start", (event) => { events.push(`before_agent_start: ${event.messageType}`); });
+		pi.on("after_provider_response", () => { events.push("after_provider_response"); });
+		pi.on("message_end", (event) => {
+			if (event.message.role === "assistant") {
+				stopReasons.push([event.message.stopReason, event.message.errorMessage]);
+			}
+		});
+		pi.on("agent_settled", () => {
+			events.push("agent_settled");
+			if (++settledRuns === 2) resolveBothSettled();
+		});
+	};
+	// Another extension starts its own run from the probe's input, inheriting the token, and waits for it
+	let nestedSent = false;
+	let resolveNestedSettled: (() => void) | undefined;
+	const nestedSender: ExtensionFactory = (pi) => {
+		pi.on("input", async (event) => {
+			if (nestedSent || event.source !== "extension") return;
+			nestedSent = true;
+			const nestedSettled = new Promise<void>((resolve) => { resolveNestedSettled = resolve; });
+			pi.sendMessage({ customType: "nested-run", content: "nested", display: true }, { triggerTurn: true });
+			await nestedSettled;
+		});
+		pi.on("agent_settled", () => {
+			// Pi is idle only once every agent_settled handler has returned
+			if (resolveNestedSettled !== undefined) setImmediate(resolveNestedSettled);
+			resolveNestedSettled = undefined;
+		});
+	};
+	const session = await createRuntime(t, provider.baseUrl, [sentinel, nestedSender, registerExtension]);
+	const errors: string[] = [];
+	await session.bindExtensions({
+		mode: "tui",
+		onError: (error) => { errors.push(`${error.event}: ${error.error}`); },
+		uiContext: {
+			setWorkingVisible: () => undefined,
+			custom: async () => { events.push("view"); },
+		} as unknown as ExtensionUIContext,
+	});
+
+	await session.prompt("/context injections");
+	await bothSettled;
+
+	assert.deepEqual(errors, []);
+	assert.deepEqual(events, [
+		"before_agent_start: custom",
+		// The failed attempt opens the view while the nested run still waits for its response
+		"view",
+		"after_provider_response",
+		"agent_settled",
+		"before_agent_start: user",
+		"agent_settled",
+	]);
+	assert.equal(provider.requests(), 1, "only the nested run reaches the provider");
+	assert.deepEqual(stopReasons, [["stop", undefined], ["error", "This operation was aborted"]]);
+	const branch = session.sessionManager.getBranch();
+	const [reply, ...probeEntries] = branch.flatMap((entry) => entry.type === "message"
+		&& (entry.message.role === "user" || entry.message.role === "assistant")
+		? [{ id: entry.id, message: entry.message }]
+		: []);
+	assert.ok(reply?.message.role === "assistant");
+	assert.equal(reply.message.stopReason, "stop");
+	assert.deepEqual(probeEntries.map(({ message }) => message.content), [[], []],
+		"the probe prompt and its abort are blanked");
+	assert.deepEqual(branch.filter((entry) => entry.type === "context_edit").map((entry) => entry.targetId),
+		probeEntries.map(({ id }) => id), "and omitted");
+	const projected = session.sessionManager.buildSessionProjection().messages;
+	assert.deepEqual(projected.flatMap((message) => message.role === "custom" ? [message.customType] : []),
+		["nested-run"]);
+	assert.deepEqual(conversationRoles(projected), ["assistant"], "the nested run's reply stays visible");
+});
+
 /**
  * Bind a session in TUI mode, where `/context` may probe; the view overlay
  * closes at once. Returns the extension errors reported from then on.
