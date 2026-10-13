@@ -36,7 +36,12 @@ selection, order, and demo fixture paths without starting a provider.
 Completions-only loopback endpoint that discards bodies, appearance-only
 configuration, in-memory sessions, conflicting-argument rejection, signal and
 failure cleanup, and ordinary prompts through the pinned CLI with and without
-codemode. Theme cases cover selected installed-package assets, automatic
+codemode. Config and argument cases call `scripts/demo-mock-config.ts` directly,
+so Pi's resource APIs are imported once in the shared test process. These cases
+use separate scratch directories without changing the process environment.
+Subprocess tests cover launcher wiring, argument rejection, signals, startup and
+child failures, and the real CLI; detailed config cases do not relaunch Pi.
+Theme cases cover selected installed-package assets, automatic
 light/dark pairs, manifest paths and exclusions, configured paths, and local
 packages, without executing package extensions during discovery or installing
 missing packages. `--mock --local` cases cover global configured, auto-discovered,
