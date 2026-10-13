@@ -8,9 +8,9 @@ import { dirname, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { validateArgs, writeMockConfig } from "../scripts/demo-mock-config.ts";
-import { MOCK_REPLY, startDemoMockProvider } from "../scripts/demo-mock-provider.ts";
-import { copySelectedThemes } from "../scripts/demo-mock-themes.ts";
+import { validateArgs, writeMockConfig } from "../scripts/demo-injections/demo-mock-config.ts";
+import { MOCK_REPLY, startDemoMockProvider } from "../scripts/demo-injections/demo-mock-provider.ts";
+import { copySelectedThemes } from "../scripts/demo-injections/demo-mock-themes.ts";
 import { runCommand } from "./harness/run-command.ts";
 
 const SCRIPT = fileURLToPath(new URL("../scripts/demo-injections.sh", import.meta.url));
@@ -222,7 +222,7 @@ test("--mock passes isolated config and arguments to Pi and cleans up after fail
 	assert.equal(result.stdout, "");
 	const record = await readRecord(setup);
 	const fixtures = ["payload-changes", "payload-remove-tool"].map((fixture) =>
-		fileURLToPath(new URL(`../scripts/fixtures/${fixture}.ts`, import.meta.url)));
+		fileURLToPath(new URL(`../scripts/demo-injections/${fixture}.ts`, import.meta.url)));
 	assert.deepEqual(record.args, [...MODEL_ARGS, "--no-extensions",
 		...[MONITOR, ...fixtures].flatMap((path) => ["-e", path]), "-e", "builtin:codemode",
 		"--", "--model", "a prompt with spaces"]);
@@ -337,7 +337,7 @@ for (const [local, codemode] of [[false, false], [true, true]]) {
 
 test("--mock cleans up when the Pi executable is unavailable", async (t) => {
 	const setup = await prepareLauncher(t);
-	const runner = fileURLToPath(new URL("../scripts/demo-mock.ts", import.meta.url));
+	const runner = fileURLToPath(new URL("../scripts/demo-injections/demo-mock.ts", import.meta.url));
 	const result = await runCommand(process.execPath, [runner, "false", "false"], {
 		env: { ...setup.env, PATH: setup.temporaryDir },
 	});
