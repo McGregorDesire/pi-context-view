@@ -65,11 +65,11 @@ each step.
     and in the next real request, the probe makes no provider request, and the
     abort of the extra turn is blanked.
 
-- [ ] **Pi 1.2: hidden tools on every run**:
-  - [ ] `src/capture/register.ts`: shorten the `hiddenTools` comment. Every
+- [x] **Pi 1.2: hidden tools on every run**:
+  - [x] `src/capture/register.ts`: shorten the `hiddenTools` comment. Every
     run now reports them; only a later handler or a mid-run tool change can
     make the copy stale.
-  - [ ] Runtime test (`test/hidden-tools-runtime.test.ts`): change the active
+  - [x] Runtime test (`test/hidden-tools-runtime.test.ts`): change the active
     tools, then start an idle `pi.sendMessage(..., { triggerTurn: true })` run.
     Its `real-turn` snapshot has the new hidden set; with
     `test/fixtures/forced-prompt.ts` loaded, the forced prompt is captured.
