@@ -74,14 +74,14 @@ each step.
     Its `real-turn` snapshot has the new hidden set; with
     `test/fixtures/forced-prompt.ts` loaded, the forced prompt is captured.
 
-- [ ] **Pi 1.2: update architecture docs**:
-  - [ ] `doc/architecture/pi-requests.md`: update the flow node and the table
+- [x] **Pi 1.2: update architecture docs**:
+  - [x] `doc/architecture/pi-requests.md`: update the flow node and the table
     row for `before_agent_start` (a user prompt or an idle custom message; the
     probe claims only user runs) and replace "runs for a new prompt". Describe
     the run-start busy window: `waitForIdle()` waits through the compaction
     check and `before_agent_start`, and messages sent meanwhile are queued into
     the starting run.
-  - [ ] `doc/architecture/probe.md`:
+  - [x] `doc/architecture/probe.md`:
     - Replace the reason for `sendUserMessage("")`: custom-message runs skip
       `input` and handlers limited to `messageType === "user"`, so they are a
       worse approximation of a user prompt.
@@ -108,12 +108,12 @@ each step.
       run, stay visible, and get no reply. Pi delivers one queued message per
       turn, the first with the probe prompt, so each further one adds one more
       aborted turn.
-  - [ ] `doc/architecture/capture.md`, "Hidden Tools": remove the case of a
+  - [x] `doc/architecture/capture.md`, "Hidden Tools": remove the case of a
     run without `before_agent_start`.
-  - [ ] `doc/ARCHITECTURE.md`, "Required Invariants": only a user-message run
+  - [x] `doc/ARCHITECTURE.md`, "Required Invariants": only a user-message run
     carrying the probe token is aborted or rewritten, and only its own prompt
     and aborts are blanked.
-  - [ ] `doc/architecture/validation.md`: add the new probe and hidden-tool
+  - [x] `doc/architecture/validation.md`: add the new probe and hidden-tool
     cases to the validation matrix; add `before_agent_start.messageType` and
     the run-start busy window to "After a Pi Upgrade".
 

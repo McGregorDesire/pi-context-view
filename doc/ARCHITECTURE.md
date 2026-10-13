@@ -166,7 +166,8 @@ relaxation of those goals.
 - On a Pi version older than `MIN_PI_VERSION`, no lifecycle handler is registered.
 - Probes make no provider request, and their messages are blanked in agent
   state, in every later model context, and in the saved session.
-- Only a run carrying the probe token is aborted or rewritten. Every other run
+- Only a user-message run carrying the probe token is aborted or rewritten,
+  and only its own prompt and aborts are blanked. Every other run and message
   proceeds untouched, because it may belong to the user or another extension.
 - Active compaction refuses both views. Reported pending messages, virtual
   models, idle warming, excessive known context usage, or unreadable settings
