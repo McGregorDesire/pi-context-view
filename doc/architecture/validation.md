@@ -29,9 +29,10 @@ register top-level hooks, which would apply to every file. Mock
 shared static methods through a registry such as `test/harness/settings.ts`,
 keyed by a per-test temporary directory. Use asynchronous child processes, and
 never probe a closed loopback port: another test may already have reused it.
-Loopback provider servers answer with `Connection: close`: a long synchronous
-test can block the event loop past the server's keep-alive timeout, and the
-server then closes an idle connection just as the client reuses it.
+Loopback provider servers, including the demo endpoint, answer with
+`Connection: close`: a long synchronous test can block the event loop past the
+server's keep-alive timeout, and the server then closes an idle connection just
+as the client reuses it.
 After hooks run in registration order, so register a hook that stops a session
 or awaits a child's exit before the hook that removes the directory it uses.
 
