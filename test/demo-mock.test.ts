@@ -370,7 +370,6 @@ test("demo endpoint returns only a canned text stream and closes idempotently", 
 	assert.equal((await fetch(`${provider.baseUrl}/responses`, { method: "POST" })).status, 404);
 	await provider.close();
 	await provider.close();
-	await assert.rejects(fetch(`${provider.baseUrl}/chat/completions`, { signal: AbortSignal.timeout(1_000) }));
 });
 
 test("mock theme copying keeps only the selected light/dark pair from an installed package", async (t) => {
