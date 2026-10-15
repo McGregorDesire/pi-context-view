@@ -42,7 +42,8 @@ async function startProvider(t: TestContext) {
 		request.on("data", (chunk: Buffer) => chunks.push(chunk));
 		request.on("end", () => {
 			bodies.push(JSON.parse(Buffer.concat(chunks).toString("utf8")));
-			response.writeHead(200, { "Content-Type": "text/event-stream" });
+			// No keep-alive: see the same header in test/harness/mock-provider.ts
+			response.writeHead(200, { "Content-Type": "text/event-stream", Connection: "close" });
 			response.end([
 				'data: {"id":"test","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"ok"},"finish_reason":null}]}',
 				'data: {"id":"test","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":1,"total_tokens":11}}',
