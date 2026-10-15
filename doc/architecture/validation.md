@@ -29,6 +29,8 @@ register top-level hooks, which would apply to every file. Mock
 shared static methods through a registry such as `test/harness/settings.ts`,
 keyed by a per-test temporary directory. Use asynchronous child processes, and
 never probe a closed loopback port: another test may already have reused it.
+After hooks run in registration order, so register a hook that stops a session
+or awaits a child's exit before the hook that removes the directory it uses.
 
 `demo-injections.test.ts` checks launcher
 selection, order, and demo fixture paths without starting a provider.

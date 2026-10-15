@@ -198,6 +198,9 @@ async function createDemoRuntime(
 	if (provider) t.after(() => provider.close());
 	const baseUrl = overrides.baseUrl ?? provider?.baseUrls[api];
 	assert.ok(baseUrl);
+	// After hooks run in registration order: the session must stop before its directory is removed
+	let stopSession: (() => void) | undefined;
+	t.after(() => stopSession?.());
 	const directory = await mkdtemp(join(tmpdir(), "context-demo-fixtures-"));
 	t.after(() => rm(directory, { recursive: true, force: true }));
 	const settingsManager = SettingsManager.inMemory({ cacheWarming: "off", compaction: { enabled: false } });
@@ -239,7 +242,7 @@ async function createDemoRuntime(
 		cwd: directory, agentDir: directory, settingsManager, resourceLoader, modelRuntime, model,
 		sessionManager: SessionManager.inMemory(directory), thinkingLevel: "off",
 	});
-	t.after(() => session.dispose());
+	stopSession = () => session.dispose();
 	assert.deepEqual(extensionsResult.errors, []);
 	const errors: string[] = [];
 	await session.bindExtensions({ mode: "rpc", onError: (error) => { errors.push(`${error.event}: ${error.error}`); } });

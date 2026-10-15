@@ -64,6 +64,9 @@ async function startProvider(t: TestContext) {
 
 /** Build an isolated Pi runtime with no real credentials, resources, or provider endpoints. */
 async function createRuntime(t: TestContext, baseUrl: string, factories: ExtensionFactory[]) {
+	// After hooks run in registration order: the session must stop before its directory is removed
+	let stopSession: (() => void) | undefined;
+	t.after(() => stopSession?.());
 	const directory = await mkdtemp(join(tmpdir(), "context-probe-test-"));
 	t.after(() => rm(directory, { recursive: true, force: true }));
 	const settingsManager = SettingsManager.inMemory({ cacheWarming: "off", compaction: { enabled: false } });
@@ -95,7 +98,7 @@ async function createRuntime(t: TestContext, baseUrl: string, factories: Extensi
 		cwd: directory, agentDir: directory, settingsManager, resourceLoader, model,
 		modelRuntime: runtime, sessionManager: SessionManager.inMemory(directory), tools: [], thinkingLevel: "off",
 	});
-	t.after(() => session.dispose());
+	stopSession = () => session.dispose();
 	assert.deepEqual(extensionsResult.errors, []);
 	return session;
 }

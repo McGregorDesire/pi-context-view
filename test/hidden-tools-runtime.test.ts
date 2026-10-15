@@ -157,6 +157,9 @@ interface ExtraExtensions {
 async function createRuntime(t: TestContext, api: MockApi, extra: ExtraExtensions = {}) {
 	const provider = await startMockProvider();
 	t.after(() => provider.close());
+	// After hooks run in registration order: the session must stop before its directory is removed
+	let stopSession: (() => Promise<void>) | undefined;
+	t.after(() => stopSession?.());
 	const directory = await mkdtemp(join(tmpdir(), "context-hidden-tools-"));
 	t.after(() => rm(directory, { recursive: true, force: true }));
 	const settingsManager = SettingsManager.inMemory({
@@ -196,7 +199,10 @@ async function createRuntime(t: TestContext, api: MockApi, extra: ExtraExtension
 		cwd: directory, agentDir: directory, settingsManager, resourceLoader, modelRuntime, model,
 		sessionManager: SessionManager.inMemory(directory), thinkingLevel: "off",
 	});
-	t.after(async () => { await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" }); session.dispose(); });
+	stopSession = async () => {
+		await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
+		session.dispose();
+	};
 	assert.deepEqual(extensionsResult.errors, []);
 	assert.deepEqual(session.getActiveToolNames(), ACTIVE);
 	const errors: string[] = [];

@@ -281,12 +281,19 @@ test("--mock cleans up on invalid inherited settings", async (t) => {
 
 for (const [signal, exitCode] of [["SIGINT", 130], ["SIGTERM", 143]] as const) {
 	test(`--mock forwards ${signal} and cleans up the server and config`, { timeout: 30_000 }, async (t) => {
+		// After hooks run in registration order: the launcher must exit before its directory is removed.
+		// The hook timeout fails a launcher that ignores SIGTERM instead of hanging the whole run.
+		let stopLauncher: (() => Promise<unknown>) | undefined;
+		t.after(() => stopLauncher?.(), { timeout: 10_000 });
 		const setup = await prepareLauncher(t);
 		const child = spawn("bash", [SCRIPT, "--mock"], {
 			env: { ...setup.env, DEMO_MOCK_WAIT: "1" }, stdio: "ignore",
 		});
-		t.after(() => { child.kill("SIGTERM"); });
 		const closed = once(child, "close");
+		stopLauncher = () => {
+			child.kill("SIGTERM");
+			return closed;
+		};
 		const record = await waitForRecord(setup);
 		child.kill(signal);
 		const [code] = await closed;
