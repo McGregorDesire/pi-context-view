@@ -42,7 +42,8 @@ async function startProvider(t: TestContext) {
 		request.on("data", (chunk: Buffer) => chunks.push(chunk));
 		request.on("end", () => {
 			bodies.push(JSON.parse(Buffer.concat(chunks).toString("utf8")));
-			response.writeHead(200, { "Content-Type": "text/event-stream" });
+			// No keep-alive: see the same header in test/harness/mock-provider.ts
+			response.writeHead(200, { "Content-Type": "text/event-stream", Connection: "close" });
 			response.end([
 				'data: {"id":"test","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"ok"},"finish_reason":null}]}',
 				'data: {"id":"test","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":1,"total_tokens":11}}',
@@ -64,6 +65,9 @@ async function startProvider(t: TestContext) {
 
 /** Build an isolated Pi runtime with no real credentials, resources, or provider endpoints. */
 async function createRuntime(t: TestContext, baseUrl: string, factories: ExtensionFactory[]) {
+	// After hooks run in registration order: the session must stop before its directory is removed
+	let stopSession: (() => void) | undefined;
+	t.after(() => stopSession?.());
 	const directory = await mkdtemp(join(tmpdir(), "context-probe-test-"));
 	t.after(() => rm(directory, { recursive: true, force: true }));
 	const settingsManager = SettingsManager.inMemory({ cacheWarming: "off", compaction: { enabled: false } });
@@ -95,7 +99,7 @@ async function createRuntime(t: TestContext, baseUrl: string, factories: Extensi
 		cwd: directory, agentDir: directory, settingsManager, resourceLoader, model,
 		modelRuntime: runtime, sessionManager: SessionManager.inMemory(directory), tools: [], thinkingLevel: "off",
 	});
-	t.after(() => session.dispose());
+	stopSession = () => session.dispose();
 	assert.deepEqual(extensionsResult.errors, []);
 	return session;
 }

@@ -116,9 +116,13 @@ suite("structured capture calibration", { concurrency: true }, () => {
 
 	test("a resumed session on another model has an empty diff", async (t) => {
 		const provider = await startProvider(t);
+		// After hooks run in registration order: both sessions must stop before their session file is removed
+		const sessions: AgentSession[] = [];
+		t.after(() => { for (const session of sessions) session.dispose(); });
 		const directory = await temporaryDirectory(t);
 		const first = SessionManager.create(directory, directory);
 		const before = await createRuntime(t, provider, { factories: [], sessionManager: first });
+		sessions.push(before.session);
 		await before.session.prompt("first prompt");
 		const file = first.getSessionFile();
 		assert.ok(file);
@@ -127,6 +131,7 @@ suite("structured capture calibration", { concurrency: true }, () => {
 		const after = await createRuntime(t, provider, {
 			factories: [], sessionManager: SessionManager.open(file, directory), modelId: "text",
 		});
+		sessions.push(after.session);
 		await after.session.prompt("after resume");
 		const [snapshot] = await after.settled();
 		assert.equal(provider.requests.at(-1)?.body.model, "text");
@@ -530,6 +535,9 @@ async function temporaryDirectory(t: TestContext): Promise<string> {
  * the factories have no slot. No real credentials, resources, or endpoints.
  */
 async function createRuntime(t: TestContext, provider: MockProvider, options: RuntimeOptions): Promise<Runtime> {
+	// After hooks run in registration order: the session must stop before its directory is removed
+	let stopSession: (() => void) | undefined;
+	t.after(() => stopSession?.());
 	const directory = await temporaryDirectory(t);
 	// Keep almost nothing on manual compaction, so a short session can compact
 	const settingsManager = SettingsManager.inMemory({
@@ -567,7 +575,7 @@ async function createRuntime(t: TestContext, provider: MockProvider, options: Ru
 		model: models.find((model) => model.id === (options.modelId ?? "vision")),
 		sessionManager: options.sessionManager ?? SessionManager.inMemory(directory), tools: ["read"], thinkingLevel: "off",
 	});
-	t.after(() => session.dispose());
+	stopSession = () => session.dispose();
 	assert.deepEqual(extensionsResult.errors, []);
 	const errors: string[] = [];
 	let viewFactory: ViewFactory | undefined;

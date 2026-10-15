@@ -29,6 +29,12 @@ register top-level hooks, which would apply to every file. Mock
 shared static methods through a registry such as `test/harness/settings.ts`,
 keyed by a per-test temporary directory. Use asynchronous child processes, and
 never probe a closed loopback port: another test may already have reused it.
+Loopback provider servers, including the demo endpoint, answer with
+`Connection: close`: a long synchronous test can block the event loop past the
+server's keep-alive timeout, and the server then closes an idle connection just
+as the client reuses it.
+After hooks run in registration order, so register a hook that stops a session
+or awaits a child's exit before the hook that removes the directory it uses.
 
 `demo-injections.test.ts` checks launcher
 selection, order, and demo fixture paths without starting a provider.
@@ -36,7 +42,16 @@ selection, order, and demo fixture paths without starting a provider.
 Completions-only loopback endpoint that discards bodies, appearance-only
 configuration, in-memory sessions, conflicting-argument rejection, signal and
 failure cleanup, and ordinary prompts through the pinned CLI with and without
-codemode. Theme cases cover selected installed-package assets, automatic
+codemode. Config and argument cases call
+`scripts/demo-injections/demo-mock-config.ts` directly,
+so Pi's resource APIs are imported once in the shared test process. These cases
+use separate scratch directories without changing the process environment.
+Subprocess tests cover launcher wiring, argument rejection, signals, startup and
+child failures, and the real CLI; detailed config cases do not relaunch Pi.
+Missing npm packages have one focused launcher case with a child-only npm stub
+that permits only `npm root -g`. Shared config fixtures avoid missing npm
+packages so Pi's synchronous global-package lookup cannot block other tests.
+Theme cases cover selected installed-package assets, automatic
 light/dark pairs, manifest paths and exclusions, configured paths, and local
 packages, without executing package extensions during discovery or installing
 missing packages. `--mock --local` cases cover global configured, auto-discovered,
