@@ -1,8 +1,8 @@
 # Validation
 
-Part of the [architecture](../ARCHITECTURE.md). How lifecycle, capture, and
-payload behavior is verified, and what to recheck after a Pi upgrade.
-Rendering checks belong to [UI.md](../UI.md#responsive-rendering).
+Part of the [architecture](../ARCHITECTURE.md). How lifecycle, capture, payload,
+and UI behavior is verified, and what to recheck after a Pi upgrade.
+UI design decisions belong to [UI.md](../UI.md).
 
 ## Harness
 
@@ -157,6 +157,33 @@ height-only resize, narrow wrapping, empty reserved lines, theme invalidation,
 and the compact frame that keeps the selected row and bar on short terminals.
 `model` checks that editor metadata owns its sources and arrays.
 
+## UI Checks
+
+`pnpm check` includes pure rendering and interaction tests. Cover the design
+rules in [UI.md](../UI.md), not only exact output strings:
+
+- Width and height bounds at 60, 80, and 120 columns, narrower fallbacks, very
+  short terminals, and height-only resizing; include Unicode and styled text.
+- Navigation through overflow, previews, and tall blocks; selection and viewport
+  restoration on return; keyboard aliases and fullscreen wheel behavior.
+- Whole-block description collapse and restoration, with essential capture
+  status, degraded reasons, totals, and selected-row details still available.
+- Both map scales, unavailable denominators, oversized configured geometry,
+  legend accessibility, and controls that disappear with their unavailable action.
+- Theme and view-state invalidation, safe text rendering, and no raw content
+  before explicit preview.
+
+`usage-view`, `usage-map`, `injections-view`, `usage-preview`, `injected-preview`,
+`diff-preview`, `json-preview`, `skill-preview`, `status-bar`, `color`, and `wheel`
+cover these areas; the focused cases above cover accounting and attribution.
+Exact strings and layout values can remain regression assertions without being
+copied into the design documentation.
+
+Run real-PTY checks and provider smoke tests only when explicitly requested.
+When requested, follow the `pi-extension` skill and exercise both views and
+preview levels at the widths above, narrow and short fallbacks, resize recovery,
+overflow navigation, preview return, and theme changes.
+
 ## Lifecycle Smoke Tests
 
 For lifecycle changes, load `test/fixtures/marker.ts`,
@@ -164,8 +191,8 @@ For lifecycle changes, load `test/fixtures/marker.ts`,
 and after this extension. Use an `after_provider_response` sentinel to prove
 that a probe makes no provider request, and load
 `test/fixtures/payload-logger.ts` last to compare the views with the payload
-that reached the provider. For TUI changes, also run the real-PTY and
-rendering checks of the `pi-extension` skill and [UI.md](../UI.md).
+that reached the provider. For TUI changes, use the automated [UI checks](#ui-checks);
+real-PTY and provider smoke tests remain explicit opt-in.
 
 ## After a Pi Upgrade
 

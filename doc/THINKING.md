@@ -3,7 +3,7 @@
 Implementation and measurement notes behind the **Assistant Thinking**
 estimate and preview. Measurements were taken on 26.07.2026 against pi 0.82.1,
 `claude-opus-5` and `claude-fable-5`, using OAuth transport.
-[UI.md](UI.md) remains the canonical UI specification.
+[UI.md](UI.md) owns the shared UI design rules.
 
 ## Summary
 
@@ -127,34 +127,19 @@ absent, and present the fallback as approximate.
 
 ## Preview presentation
 
-[ui/usage.md](ui/usage.md#thinking-notation) owns the preview notation. The estimate surfaces like this:
+[ui/usage.md](ui/usage.md#thinking-notation) owns the presentation decisions.
+Notation communicates the accounting basis, not a fixed header layout:
 
-```text
-Assistant Thinking                                           1.4k
+- `≈` identifies a provider-reported invisible share already included in the
+  category total.
+- `~` identifies the rough signature-size proxy, excluded from category totals
+  and never an upper bound.
+- `Encoded` means a captured signature is present; `Reasoning` describes an
+  invisible share without one. Neither label exposes signature bytes.
 
-  [24-07-2026 17:15:02] [assistant] 594 + Encoded ≈547 (≈1.1k)
-    I need to check how the session context is built
-    before deciding where the filter belongs…
-    … +3 lines
-
-  [24-07-2026 17:16:48] [assistant] 131 + Encoded ~1.1k (~1.3k)
-    Now wire the estimate into the category totals.
-
-  [24-07-2026 17:18:03] [assistant] 56 + Reasoning ≈32 (≈88)
-    Done; totals already reconcile.
-
-  Entry headers read: [DD-MM-YYYY] [assistant] visible + Reasoning
-  ≈invisible (≈total). ≈ is a provider-reported count; ~ is a rough
-  signature-size proxy shown when no breakdown is reported and excluded
-  from category totals. Encoded replaces Reasoning when the provider
-  replays encrypted reasoning with its message.
-
-  ↑↓ Scroll · PgUp/PgDn Page · Esc Back
-```
-
-The three header cells stay visually distinct because they mean different
-things: `≈ Encoded` and `≈ Reasoning` report a share already inside the
-category total, while `~ Encoded` is the chars/4 proxy excluded from it.
+Keep the visible estimate, invisible share, and combined message estimate
+distinguishable. Omit zero-size shares and explain which basis an annotation
+uses while the user inspects thinking.
 
 ## Reading provider counters
 

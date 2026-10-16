@@ -11,11 +11,11 @@ layers, the module boundaries, and the required invariants.
 | [architecture/payload-guard.md](architecture/payload-guard.md) | Payload pairing, dispatch confirmation, parsers, tool and message channels, Pi's own adjustments   |
 | [architecture/views.md](architecture/views.md)                 | Injections and Usage on snapshots, the differences between them, the one-request limitation        |
 | [architecture/probe.md](architecture/probe.md)                 | Silent probe: trigger, lifecycle, run identity, probe messages, preconditions, side effects        |
-| [architecture/measurement.md](architecture/measurement.md)     | Token estimates, prompt parts, tool ownership, prompt additions, totals                            |
+| [architecture/measurement.md](architecture/measurement.md)     | Token estimates and diffs, prompt parts, tool ownership, prompt additions, totals                  |
 | [architecture/privacy.md](architecture/privacy.md)             | Raw content, images, signatures, persisted records; configuration loading and writes               |
 | [architecture/validation.md](architecture/validation.md)       | Test harness, fixtures, validation matrix, lifecycle smoke tests, rechecks after a Pi upgrade      |
 
-Rendering rules belong to [UI.md](UI.md); reasoning-token accounting to
+UI design decisions belong to [UI.md](UI.md); reasoning-token accounting to
 [THINKING.md](THINKING.md).
 
 ## Views and Data Sources
