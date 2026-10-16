@@ -1,5 +1,10 @@
 # Changelog
 
+## `[v0.7.2]` - Unreleased
+
+### Fixed
+* `[ci]` Clean up dependencies and pin protobufjs 7.6.6 to fix an audit warning.
+
 
 ## `[v0.7.1]` - 13.10.2026
 
