@@ -257,8 +257,7 @@ test("a nested custom-message run fails the attempt and the probe still claims i
 	const events: string[] = [];
 	const stopReasons: Array<[string, string | undefined]> = [];
 	let settledRuns = 0;
-	let resolveBothSettled: () => void = () => undefined;
-	const bothSettled = new Promise<void>((resolve) => { resolveBothSettled = resolve; });
+	const { promise: bothSettled, resolve: resolveBothSettled } = Promise.withResolvers<void>();
 	const sentinel: ExtensionFactory = (pi) => {
 		pi.on("before_agent_start", (event) => { events.push(`before_agent_start: ${event.messageType}`); });
 		pi.on("after_provider_response", () => { events.push("after_provider_response"); });
@@ -274,19 +273,17 @@ test("a nested custom-message run fails the attempt and the probe still claims i
 	};
 	// Another extension starts its own run from the probe's input, inheriting the token, and waits for it
 	let nestedSent = false;
-	let resolveNestedSettled: (() => void) | undefined;
+	const nestedSettled = Promise.withResolvers<void>();
 	const nestedSender: ExtensionFactory = (pi) => {
 		pi.on("input", async (event) => {
 			if (nestedSent || event.source !== "extension") return;
 			nestedSent = true;
-			const nestedSettled = new Promise<void>((resolve) => { resolveNestedSettled = resolve; });
 			pi.sendMessage({ customType: "nested-run", content: "nested", display: true }, { triggerTurn: true });
-			await nestedSettled;
+			await nestedSettled.promise;
 		});
 		pi.on("agent_settled", () => {
-			// Pi is idle only once every agent_settled handler has returned
-			if (resolveNestedSettled !== undefined) setImmediate(resolveNestedSettled);
-			resolveNestedSettled = undefined;
+			// Pi is idle only once every agent_settled handler has returned; later resolves are no-ops
+			if (nestedSent) setImmediate(nestedSettled.resolve);
 		});
 	};
 	const session = await createRuntime(t, provider.baseUrl, [sentinel, nestedSender, registerExtension]);

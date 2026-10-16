@@ -4,6 +4,7 @@
 
 ### Changed
 * `[package]` Require Pi 1.3.0 for its provider message adjustments.
+* `[ci]` Target ES2024 and use its `Map.groupBy` and `Promise.withResolvers`.
 
 ### Fixed
 * `[capture]` Match Pi 1.3's removal of thinking from other models.

@@ -88,9 +88,8 @@ export class SilentProbe {
 		}
 
 		this.phase = "waiting";
-		const completion = new Promise<ProbeOutcome>((resolve) => {
-			this.resolveCompletion = resolve;
-		});
+		const { promise: completion, resolve } = Promise.withResolvers<ProbeOutcome>();
+		this.resolveCompletion = resolve;
 		this.timeout = setTimeout(() => {
 			this.resolve({ status: "failed", reason: "Silent probe timed out." });
 		}, timeoutMs);
