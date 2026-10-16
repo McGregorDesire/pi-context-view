@@ -2,7 +2,11 @@
 
 ## `[v0.7.2]` - Unreleased
 
+### Changed
+* `[package]` Require Pi 1.3.0 for its provider message adjustments.
+
 ### Fixed
+* `[capture]` Match Pi 1.3's removal of thinking from other models.
 * `[ci]` Clean up dependencies and pin protobufjs 7.6.6 to fix an audit warning.
 
 

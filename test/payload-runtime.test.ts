@@ -450,6 +450,13 @@ for (const adjustment of ADJUSTMENT_CASES) {
 			assert.ok(sent.includes(text), `the payload carries the seeded ${text}`);
 		}
 		assert.ok(!sent.includes("Failed partial.") && !sent.includes("hidden output"));
+		assert.ok(!sent.includes("Foreign reasoning.") && !sent.includes("Foreign unsigned reasoning."));
+		const relocates = api === "anthropic-messages" && adjustment.modelId !== "text" && !adjustment.blockImages;
+		assert.equal(sent.includes("(image attached after the tool results)"), relocates);
+		for (const caption of [
+			"Images from the error result of tool call call_error_id (read):",
+			"Images from the error result of tool call call_error (read):",
+		]) assert.equal(sent.includes(caption), relocates, caption);
 		if (adjustment.modelId === "text") assert.ok(sent.includes("(image omitted: model does not support images)"));
 		if (adjustment.blockImages) assert.ok(sent.includes("Image reading is disabled."));
 		if (adjustment.codemode) assert.ok(sent.includes("\"input\":\"return 1;\""), "the codemode call is a grammar call");
@@ -459,7 +466,7 @@ for (const adjustment of ADJUSTMENT_CASES) {
 /**
  * Persist history that exercises Pi's adjustments: images, another model's
  * thinking and tool calls, signed and unsigned thinking of the selected model,
- * empty and image-only tool results, an unanswered call, failed and aborted
+ * empty and image-only tool results (successful and failed), an unanswered call, failed and aborted
  * replies, custom, bash, and summary messages, and later system messages,
  * one between a tool call and its result.
  */
@@ -478,25 +485,33 @@ function seedHistory(session: AgentSession, model: Model | undefined): void {
 	append({ role: "user", content: [text("Look at these."), image, image], timestamp: 1 });
 	append(assistant(other, "toolUse", [
 		{ type: "thinking", thinking: "Foreign reasoning.", thinkingSignature: "foreign" },
+		{ type: "thinking", thinking: "Foreign unsigned reasoning." },
 		{ type: "thinking", thinking: "", thinkingSignature: "opaque", redacted: true },
 		text("Foreign answer."),
 		{ type: "toolCall", id: "call|foreign+id", name: "read", arguments: { path: "a.txt" } },
+		{ type: "toolCall", id: "call|error+id", name: "read", arguments: { path: "error.png" } },
 	]));
 	// Pi persists section patches only; it removes these unknown sections again on the next prompt
 	append({ role: "system", content: "", sections: { held: "<held>Held section.</held>" }, timestamp: 2 });
 	append({ role: "toolResult", toolCallId: "call|foreign+id", toolName: "read", content: [image], isError: false, timestamp: 3 });
+	append({
+		role: "toolResult", toolCallId: "call|error+id", toolName: "read", content: [text("Error detail."), image, image],
+		isError: true, timestamp: 3,
+	});
 	append(assistant(same, "toolUse", [
 		{ type: "thinking", thinking: "Signed reasoning.", thinkingSignature: signature },
 		{ type: "thinking", thinking: "Unsigned reasoning." },
 		text("Same-model answer."),
 		{ type: "toolCall", id: "call_read", name: "read", arguments: { path: "b.txt", limit: 2 } },
 		{ type: "toolCall", id: "call_code", name: "codemode", arguments: { code: "return 1;" } },
+		{ type: "toolCall", id: "call_error", name: "read", arguments: { path: "error.png" } },
 		{ type: "toolCall", id: "call_orphan", name: "write", arguments: { path: "c.txt", content: "x" } },
 	]));
 	append({ role: "toolResult", toolCallId: "call_read", toolName: "read", content: [], isError: false, timestamp: 4 });
 	append({
 		role: "toolResult", toolCallId: "call_code", toolName: "codemode", content: [text("1"), image], isError: false, timestamp: 5,
 	});
+	append({ role: "toolResult", toolCallId: "call_error", toolName: "read", content: [image], isError: true, timestamp: 5 });
 	append(assistant(same, "error", [text("Failed partial.")]));
 	append(assistant(same, "aborted", [text("Aborted partial.")]));
 	manager.appendCustomMessageEntry("note", "Custom string note.", true);

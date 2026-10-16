@@ -111,10 +111,10 @@ test("reportCompactionInProgress names the refused view", () => {
 test("reportUnsupportedPi names the required and the running Pi version", () => {
 	const { context, notified } = createNotifyingContext();
 
-	reportUnsupportedPi(context, "0.86.1");
+	reportUnsupportedPi(context, "1.2.0");
 
 	assert.deepEqual(notified, [{
-		message: `/context requires Pi ${MIN_PI_VERSION} or newer; this is Pi 0.86.1. Nothing was captured.`,
+		message: `/context requires Pi ${MIN_PI_VERSION} or newer; this is Pi 1.2.0. Nothing was captured.`,
 		type: "error",
 	}]);
 });

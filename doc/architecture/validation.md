@@ -103,6 +103,12 @@ mode: run them in a real PTY as the `pi-extension` skill describes.
 
 Test names refer to `test/<name>.test.ts`. `pnpm check` runs all of them.
 
+`message-channel` and `payload-runtime` cover Pi 1.3's foreign-thinking removal
+and Anthropic error-image relocation: signed and unsigned thinking, unchanged
+same-model replay, successful and failed image results, grouped captions after
+all tool results, foreign ID normalization, text-only models, and blocked images.
+Caption edits remain payload findings.
+
 ### Prompt source rows
 
 `system-prompt-rows`, `injections`, and `injections-view` test the diff-only

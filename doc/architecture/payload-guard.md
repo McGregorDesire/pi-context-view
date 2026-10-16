@@ -213,10 +213,13 @@ exported, so uncertain differences are never treated as proven Pi adjustments.
   patches render as updates. A system message between a tool call and its
   results moves after the results; Anthropic holds each later system message
   until just before the next assistant message, or the transcript end.
-- **Assistant replay.** Apply cross-model thinking-to-text conversion and drop
-  redacted or empty thinking. Drop error and aborted assistant messages, and
-  synthesize `No result provided` error results for unanswered tool calls.
-  Tool-call ID changes do not affect text keys.
+- **Assistant replay.** Drop all thinking from another provider, API, or model.
+  For the same model, keep redacted, signed, and non-empty thinking; drop empty
+  unsigned thinking. Drop error and aborted assistant messages, and synthesize
+  `No result provided` error results for unanswered tool calls. Tool-call IDs
+  are not compared, but Anthropic's error-image captions use them: normalize
+  foreign IDs to its allowed characters and 64-character limit, and apply the
+  same mapping to their results.
 - **OpenAI.** Account for empty or image-only tool-result fillers, Completions'
   attached-image user message, `requiresAssistantAfterToolResult`, and
   `requiresThinkingAsText`. Responses keeps assistant text blocks as separate
@@ -226,7 +229,12 @@ exported, so uncertain differences are never treated as proven Pi adjustments.
   request, not from baseline tool history.
 - **Anthropic.** Unsigned thinking becomes text unless `allowEmptySignature`
   accepts it as thinking. Signed and redacted thinking remains outside the text
-  channel. Inline tool additions and removals belong to the declaration channel.
+  channel. If an error tool result still has images after blocking and capability
+  conversion, replace each image run with `(image attached after the tool results)`.
+  After all consecutive tool results, send each error result's caption and images
+  in that same user message; captions are compared user text. Successful results
+  keep their images in place, and text-only errors add no caption. Inline tool
+  additions and removals belong to the declaration channel.
 
 ## Alignment and Findings
 
