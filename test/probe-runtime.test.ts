@@ -20,12 +20,17 @@ import {
 	SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 
-import registerExtension from "../src/index.ts";
+import registerContextView from "../src/index.ts";
 import { PROBE_IDENTITIES_CUSTOM_TYPE } from "../src/probe/filter.ts";
+import { SnapshotStore } from "../src/snapshot.ts";
 import forcedPrompt from "./fixtures/forced-prompt.ts";
 import inputTransform from "./fixtures/input-transform.ts";
 import marker from "./fixtures/marker.ts";
-import { useSettings } from "./harness/settings.ts";
+import { createIsolatedConfigStore, useSettings } from "./harness/settings.ts";
+
+/** The extension under test, independent of the developer's own configuration file. */
+const registerExtension: ExtensionFactory = (pi) =>
+	registerContextView(pi, new SnapshotStore(), createIsolatedConfigStore());
 
 /** The parts of an OpenAI chat-completions request body the tests read. */
 interface RequestBody {

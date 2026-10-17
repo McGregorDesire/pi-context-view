@@ -452,6 +452,57 @@ test("InjectionsView keeps the precise degraded reason and wraps its optional ex
 		noteLines("degraded", 120, { degradedReason: reason })));
 });
 
+test("InjectionsView shows sanitized configuration notices after the degraded reason and caps them", () => {
+	const reason = "fixture-degraded-reason";
+	const view = new InjectionsView(
+		createTheme(),
+		{
+			snapshot: snapshot(4),
+			degradedReason: reason,
+			notices: [
+				"fixture-notice-1 \u001b[31mred\u001b[0m",
+				"fixture-notice-2",
+				"fixture-notice-3",
+				"fixture-notice-4",
+			],
+		},
+		() => {},
+		() => 40,
+	);
+	const lines = view.render(80);
+	const plain = lines.map((line) => stripSgr(line).trim());
+	assertFrame(lines, 80, 40);
+
+	const reasonIndex = plain.indexOf(reason);
+	assert.notEqual(reasonIndex, -1);
+	assert.deepEqual(plain.slice(reasonIndex + 1, reasonIndex + 3), ["fixture-notice-1 red", "fixture-notice-2"]);
+	// The third notice row reports the overflow instead of a notice; a blank row closes the block
+	assert.notEqual(plain[reasonIndex + 3], "");
+	assert.ok(!plain.some((line) => line.includes("fixture-notice-3") || line.includes("fixture-notice-4")));
+	assert.equal(plain[reasonIndex + 4], "");
+	assert.doesNotMatch(lines.join("\n"), /\u001b\[31m/);
+});
+
+test("InjectionsView separates top warnings from the list with a blank row", () => {
+	const view = createView(4, "fixture-degraded-reason", () => 40);
+	const plain = view.render(80).map((line) => stripSgr(line).trim());
+	const reasonIndex = plain.indexOf("fixture-degraded-reason");
+	assert.notEqual(reasonIndex, -1);
+	assert.equal(plain[reasonIndex + 1], "");
+	assert.notEqual(plain[reasonIndex + 2], "");
+});
+
+test("InjectionsView explains disabled probing only as a description note, without top warnings", () => {
+	const view = new InjectionsView(createTheme(), { snapshot: snapshot(4), probingDisabled: true }, () => {}, () => 40);
+	const lines = view.render(80);
+	const plain = lines.map((line) => stripSgr(line).trim());
+	assertFrame(lines, 80, 40);
+	assert.ok(containsBlock(lines, noteLines("probing-disabled", 80, { probingDisabled: true })));
+	// No warning block: the list starts right after the header's blank row
+	const unwarned = createView(4, undefined, () => 40).render(80).map((line) => stripSgr(line).trim());
+	assert.deepEqual(plain.slice(0, 6), unwarned.slice(0, 6));
+});
+
 test("InjectionsView keeps Runtime inactive when label-switch keys are pressed", () => {
 	const view = createView(4);
 	const initial = view.render(80);

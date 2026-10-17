@@ -15,7 +15,9 @@ import {
 import type { ContextUsageSnapshot } from "../src/model.ts";
 import { formatPercent, formatTokens, UsageView, type UsageViewInput } from "../src/ui/usage-view.ts";
 import { colorize } from "../src/ui/color.ts";
-import { descriptionNoteLines, emptyPreviewNote, thinkingNote, usageNote } from "../src/ui/notes.ts";
+import {
+	descriptionNoteLines, emptyPreviewNote, probingDisabledNote, thinkingNote, usageNote,
+} from "../src/ui/notes.ts";
 import { assertFrame, containsBlock, createTheme, frameText, stripSgr, wholeOrAbsent } from "./harness/frame.ts";
 
 /** Render the overview independently of the dashboard's layout and collapse decision. */
@@ -275,11 +277,24 @@ test("UsageView renders sanitized notices above the dashboard and caps the block
 	assert.equal(plain[4], "  Silent probe unavailable: no model is selected.");
 	assert.equal(plain[5], "  Ignoring unknown pi-context-view.json key \"evil\".");
 	assert.equal(plain[6], "  … +2 more");
+	assert.equal(plain[7], "", "a blank row separates the notices from the dashboard");
 	// Notices are warning-colored and stripped of escapes carried in configuration text.
 	assert.ok(lines[4]?.includes(createTheme().getFgAnsi("warning")));
 	assert.doesNotMatch(lines[5] ?? "", /\u001b\[31m/);
 	assert.ok(!plain.some((line) => line.includes("skillsColor")));
 	assert.ok(plain.some((line) => /^  [■◧▦⛶]( [■◧▦⛶]){15}/.test(line)));
+});
+
+test("UsageView explains disabled probing in its description, not as a notice", () => {
+	const theme = createTheme();
+	const view = createView(theme, { usage: usage(), probingDisabled: true }, () => {}, () => 60);
+	const lines = view.render(100);
+	const plain = lines.map(stripSgr);
+	assertFrame(lines, 100, 60);
+	assert.ok(containsBlock(lines, usageDescription(100)));
+	assert.ok(containsBlock(lines, descriptionNoteLines(theme, probingDisabledNote(theme), 100)));
+	const plainView = createView(theme, { usage: usage() }, () => {}, () => 60).render(100).map(stripSgr);
+	assert.deepEqual(plain.slice(0, 6), plainView.slice(0, 6), "no notice rows above the dashboard");
 });
 
 test("UsageView toggles a view-local Fit map and clears its cached frame", () => {

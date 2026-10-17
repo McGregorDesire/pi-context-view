@@ -23,7 +23,11 @@ real turn, so it does not widen capture coverage. An empty-input probe also
 cannot reveal contributions that run only for a particular real prompt.
 
 If the store holds a snapshot, neither view needs a probe. Either view can
-request the shared one automatic attempt when the store is empty. Never probe
+request the shared one automatic attempt when the store is empty, unless the
+`autoProbing` setting is `false`: then the command resolves to `unprobed`
+without asking ProbeTrigger. Both views open the fallback with a description
+note instead of a degraded reason, because nothing failed; a captured real
+request still replaces it. Never probe
 in the background or repeat it on every view open: a probe runs other
 extensions' handlers ([side effects](#side-effects)).
 

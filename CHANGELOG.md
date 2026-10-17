@@ -4,6 +4,9 @@
 
 Maintenance release for Pi 1.3.0, which is now required, with fixes for its removal of thinking from other models.
 
+### Added
+* `[config]` Add `autoProbing` setting to disable the silent probe (enabled by default).
+
 ### Changed
 * `[package]` Require Pi 1.3.0 for its provider message adjustments.
 * `[ci]` Target ES2024 and use its `Map.groupBy` and `Promise.withResolvers`.

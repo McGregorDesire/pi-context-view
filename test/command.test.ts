@@ -161,7 +161,7 @@ test("resolveRequestSnapshot sends the synthetic prompt inside the probe token s
 
 	const store = new SnapshotStore();
 	const trigger = new ProbeTrigger({ pi, probe, snapshots: store, compaction });
-	const result = await resolveRequestSnapshot(store, trigger, context);
+	const result = await resolveRequestSnapshot(store, trigger, context, true);
 
 	assert.equal(sentContent, "", "the probe prompt carries no instructions of its own");
 	assert.equal(probe.claimInput({ source: "extension" }, tokenDuringSend), true,
@@ -191,7 +191,7 @@ test("resolveRequestSnapshot skips the probe when compaction starts while waitin
 
 	const store = new SnapshotStore();
 	const trigger = new ProbeTrigger({ pi, probe, snapshots: store, compaction });
-	const result = await resolveRequestSnapshot(store, trigger, context);
+	const result = await resolveRequestSnapshot(store, trigger, context, true);
 
 	assert.equal(waitedForIdle, true);
 	assert.equal(sentUserMessages, 0);
@@ -221,9 +221,9 @@ test("resolveRequestSnapshot returns the latest snapshot without probing", async
 		ExtensionCommandContext;
 
 	store.publish(requestSnapshot(1, "synthetic-probe"));
-	const probe = await resolveRequestSnapshot(store, trigger, context);
+	const probe = await resolveRequestSnapshot(store, trigger, context, true);
 	store.publish(requestSnapshot(2, "real-turn"));
-	const real = await resolveRequestSnapshot(store, trigger, context);
+	const real = await resolveRequestSnapshot(store, trigger, context, true);
 
 	assert.equal(probe.type === "snapshot" ? probe.snapshot.origin : undefined, "synthetic-probe");
 	assert.equal(real.type === "snapshot" ? real.snapshot.id : undefined, 2, "a real request replaces the probe");
@@ -236,7 +236,7 @@ test("resolveRequestSnapshot takes a snapshot a running turn published before id
 		waitForIdle: async () => store.publish(requestSnapshot(1, "real-turn")),
 	} as unknown as ExtensionCommandContext;
 
-	const result = await resolveRequestSnapshot(store, trigger, context);
+	const result = await resolveRequestSnapshot(store, trigger, context, true);
 
 	assert.equal(result.type === "snapshot" ? result.snapshot.origin : undefined, "real-turn");
 });
@@ -252,7 +252,7 @@ test("resolveRequestSnapshot asks ProbeTrigger once the store is empty and repor
 	} as unknown as ProbeTrigger;
 	const context = { waitForIdle: async () => undefined } as unknown as ExtensionCommandContext;
 
-	const missing = await resolveRequestSnapshot(store, failing, context);
+	const missing = await resolveRequestSnapshot(store, failing, context, true);
 	assert.equal(probed, 1);
 	assert.equal(missing.type, "missing");
 	assert.ok(missing.type === "missing" && missing.degradedReason.includes("fixture-probe-failure"));
@@ -263,7 +263,21 @@ test("resolveRequestSnapshot asks ProbeTrigger once the store is empty and repor
 			return { status: "captured" };
 		},
 	} as unknown as ProbeTrigger;
-	const probe = await resolveRequestSnapshot(store, capturing, context);
+	const probe = await resolveRequestSnapshot(store, capturing, context, true);
 	assert.equal(probe.type === "snapshot" ? probe.snapshot.origin : undefined, "synthetic-probe",
 		"the probe snapshot is read from the store");
+});
+
+test("resolveRequestSnapshot falls back without asking ProbeTrigger when autoProbing is off", async () => {
+	const store = new SnapshotStore();
+	const trigger = { request: async () => assert.fail("autoProbing is off") } as unknown as ProbeTrigger;
+	const context = { waitForIdle: async () => undefined } as unknown as ExtensionCommandContext;
+
+	const unprobed = await resolveRequestSnapshot(store, trigger, context, false);
+	assert.equal(unprobed.type, "unprobed");
+
+	store.publish(requestSnapshot(1, "real-turn"));
+	const real = await resolveRequestSnapshot(store, trigger, context, false);
+	assert.equal(real.type === "snapshot" ? real.snapshot.origin : undefined, "real-turn",
+		"a captured request is still shown");
 });

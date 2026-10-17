@@ -19,6 +19,7 @@ import { expandJsonSpan } from "./json-preview.ts";
 import {
 	BODY_INDENT,
 	calculateViewport,
+	capNoticeLines,
 	DEFAULT_TERMINAL_ROWS,
 	descriptionBlockRows,
 	fitLine,
@@ -53,6 +54,8 @@ import { DEFAULT_WHEEL_SCROLL_LINES, parseWheelDirection, readWheelScrollLines }
  * preceding blank row, and the hint row above its own blank row.
  */
 const LIST_FIXED_LINE_COUNT = 10;
+/** Rows configuration notices may occupy before they start crowding out the list. */
+const MAX_NOTICE_LINES = 3;
 const PREVIEW_FIXED_LINE_COUNT = 8;
 /** Where a diff-only row's changes count, in place of its preview estimate. */
 const DIFF_ONLY_NOTE = "counted in System Prompt";
@@ -68,6 +71,10 @@ const DIFF_COLUMN_GAP = 2;
 export interface InjectionsViewInput {
 	readonly snapshot: InjectionSnapshot;
 	readonly degradedReason?: string;
+	/** Non-fatal problems shown under the header, such as ignored configuration entries. */
+	readonly notices?: readonly string[];
+	/** True when no request was captured yet and configuration disables the silent probe. */
+	readonly probingDisabled?: boolean;
 	/** True when a silent probe captured the request, not a real turn. */
 	readonly probe?: boolean;
 	/** Payload comparison of the request; absent for the degraded fallback, which has no request. */
@@ -197,21 +204,23 @@ export class InjectionsView {
 		const border = theme.fg("border", "─".repeat(Math.max(1, width)));
 		const headerLines = this.headerLines(width);
 		const warningLines = this.degradedWarningLines(width);
+		// A blank row separates warnings from the list; the emergency frame drops it with the other spacing
+		const warningRows = warningLines.length === 0 ? 0 : warningLines.length + 1;
 		// The status bar never collapses: the list and the description give way to it
 		const statusLines = this.statusLines(width);
 		const statusRows = descriptionBlockRows(statusLines);
 		const availableRows = Math.max(
 			1,
-			terminalRows - LIST_FIXED_LINE_COUNT - (headerLines.length - 1) - warningLines.length - statusRows,
+			terminalRows - LIST_FIXED_LINE_COUNT - (headerLines.length - 1) - warningRows - statusRows,
 		);
 		const descriptionLines = this.fittedDescriptionLines(width, availableRows);
-		const extraLineCount = headerLines.length - 1 + warningLines.length + statusRows
+		const extraLineCount = headerLines.length - 1 + warningRows + statusRows
 			+ descriptionBlockRows(descriptionLines);
 		const viewport = calculateViewport(
 			this.navigator.selectableCount, terminalRows, LIST_FIXED_LINE_COUNT, extraLineCount,
 		);
 		this.navigator.setVisibleCount(viewport.visibleCount);
-		const lines: string[] = [border, "", ...headerLines, "", ...warningLines];
+		const lines: string[] = [border, "", ...headerLines, "", ...warningLines, ...(warningRows > 0 ? [""] : [])];
 		const listLines = this.listLines(width);
 		lines.push(...listLines);
 		if (viewport.showScroll) lines.push(this.scrollLine(width));
@@ -584,11 +593,20 @@ export class InjectionsView {
 		return lines.length > 0 ? lines : [""];
 	}
 
-	/** Wrapped degraded-capture reason placed below the dialog header. */
+	/**
+	 * Wrapped degraded-capture reason, then configuration problems, placed below
+	 * the dialog header. Only the notices are capped: the precise degraded
+	 * reason always stays whole.
+	 */
 	private degradedWarningLines(width: number): string[] {
-		const warnings: string[] = [];
-		if (this.input.degradedReason !== undefined) warnings.push(normalizeInlineText(this.input.degradedReason));
-		return warnings.flatMap((warning) => wrapTextWithAnsi(this.theme.fg("warning", `${BODY_INDENT}${warning}`), width));
+		const degraded = this.input.degradedReason === undefined ? [] : this.wrapWarning(this.input.degradedReason, width);
+		const notices = (this.input.notices ?? []).map((notice) => this.wrapWarning(notice, width));
+		return [...degraded, ...capNoticeLines(notices, MAX_NOTICE_LINES, (notice) => this.wrapWarning(notice, width))];
+	}
+
+	/** One sanitized warning wrapped to the available width, indented on its first line. */
+	private wrapWarning(warning: string, width: number): string[] {
+		return wrapTextWithAnsi(this.theme.fg("warning", `${BODY_INDENT}${normalizeInlineText(warning)}`), width);
 	}
 
 	/**

@@ -52,6 +52,11 @@ test("notes select only applicable capture metadata and sanitize dynamic values"
 	assert.deepEqual(injectionsNotes(createTheme(), { items: [], hiddenTools: [] }).map((note) => note.kind), ["overview"]);
 });
 
+test("disabled probing replaces the degraded note instead of adding to it", () => {
+	const kinds = injectionsNotes(createTheme(), { items: [], probingDisabled: true }).map((note) => note.kind);
+	assert.deepEqual(kinds, ["overview", "probing-disabled"]);
+});
+
 test("each note wraps completely rather than freezing a sentence or line count", () => {
 	const theme = createTheme();
 	const notes = [...injectionsNotes(theme, { items: [], probe: true, guard: { status: "pending" } }),

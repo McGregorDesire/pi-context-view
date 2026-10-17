@@ -12,7 +12,7 @@ export type PayloadCheck = "pending" | "unchecked" | "partial";
 
 /** A note's identity survives copy changes; text may contain theme styling, never raw content. */
 export interface DescriptionNote {
-	readonly kind: "overview" | "degraded" | "probe" | "payload-check" | "hidden-tools" | "payload-changes" | "thinking" | "empty";
+	readonly kind: "overview" | "degraded" | "probe" | "probing-disabled" | "payload-check" | "hidden-tools" | "payload-changes" | "thinking" | "empty";
 	readonly text: string;
 }
 
@@ -20,6 +20,8 @@ export interface DescriptionNote {
 export interface InjectionsNotesInput {
 	readonly degradedReason?: string;
 	readonly probe?: boolean;
+	/** True when no request was captured yet and configuration disables the silent probe. */
+	readonly probingDisabled?: boolean;
 	readonly guard?: GuardResult;
 	readonly hiddenTools?: readonly string[];
 	readonly items: readonly InjectionItem[];
@@ -51,6 +53,7 @@ export function injectionsNotes(theme: Theme, input: InjectionsNotesInput): Desc
 	if (input.degradedReason !== undefined) {
 		notes.push({ kind: "degraded", text: theme.fg("warning", "Degraded") + theme.fg("dim", ": pi-native fallback used") });
 	}
+	if (input.probingDisabled === true) notes.push(probingDisabledNote(theme));
 	if (input.probe === true) {
 		notes.push({ kind: "probe", text: `Captured by a ${theme.fg("warning", "request probe")}` + theme.fg(
 			"dim", " with an empty prompt. Prompt-dependent injections may be missing.",
@@ -78,6 +81,13 @@ export function findingNotes(items: readonly InjectionItem[]): DescriptionNote[]
 	return items.some((item) => item.kind === "payload-change")
 		? [{ kind: "payload-changes", text: "Payload changes appear only in the provider payload. Their sources are unknown." }]
 		: [];
+}
+
+/** Explain what a view opened before the first request misses while the silent probe is disabled. */
+export function probingDisabledNote(theme: Theme): DescriptionNote {
+	return { kind: "probing-disabled", text: `${theme.fg("warning", "Request probing")}` + theme.fg(
+		"dim", " is disabled. Request-only injections may be missing before the first prompt.",
+	) };
 }
 
 /** Explain why category estimates need not reconcile with reported usage. */

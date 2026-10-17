@@ -25,6 +25,7 @@ import type { InjectionSnapshot } from "../src/model.ts";
 import { collectPromptSources } from "../src/prompt-additions.ts";
 import { type RequestSnapshot, SnapshotStore } from "../src/snapshot.ts";
 import { type MockApi, startMockProvider } from "./harness/mock-provider.ts";
+import { createIsolatedConfigStore } from "./harness/settings.ts";
 
 const FIXTURES = [
 	"context-modify", "context-delete", "context-add", "review-checklist",
@@ -226,7 +227,7 @@ async function createDemoRuntime(
 			}),
 			(pi) => {
 				monitorApi = pi;
-				registerExtension(pi, store);
+				registerExtension(pi, store, createIsolatedConfigStore());
 				pi.on("before_agent_start", (event) => { options = event.systemPromptOptions; });
 			},
 		],

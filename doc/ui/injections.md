@@ -16,7 +16,10 @@ Distinguish pending, unchecked, and partially checked payload comparisons from
 a completed comparison. No findings from an incomplete check must never imply
 that the payload matched. Keep incomplete status near the header; detailed
 reasons can live in the description. A degraded fallback also needs its precise
-reason visible, not only a generic warning.
+reason visible, not only a generic warning. Configuration problems follow it in
+a bounded notice block that makes omitted notices apparent; the degraded reason
+itself is never cut. Disabled probing is an expected state, not a degradation:
+explain it only as a description note.
 
 The view describes one request, not the whole session or necessarily the last
 user prompt. Do not blur this distinction with Usage's current-branch estimate.

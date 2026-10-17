@@ -24,7 +24,7 @@ import payloadChanges, {
 	PAYLOAD_CHANGE_ADDED, PAYLOAD_CHANGE_DELETED, PAYLOAD_CHANGE_MODIFIED, PAYLOAD_CHANGE_ORIGINAL,
 } from "./fixtures/payload-changes.ts";
 import { type MockApi, type MockProvider, startMockProvider } from "./harness/mock-provider.ts";
-import { useSettings } from "./harness/settings.ts";
+import { createIsolatedConfigStore, useSettings } from "./harness/settings.ts";
 
 const APIS = ["openai-completions", "openai-responses", "anthropic-messages"] as const;
 const MCP_SERVER = fileURLToPath(new URL("./fixtures/mcp-server.ts", import.meta.url));
@@ -663,7 +663,7 @@ async function createRuntime(t: TestContext, options: RuntimeOptions = {}): Prom
 				pi.registerTool({ name: "write", label: "write", description: "Redefined write.", parameters: Type.Object({}),
 					execute: async () => ({ content: [], details: undefined }) });
 			} }),
-			...(options.before ?? []), (pi) => registerExtension(pi, store), ...(options.after ?? []),
+			...(options.before ?? []), (pi) => registerExtension(pi, store, createIsolatedConfigStore()), ...(options.after ?? []),
 		],
 	});
 	await resourceLoader.reload();

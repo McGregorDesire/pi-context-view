@@ -20,7 +20,7 @@ import { SnapshotStore } from "../src/snapshot.ts";
 import { computeUsage } from "../src/usage.ts";
 import forcedPrompt, { FORCED_SYSTEM_PROMPT } from "./fixtures/forced-prompt.ts";
 import { type MockApi, startMockProvider } from "./harness/mock-provider.ts";
-import { useSettings } from "./harness/settings.ts";
+import { createIsolatedConfigStore, useSettings } from "./harness/settings.ts";
 
 const ACTIVE = ["read", "bash", "edit", "write", "codemode"];
 const HIDDEN = ["read", "bash", "edit", "write"];
@@ -190,7 +190,7 @@ async function createRuntime(t: TestContext, api: MockApi, extra: ExtraExtension
 		noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true,
 		extensionFactories: [
 			(pi) => pi.registerProvider("mock", { api, baseUrl: model.baseUrl, apiKey: "mock-key", models: [model] }),
-			createCodemodeExtension(), ...extra.before ?? [], (pi) => registerExtension(pi, store), ...extra.after ?? [],
+			createCodemodeExtension(), ...extra.before ?? [], (pi) => registerExtension(pi, store, createIsolatedConfigStore()), ...extra.after ?? [],
 			logger,
 		],
 	});
