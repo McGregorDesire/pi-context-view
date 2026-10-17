@@ -131,6 +131,7 @@ flowchart TD
 | `src/prompt-additions.ts`    | Collect extension sources; identify prompt additions and make source-attribution guesses.                     |
 | `src/usage.ts`               | Classify messages; build usage totals and previews.                                                           |
 | `src/model.ts`               | Define types, ownership, hierarchy, and grouping.                                                             |
+| `src/model-identity.ts`      | Same-model check of Pi's thinking replay; resolve the next request's model for Usage.                         |
 | `src/text.ts`                | Sanitize dynamic text before terminal display.                                                                |
 | `src/ui/`                    | Handle navigation, layout, previews, and fullscreen rendering.                                                |
 | `test/harness/`              | Mock provider, settings stub, and command runner for tests; see [validation.md](architecture/validation.md).  |

@@ -295,6 +295,17 @@ branch alone and shows the degraded reason. Session-backed custom messages
 count from the current branch once. `computeUsage()` skips system messages
 because the prompt/tool snapshot already accounts for them.
 
+**Thinking of other models is left out, as Pi drops it.** `src/index.ts`
+passes the next request's model to `computeUsage()`: `ctx.model` for a
+physical selection, or the model of the latest reply that is not an error or
+aborted for a virtual one. Like Pi's routed-model lookup, the reply comes from
+the branch messages without the latest request's changes, which
+`applyRequestSnapshot()` also returns. Assistant Thinking skips messages from another
+provider, API, or model, including their tool calls' signature proxy; like
+deleted messages, that thinking gets no preview and no marker. Without a model,
+all thinking counts. [THINKING.md](../THINKING.md#counting-architecture) holds
+the counting rules.
+
 This is a provider-independent semantic estimate, not a wire-size estimate.
 Some providers keep earlier section versions or tool declarations in the cached
 transcript; others collapse them. Usage deliberately does not count that

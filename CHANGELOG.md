@@ -7,6 +7,7 @@
 * `[ci]` Target ES2024 and use its `Map.groupBy` and `Promise.withResolvers`.
 
 ### Fixed
+* `[usage]` Leave out thinking from other models, which Pi 1.3 no longer sends.
 * `[capture]` Match Pi 1.3's removal of thinking from other models.
 * `[capture]` Skip GPT-6 `configuration_update` items in the message channel.
 * `[ci]` Clean up dependencies and pin protobufjs 7.6.6 to fix an audit warning.

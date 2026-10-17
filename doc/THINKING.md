@@ -58,6 +58,17 @@ visible thinking block.
 For messages with multiple visible thinking blocks, chars/4 rounding is pooled
 across the message and then allocated back to the individual preview entries.
 
+Since Pi 1.3.0, a request drops the thinking blocks of assistant messages from
+another provider, API, or model, and their tool calls' `thoughtSignature`.
+The estimator skips such messages entirely: no counted tokens, no signature
+proxy, no preview, and no marker. The next request's model is `ctx.model` for
+a physical selection; for a virtual one, it is the model of the latest reply
+that is not an error or aborted on the branch, without the latest request's
+changes, as Pi's routed-model lookup does. Without a
+selection, or for a virtual one without such a reply, all thinking counts.
+`src/model-identity.ts` holds the same-model check that the payload guard also
+uses.
+
 ## Retention is model-dependent
 
 Current Anthropic documentation ([Context

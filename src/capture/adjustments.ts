@@ -20,6 +20,7 @@ import {
 } from "@earendil-works/pi-ai";
 import { convertToLlm } from "@earendil-works/pi-coding-agent";
 
+import { isSameModel } from "../model-identity.ts";
 import type { RequestMessage } from "../snapshot.ts";
 import { canonicalJson } from "./diff.ts";
 import type { GuardModel } from "./guard.ts";
@@ -317,7 +318,7 @@ function replayMessages(messages: readonly Message[], model: GuardModel): Messag
 			return toolCallId === undefined ? message : { ...message, toolCallId };
 		}
 		if (message.role !== "assistant") return message;
-		const sameModel = message.provider === model.provider && message.api === model.api && message.model === model.id;
+		const sameModel = isSameModel(message, model);
 		const content = message.content.flatMap((block): AssistantMessage["content"] => {
 			if (block.type === "thinking") {
 				if (!sameModel) return [];

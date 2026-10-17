@@ -18,6 +18,7 @@ import {
 	type UsageCategory,
 	type UsagePreviewEntry,
 } from "./model.ts";
+import { isSameModel, type ModelIdentity } from "./model-identity.ts";
 
 /**
  * Everything computeUsage needs; messages must already be synthetic-filtered and
@@ -28,6 +29,11 @@ export interface UsageInputs {
 	messages: ContextEvent["messages"];
 	reported?: ReportedContextUsage;
 	modelLabel?: string;
+	/**
+	 * The next request's model; thinking of other models is left out, as Pi drops it.
+	 * Omit to count all thinking.
+	 */
+	nextRequestModel?: ModelIdentity;
 	computedAt?: Date;
 	/** Auto-compaction reserve (settings `reserveTokens`); omit when auto-compaction is disabled. */
 	autoCompactReserveTokens?: number;
@@ -43,7 +49,7 @@ export interface UsageInputs {
 export function computeUsage(inputs: UsageInputs): ContextUsageSnapshot {
 	const categories = [
 		...classifyPromptCategories(inputs.snapshot),
-		...classifyMessages(inputs.messages),
+		...classifyMessages(inputs.messages, inputs.nextRequestModel),
 	].filter((category) => category.tokens > 0);
 	return {
 		computedAt: inputs.computedAt ?? new Date(),
@@ -141,8 +147,11 @@ type ToolResultContextMessage = Extract<ContextEvent["messages"][number], { role
 /** Custom-message shape narrowed out of the context event union. */
 type CustomContextMessage = Extract<ContextEvent["messages"][number], { role: "custom" }>;
 
-/** Classify session and request messages with preview entries. */
-function classifyMessages(messages: ContextEvent["messages"]): UsageCategory[] {
+/** Classify session and request messages with preview entries; `nextRequestModel` keeps only its own thinking. */
+function classifyMessages(
+	messages: ContextEvent["messages"],
+	nextRequestModel: ModelIdentity | undefined,
+): UsageCategory[] {
 	const user: UsagePreviewEntry[] = [];
 	const assistantText: UsagePreviewEntry[] = [];
 	const assistantThinking: UsagePreviewEntry[] = [];
@@ -168,7 +177,10 @@ function classifyMessages(messages: ContextEvent["messages"]): UsageCategory[] {
 			case "assistant": {
 				const texts = message.content.flatMap((block) => (block.type === "text" ? [block.text] : []));
 				assistantText.push(...blockEntries(message.timestamp, "text", texts));
-				assistantThinking.push(...thinkingEntries(message));
+				// Pi drops another model's thinking and tool-call signatures; like deleted content, it gets no preview
+				if (nextRequestModel === undefined || isSameModel(message, nextRequestModel)) {
+					assistantThinking.push(...thinkingEntries(message));
+				}
 				for (const block of message.content) {
 					if (block.type !== "toolCall") continue;
 					const args = JSON.stringify(block.arguments);

@@ -1,25 +1,5 @@
 ## `TODO`
 
-- [ ] **Leave Out Other Models' Thinking in Usage**:
-  - Since Pi 1.3.0, Pi drops thinking from assistant messages of another
-    provider, API, or model before it sends a request. The payload guard does
-    the same, but Usage still counts this thinking in Assistant Thinking.
-  - `src/index.ts`: pass the next request's model identity (provider, API,
-    model ID) to `computeUsage()`. Use `ctx.model` for a physical selection.
-    For a virtual selection, use the latest assistant reply that is not an
-    error or aborted, as Pi's own routed-model lookup does; without such a
-    reply, count all thinking as now.
-  - `src/usage.ts`: in `thinkingEntries()`, count and preview no thinking of
-    another model, and leave its tool calls' `thoughtSignature` out of the
-    signature proxy. Like deleted messages, dropped thinking gets no preview
-    and no marker. Same-model thinking stays as it is.
-  - Share one same-model check with `src/capture/adjustments.ts` from a module
-    outside `src/capture/`: Usage must not import capture modules.
-  - `test/usage.test.ts`: same model, another provider, API, or model, and a
-    virtual selection with and without a latest reply.
-  - Docs: [Usage](architecture/views.md#usage) and
-    [THINKING.md](THINKING.md#counting-architecture).
-
 - [ ] **Detect Nested Sends That Take the Probe's Identity**:
   - A nested `pi.sendUserMessage()` from another extension's `input` handler
     inherits the probe token and can claim it before the probe's own prompt:

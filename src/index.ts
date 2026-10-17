@@ -28,6 +28,7 @@ import { SnapshotBuilder } from "./capture/builder.ts";
 import { registerCapture } from "./capture/register.ts";
 import { CompactionState, registerCompactionTracking } from "./compaction.ts";
 import { buildFallbackInjectionsSnapshot, buildInjectionsSnapshot } from "./injections.ts";
+import { resolveNextRequestModel } from "./model-identity.ts";
 import { isSupportedPiVersion } from "./pi-version.ts";
 import { ProbeFilter, registerProbeFilter } from "./probe/filter.ts";
 import { registerSilentProbe, SilentProbe } from "./probe/silent-probe.ts";
@@ -91,7 +92,7 @@ export default function (pi: ExtensionAPI, snapshots = new SnapshotStore()) {
 	async function openUsage(ctx: ExtensionCommandContext, latest: RequestSnapshotResult): Promise<void> {
 		// Loaded only for the Usage view, the sole consumer of configured colors.
 		const loadedConfig = configStore.load();
-		const { messages, systemChanges, forcedPrompt } = applyRequestSnapshot({
+		const { messages, branchMessages, systemChanges, forcedPrompt } = applyRequestSnapshot({
 			snapshot: latest.type === "snapshot" ? latest.snapshot : undefined,
 			entries: ctx.sessionManager.getEntries(),
 			leafId: ctx.sessionManager.getLeafId(),
@@ -113,6 +114,8 @@ export default function (pi: ExtensionAPI, snapshots = new SnapshotStore()) {
 				messages,
 				reported: toReportedUsage(ctx.getContextUsage()),
 				modelLabel: ctx.model?.id,
+				// Pi's routed-model lookup reads its session messages, not the request's changes
+				nextRequestModel: resolveNextRequestModel(ctx.model, branchMessages),
 				autoCompactReserveTokens: readAutoCompactReserveTokens(pi, ctx.model),
 			}),
 			degradedReason: latest.type === "missing" ? latest.degradedReason : undefined,
