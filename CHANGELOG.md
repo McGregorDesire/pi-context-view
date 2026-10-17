@@ -1,6 +1,6 @@
 # Changelog
 
-## `[v0.7.2]` - Unreleased
+## `[v0.7.2]` - 17.10.2026
 
 Maintenance release for Pi 1.3.0, which is now required, with fixes for its removal of thinking from other models.
 
