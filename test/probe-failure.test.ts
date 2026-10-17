@@ -6,8 +6,8 @@ import { probeFailure, type ProbeFailureCause } from "../src/probe/failure.ts";
 
 const CAUSES = {
 	compaction: true, "pending-messages": true, "missing-model": true, "virtual-model": true, "missing-auth": true,
-	"idle-warming": true, "context-limit": true, settings: true, timeout: true, "foreign-run": true, shutdown: true,
-	startup: true, "missing-snapshot": true,
+	"idle-warming": true, "context-limit": true, settings: true, timeout: true, "foreign-run": true,
+	"nested-send": true, shutdown: true, startup: true, "missing-snapshot": true,
 } satisfies Record<ProbeFailureCause, true>;
 
 test("every probe failure cause has a distinct nonempty explanation", () => {

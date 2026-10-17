@@ -164,7 +164,7 @@ test("resolveRequestSnapshot sends the synthetic prompt inside the probe token s
 	const result = await resolveRequestSnapshot(store, trigger, context);
 
 	assert.equal(sentContent, "", "the probe prompt carries no instructions of its own");
-	assert.equal(probe.isProbeInput({ source: "extension" }, tokenDuringSend), true,
+	assert.equal(probe.claimInput({ source: "extension" }, tokenDuringSend), true,
 		"the send must carry this attempt's token");
 	assert.equal(readProbeToken(), undefined, "the token must not outlive the send");
 	assert.equal(result.type, "missing");

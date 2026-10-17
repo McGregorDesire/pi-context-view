@@ -2,6 +2,8 @@
 
 ## `[v0.7.2]` - Unreleased
 
+Maintenance release for Pi 1.3.0, which is now required, with fixes for its removal of thinking from other models.
+
 ### Changed
 * `[package]` Require Pi 1.3.0 for its provider message adjustments.
 * `[ci]` Target ES2024 and use its `Map.groupBy` and `Promise.withResolvers`.
@@ -10,6 +12,7 @@
 * `[usage]` Leave out thinking from other models, which Pi 1.3 no longer sends.
 * `[capture]` Match Pi 1.3's removal of thinking from other models.
 * `[capture]` Skip GPT-6 `configuration_update` items in the message channel.
+* `[probe]` Detect nested user sends during a probe; warn when one took the probe's place.
 * `[ci]` Clean up dependencies and pin protobufjs 7.6.6 to fix an audit warning.
 
 

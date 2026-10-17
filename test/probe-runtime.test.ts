@@ -15,6 +15,7 @@ import {
 	type ExtensionUIContext,
 	ModelRuntime,
 	type SessionBoundaryDraft,
+	type SessionEntry,
 	SessionManager,
 	SettingsManager,
 } from "@earendil-works/pi-coding-agent";
@@ -329,6 +330,69 @@ test("a nested custom-message run fails the attempt and the probe still claims i
 	assert.deepEqual(conversationRoles(projected), ["assistant"], "the nested run's reply stays visible");
 });
 
+test("a nested user send before this extension's input handler takes the probe's place and is warned about", { timeout: 30_000 }, async (t) => {
+	const { provider, events, warnings, errors, stopReasons, session } = await probeWithNestedUserSend(t, "before");
+
+	assert.deepEqual(errors, []);
+	assert.deepEqual(events, [
+		"before_agent_start: user",
+		"agent_settled",
+		"view",
+		// The probe prompt's own run starts once the claimed nested run settled
+		"before_agent_start: user",
+		"notify: warning",
+		"after_provider_response",
+		"agent_settled",
+	]);
+	assert.equal(warnings.length, 1);
+	assert.ok(!warnings[0].includes("nested"), "the warning quotes no message content");
+	// Known limitation: the nested message is erased and aborted in the probe's place, the probe prompt is sent
+	assert.equal(provider.requests(), 1);
+	assert.deepEqual(userTexts(provider.bodies[0]), [], "the nested text is lost and the probe prompt is empty");
+	assert.deepEqual(stopReasons, [["error", "This operation was aborted"], ["stop", undefined]]);
+	const branch = session.sessionManager.getBranch();
+	const conversation = conversationEntries(branch);
+	assert.deepEqual(conversation.map(({ message }) => [message.role, message.content]), [
+		["user", []],
+		["assistant", []],
+		["user", [{ type: "text", text: "" }]],
+		["assistant", [{ type: "text", text: "ok" }]],
+	], "the claimed nested run is blanked, the probe prompt's run is left untouched");
+	assert.deepEqual(branch.filter((entry) => entry.type === "context_edit").map((entry) => entry.targetId),
+		conversation.slice(0, 2).map(({ id }) => id));
+	assert.deepEqual(conversationRoles(session.sessionManager.buildSessionProjection().messages), ["user", "assistant"]);
+});
+
+test("a nested user send after this extension's input handler makes ownership ambiguous and both runs proceed", { timeout: 30_000 }, async (t) => {
+	const { provider, events, errors, stopReasons, session } = await probeWithNestedUserSend(t, "after");
+
+	assert.deepEqual(errors, []);
+	const view = events.indexOf("view");
+	assert.ok(view >= 0 && view < events.indexOf("after_provider_response"),
+		"the failed attempt opens the view while the nested run still waits for its response");
+	assert.deepEqual(events.filter((event) => event !== "view"), [
+		"before_agent_start: user",
+		"after_provider_response",
+		"agent_settled",
+		"before_agent_start: user",
+		"after_provider_response",
+		"agent_settled",
+	], "no run is claimed, so none is warned about");
+	assert.equal(provider.requests(), 2, "both runs reach the provider");
+	assert.deepEqual(userTexts(provider.bodies[0]), ["nested"], "the nested message keeps its text");
+	assert.deepEqual(stopReasons, [["stop", undefined], ["stop", undefined]]);
+	const branch = session.sessionManager.getBranch();
+	assert.deepEqual(conversationEntries(branch).map(({ message }) => [message.role, message.content]), [
+		["user", [{ type: "text", text: "nested" }]],
+		["assistant", [{ type: "text", text: "ok" }]],
+		["user", [{ type: "text", text: "" }]],
+		["assistant", [{ type: "text", text: "ok" }]],
+	]);
+	assert.ok(branch.every((entry) => entry.type !== "context_edit"
+		&& (entry.type !== "custom" || entry.customType !== PROBE_IDENTITIES_CUSTOM_TYPE)),
+	"nothing is omitted or recorded as a probe message");
+});
+
 for (const position of ["before", "after"] as const) {
 	test(`messages sent while the probe run starts stay visible with the sender ${position}`, async (t) => {
 		const provider = await startProvider(t);
@@ -392,6 +456,65 @@ for (const position of ["before", "after"] as const) {
 }
 
 /**
+ * Open Injections while another extension's async `input` handler sends a user
+ * message from the probe's input, which inherits the token, and waits until
+ * that run settles. Resolves once both runs settled, with what was observed.
+ */
+async function probeWithNestedUserSend(t: TestContext, position: "before" | "after") {
+	const provider = await startProvider(t);
+	const events: string[] = [];
+	const warnings: string[] = [];
+	const stopReasons: Array<[string, string | undefined]> = [];
+	let settledRuns = 0;
+	const { promise: bothSettled, resolve: resolveBothSettled } = Promise.withResolvers<void>();
+	const sentinel: ExtensionFactory = (pi) => {
+		pi.on("before_agent_start", (event) => { events.push(`before_agent_start: ${event.messageType}`); });
+		pi.on("after_provider_response", () => { events.push("after_provider_response"); });
+		pi.on("message_end", (event) => {
+			if (event.message.role === "assistant") {
+				stopReasons.push([event.message.stopReason, event.message.errorMessage]);
+			}
+		});
+		pi.on("agent_settled", () => {
+			events.push("agent_settled");
+			if (++settledRuns === 2) resolveBothSettled();
+		});
+	};
+	let nestedSent = false;
+	const nestedSettled = Promise.withResolvers<void>();
+	const nestedSender: ExtensionFactory = (pi) => {
+		pi.on("input", async (event) => {
+			if (nestedSent || event.source !== "extension") return;
+			nestedSent = true;
+			pi.sendUserMessage("nested");
+			await nestedSettled.promise;
+		});
+		pi.on("agent_settled", () => {
+			// Pi is idle only once every agent_settled handler has returned; later resolves are no-ops
+			if (nestedSent) setImmediate(nestedSettled.resolve);
+		});
+	};
+	const ordered = position === "before" ? [nestedSender, registerExtension] : [registerExtension, nestedSender];
+	const session = await createRuntime(t, provider.baseUrl, [sentinel, ...ordered]);
+	const errors: string[] = [];
+	await session.bindExtensions({
+		mode: "tui",
+		onError: (error) => { errors.push(`${error.event}: ${error.error}`); },
+		uiContext: {
+			setWorkingVisible: () => undefined,
+			notify: (message: string, type: string) => {
+				events.push(`notify: ${type}`);
+				warnings.push(message);
+			},
+			custom: async () => { events.push("view"); },
+		} as unknown as ExtensionUIContext,
+	});
+	await session.prompt("/context injections");
+	await bothSettled;
+	return { session, provider, events, warnings, errors, stopReasons };
+}
+
+/**
  * Bind a session in TUI mode, where `/context` may probe; the view overlay
  * closes at once. Returns the extension errors reported from then on.
  */
@@ -416,6 +539,14 @@ function userTexts(body: RequestBody): string[] {
 			? [message.content]
 			: [message.content.map((part) => part.text ?? "").join("")];
 	});
+}
+
+/** User and assistant message entries of a branch with their IDs, skipping custom and other session messages. */
+function conversationEntries(branch: readonly SessionEntry[]) {
+	return branch.flatMap((entry) => entry.type === "message"
+		&& (entry.message.role === "user" || entry.message.role === "assistant")
+		? [{ id: entry.id, message: entry.message }]
+		: []);
 }
 
 /** Roles of the user and assistant messages, skipping custom and other session messages. */

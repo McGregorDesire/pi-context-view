@@ -22,6 +22,9 @@ const SETUP_ABORT_ERROR_MESSAGES = new Set([
 	"This operation was aborted", // Node.js
 	"The operation was aborted.", // Bun
 ]);
+/** Reported once for a wrong claim; names no message, since raw content never reaches notifications. */
+const WRONG_CLAIM_WARNING = "Silent probe may have stopped another extension's message instead of its own; " +
+	"its empty prompt may reach the model.";
 
 /**
  * Result of the one allowed silent-probe attempt. A settled run says nothing
@@ -40,11 +43,22 @@ export interface ProbeAttempt {
 }
 
 /**
+ * How SilentProbe treats a starting run:
+ *   claimed       the probe's own run: aborted before the provider, blanked, and omitted
+ *   wrong-claim   the first user-message run with the token after the claim: a nested send
+ *                 took the probe's identity, and this run is likely the probe prompt
+ *   foreign       any other run
+ * Only a claimed run is changed; the others run untouched.
+ */
+export type RunClaim = "claimed" | "wrong-claim" | "foreign";
+
+/**
  * Lifecycle of the single probe attempt. Ownership outlives the attempt's own
  * completion, so a probe run arriving after a timeout or after an unattributed
- * run is still claimed, aborted, and sanitized.
+ * run is still claimed, aborted, and sanitized. A second idle input with the
+ * token ends ownership without a claim: the attempt becomes `ambiguous`.
  */
-type ProbePhase = "idle" | "waiting" | "running" | "settled";
+type ProbePhase = "idle" | "waiting" | "running" | "settled" | "ambiguous";
 
 /**
  * Progress of the owned run's prompt, its first user message, through its
@@ -66,6 +80,10 @@ export class SilentProbe {
 	private outcome: ProbeOutcome | undefined;
 	private timeout: NodeJS.Timeout | undefined;
 	private promptProgress: PromptProgress = "pending";
+	/** Whether an idle input with the token was claimed; a second one makes ownership ambiguous. */
+	private inputClaimed = false;
+	/** Whether a wrong claim was reported; runs started from the probe's handlers inherit the token too. */
+	private wrongClaimReported = false;
 	/** Identities this runtime recorded since its last persisted entry. */
 	private unpersistedCount = 0;
 
@@ -99,20 +117,31 @@ export class SilentProbe {
 	}
 
 	/**
-	 * Whether this input event is the probe's own synthetic prompt. Recognition
-	 * is causal rather than textual: the token is visible only inside the async
+	 * Claim the probe's own synthetic prompt among idle inputs. Recognition is
+	 * causal rather than textual: the token is visible only inside the async
 	 * context of this extension's own `sendUserMessage()` call. The probe sends
 	 * while idle, so queued input is never its own, even with the token another
-	 * extension's send from `before_agent_start` inherits.
+	 * extension's send from `before_agent_start` inherits. A second idle input
+	 * with the token comes from a nested send in another extension's `input`
+	 * handler, and either may be the probe's. Ownership is then ambiguous: reset
+	 * no later input, claim no run, and fail the attempt.
 	 */
-	public isProbeInput(
+	public claimInput(
 		input: Pick<InputEvent, "source" | "streamingBehavior">,
 		token: ProbeToken | undefined,
 	): boolean {
-		return this.phase === "waiting"
+		const isIdleInputWithToken = this.phase === "waiting"
 			&& input.source === "extension"
 			&& input.streamingBehavior === undefined
 			&& this.ownsToken(token);
+		if (!isIdleInputWithToken) return false;
+		if (!this.inputClaimed) {
+			this.inputClaimed = true;
+			return true;
+		}
+		this.phase = "ambiguous";
+		this.fail("nested-send");
+		return false;
 	}
 
 	/**
@@ -122,15 +151,24 @@ export class SilentProbe {
 	 * extension and must run untouched. A custom-message run is foreign even
 	 * with the token, which another extension's nested `sendMessage()` inherits.
 	 * Ownership stays open afterwards so a delayed probe run is still claimed.
+	 * The first user-message run with the token after the claim is a wrong
+	 * claim: a nested send likely took the probe's identity. It runs untouched
+	 * too, since a later send of another extension inherits the token as well.
 	 */
-	public beginRun(messageType: BeforeAgentStartEvent["messageType"], token: ProbeToken | undefined): boolean {
-		if (this.phase !== "waiting") return false;
-		if (messageType !== "user" || !this.ownsToken(token)) {
-			this.fail("foreign-run");
-			return false;
+	public beginRun(messageType: BeforeAgentStartEvent["messageType"], token: ProbeToken | undefined): RunClaim {
+		const isUserRunWithToken = messageType === "user" && this.ownsToken(token);
+		if (this.phase === "waiting") {
+			if (!isUserRunWithToken) {
+				this.fail("foreign-run");
+				return "foreign";
+			}
+			this.phase = "running";
+			return "claimed";
 		}
-		this.phase = "running";
-		return true;
+		const hasClaimed = this.phase === "running" || this.phase === "settled";
+		if (!isUserRunWithToken || !hasClaimed || this.wrongClaimReported) return "foreign";
+		this.wrongClaimReported = true;
+		return "wrong-claim";
 	}
 
 	/**
@@ -265,12 +303,15 @@ export function registerSilentProbe(pi: ExtensionAPI, probe: SilentProbe): void 
 	pi.on("input", (event) => {
 		// Reset text earlier input transforms added to our own synthetic prompt:
 		// the probe carries no instructions, and its run is identified by token.
-		if (event.text === "" || !probe.isProbeInput(event, readProbeToken())) return undefined;
+		// Claim an empty prompt too, so that a later nested send is recognized.
+		if (!probe.claimInput(event, readProbeToken()) || event.text === "") return undefined;
 		return { action: "transform", text: "" } as const;
 	});
 
-	pi.on("before_agent_start", (event) => {
-		probe.beginRun(event.messageType, readProbeToken());
+	pi.on("before_agent_start", (event, ctx) => {
+		if (probe.beginRun(event.messageType, readProbeToken()) === "wrong-claim") {
+			ctx.ui.notify(WRONG_CLAIM_WARNING, "warning");
+		}
 	});
 
 	pi.on("turn_start", (_event, ctx) => {
