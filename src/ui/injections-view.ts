@@ -38,9 +38,11 @@ import {
 	diffMarker,
 	formatDiffAdded,
 	formatDiffRemoved,
-	noteBulletLines,
 	stateMarkers,
 } from "./markers.ts";
+import {
+	descriptionNoteLines, findingNotes, injectionsNotes, payloadCheck, payloadCheckLabel, requestOriginLabel,
+} from "./notes.ts";
 import { previewBodyLines, previewLegendLines } from "./section-preview.ts";
 import { statusBarLines } from "./status-bar.ts";
 import { DEFAULT_WHEEL_SCROLL_LINES, parseWheelDirection, readWheelScrollLines } from "./wheel.ts";
@@ -52,8 +54,6 @@ import { DEFAULT_WHEEL_SCROLL_LINES, parseWheelDirection, readWheelScrollLines }
  */
 const LIST_FIXED_LINE_COUNT = 10;
 const PREVIEW_FIXED_LINE_COUNT = 8;
-const LIST_DESCRIPTION = "Injections into the model context, with token estimates.";
-const PAYLOAD_CHANGES_NOTE = "Payload changes appear only in the provider payload. Their sources are unknown.";
 /** Where a diff-only row's changes count, in place of its preview estimate. */
 const DIFF_ONLY_NOTE = "counted in System Prompt";
 /** List rows that must stay visible for the description to keep its own rows. */
@@ -300,7 +300,7 @@ export class InjectionsView {
 			width,
 			availableRows: terminalRows - PREVIEW_FIXED_LINE_COUNT,
 			contentLineCount: wrapped.length,
-		}, findingNotes([item, ...(item.children ?? [])]), previewDiffBase(item));
+		}, findingNotes([item, ...(item.children ?? [])]).map((note) => note.text), previewDiffBase(item));
 		const viewport = calculateViewport(
 			wrapped.length, terminalRows, PREVIEW_FIXED_LINE_COUNT, descriptionBlockRows(descriptionLines),
 		);
@@ -391,10 +391,10 @@ export class InjectionsView {
 		const theme = this.theme;
 		const separator = theme.fg("dim", " · ");
 		const probe = this.input.probe === true;
-		const label = theme.fg("mdHeading", theme.bold(probe ? "[Request Probe]" : "[Latest Request]"));
-		const payloadState = payloadCheckStatus(this.input.guard);
+		const label = theme.fg("mdHeading", theme.bold(requestOriginLabel(probe)));
+		const payloadState = payloadCheck(this.input.guard);
 		const status = payloadState === undefined ? ""
-			: theme.fg("muted", "Payload") + theme.fg("dim", `: ${payloadState}`);
+			: theme.fg("muted", "Payload") + theme.fg("dim", `: ${payloadCheckLabel(payloadState)}`);
 		// An emergency frame drops the title, never the origin or payload attention
 		if (compact) return wrapTextWithAnsi(`${label}${status === "" ? "" : separator + status}`, Math.max(1, width));
 		const title = theme.fg("accent", theme.bold("Context Injections"));
@@ -611,29 +611,9 @@ export class InjectionsView {
 	 * further. The status bar, not a legend, explains the selected row's markers.
 	 */
 	private descriptionLines(width: number): string[] {
-		const lines = wrapDescriptionLines(this.theme, LIST_DESCRIPTION, "dim", width);
-		if (this.input.degradedReason !== undefined) {
-			lines.push(...wrapDescriptionLines(
-				this.theme,
-				this.theme.fg("warning", "Degraded") + this.theme.fg("dim", ": pi-native fallback used"),
-				"dim",
-				width,
-			));
-		}
-		if (this.input.probe === true) {
-			const note = `Captured by a ${this.theme.fg("warning", "request probe")}` + this.theme.fg(
-				"dim", " with an empty prompt. Prompt-dependent injections may be missing.",
-			);
-			lines.push(...noteBulletLines(this.theme, note, width));
-		}
-		const guardNote = payloadCheckNote(this.input.guard);
-		if (guardNote !== undefined) lines.push(...noteBulletLines(this.theme, guardNote, width));
-		const hiddenNote = hiddenToolsNote(this.input.snapshot.hiddenTools ?? []);
-		if (hiddenNote !== undefined) lines.push(...noteBulletLines(this.theme, hiddenNote, width));
-		for (const note of findingNotes([...this.itemsById.values()])) {
-			lines.push(...noteBulletLines(this.theme, note, width));
-		}
-		return lines;
+		return injectionsNotes(this.theme, {
+			...this.input, hiddenTools: this.input.snapshot.hiddenTools, items: [...this.itemsById.values()],
+		}).flatMap((note) => descriptionNoteLines(this.theme, note, width));
 	}
 
 	private spread(left: string, right: string, width: number): string {
@@ -723,49 +703,4 @@ function previewDiffBase(item: InjectionItem): DiffBase {
 	if (item.kind === "payload-change") return "captured-request";
 	// A `system prompt` row splits pi's prompt changes by source
 	return item.source.native || item.diffOnly === true ? "default-prompt" : "session";
-}
-
-/** Compact payload attention state; a complete comparison and a fallback without a request need none. */
-function payloadCheckStatus(guard: GuardResult | undefined): string | undefined {
-	switch (guard?.status) {
-		case "pending":
-			return "pending";
-		case "incomplete":
-			return guard.findings === undefined ? "not checked" : "partly checked";
-		default:
-			return undefined;
-	}
-}
-
-/**
- * Description note for a payload comparison that is unavailable or partial, so
- * a missing comparison never reads as "no payload changes". A complete comparison
- * has none: its findings render as rows.
- */
-function payloadCheckNote(guard: GuardResult | undefined): string | undefined {
-	switch (guard?.status) {
-		case "pending":
-			return "Payload changes are not checked yet: the comparison is pending.";
-		case "incomplete": {
-			const reason = normalizeInlineText(guard.reason);
-			// Findings, even none, mean one channel was compared
-			return guard.findings === undefined
-				? `Payload changes were not checked: ${reason}`
-				: `Payload changes were checked only in part: ${reason}`;
-		}
-		default:
-			return undefined;
-	}
-}
-
-/** Count and sanitized names of tools Pi hid, alphabetically, with no note when none are hidden. */
-function hiddenToolsNote(tools: readonly string[]): string | undefined {
-	if (tools.length === 0) return undefined;
-	const names = [...tools].sort().map(normalizeInlineText).join(", ");
-	return `${tools.length} ${tools.length === 1 ? "tool" : "tools"} hidden by pi: ${names}.`;
-}
-
-/** The note that explains payload changes further, after the marker legend, when any of `items` holds them. */
-function findingNotes(items: readonly InjectionItem[]): string[] {
-	return items.some((item) => item.kind === "payload-change") ? [PAYLOAD_CHANGES_NOTE] : [];
 }

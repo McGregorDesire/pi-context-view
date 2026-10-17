@@ -116,6 +116,7 @@ flowchart TD
 | `src/probe/silent-probe.ts`  | SilentProbe: claim, abort, blank, and omit the probe run; persist its identities.                             |
 | `src/probe/view.ts`          | ProbeView: the run origin and probe-message filter that capture reads.                                        |
 | `src/probe/trigger.ts`       | ProbeTrigger: preconditions, one automatic attempt, and its status from store publications.                   |
+| `src/probe/failure.ts`       | Typed probe failure causes and their display reasons.                                                         |
 | `src/probe/token.ts`         | Carry the probe token through the async context of this extension's own send.                                 |
 | `src/pi-version.ts`          | Check the running Pi version against the oldest supported release.                                            |
 | `src/injections.ts`          | Rebuild the latest snapshot's baseline; measure it with marked changes, token diffs, and guard findings.      |

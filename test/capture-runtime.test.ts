@@ -27,7 +27,9 @@ import { applyRequestSnapshot } from "../src/projection.ts";
 import { buildUsageSnapshot } from "../src/replay.ts";
 import type { ConversationChange, RequestSnapshot, SystemChange } from "../src/snapshot.ts";
 import { SnapshotStore } from "../src/snapshot.ts";
+import { injectionsNotes, payloadCheckLabel, requestOriginLabel, type DescriptionNote } from "../src/ui/notes.ts";
 import { collectPreviewEntries, computeUsage } from "../src/usage.ts";
+import { containsBlock, createTheme, frameText, stripSgr } from "./harness/frame.ts";
 import agentStartMessage, {
 	AGENT_START_MESSAGE_TEXT, AGENT_START_MESSAGE_TYPE,
 } from "./fixtures/agent-start-message.ts";
@@ -487,10 +489,10 @@ suite("Injections composition", { concurrency: true }, () => {
 			assert.equal(responses, 0, "after_provider_response sentinel stays silent for the probe");
 			assert.equal(provider.requests.length, 0);
 			const probe = await runtime.renderView();
-			assert.ok(probe.some((line) => line.startsWith("Context Injections · [Request Probe]")));
-			assert.ok(probe.some((line) => line.endsWith("Payload: not checked")));
-			assert.ok(probe.some((line) => line.includes("Captured by a request probe")));
-			assert.ok(probe.some((line) => line.includes("Payload changes were not checked")));
+			const probeNotes = noteKindsShown(probe, true, true);
+			assert.ok(containsBlock(probe, [requestOriginLabel(true)]));
+			assert.ok(containsBlock(probe, [`Payload: ${payloadCheckLabel("unchecked")}`]));
+			assert.ok(probeNotes.has("probe") && probeNotes.has("payload-check"));
 
 			await runtime.session.prompt("real prompt");
 			// Settled real turns have a complete guard without payload changes
@@ -498,15 +500,30 @@ suite("Injections composition", { concurrency: true }, () => {
 			assert.equal(real?.origin, "real-turn");
 			await runtime.session.prompt("/context injections");
 			const latest = await runtime.renderView();
-			assert.ok(latest.includes("Context Injections · [Latest Request]"));
-			assert.ok(!latest.some((line) => line.includes("request probe")), "the probe snapshot was released");
-			assert.ok(!latest.some((line) => line.includes("Payload changes")), "a complete guard adds no note");
+			const latestNotes = noteKindsShown(latest, true, true);
+			assert.ok(containsBlock(latest, [requestOriginLabel()]));
+			assert.ok(!containsBlock(latest, [requestOriginLabel(true)]));
+			assert.ok(!latestNotes.has("probe"), "the probe snapshot was released");
+			assert.ok(!latestNotes.has("payload-check"), "a complete guard adds no note");
 			assert.equal(provider.requests.length, 1, "opening the views makes no provider request");
 			assert.equal(responses, 1);
 			assert.deepEqual(runtime.errors, []);
 		});
 	}
 });
+
+/** Note kinds visible in a frame, matching only the static text before a guard's runtime-specific reason. */
+function noteKindsShown(lines: readonly string[], probe: boolean, incomplete: boolean): Set<DescriptionNote["kind"]> {
+	const reason = "\u0000";
+	const notes = injectionsNotes(createTheme(), {
+		probe, guard: incomplete ? { status: "incomplete", reason } : undefined, items: [],
+	});
+	const text = frameText(lines);
+	return new Set(notes.filter((note) => {
+		const fixed = stripSgr(note.text).split(reason)[0]?.replace(/\s+/g, " ").trim() ?? "";
+		return fixed !== "" && text.includes(fixed);
+	}).map((note) => note.kind));
+}
 
 /** Placeholder replaced by the monitor in `createRuntime`, so fixtures can be ordered around it. */
 const monitorSlot: ExtensionFactory = () => undefined;

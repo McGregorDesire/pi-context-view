@@ -153,10 +153,8 @@ test("SilentProbe leaves an unattributed run untouched and fails the attempt", a
 	// A run without the token may belong to the user or to another extension.
 	assert.equal(probe.beginRun("user", undefined), false);
 	assert.equal(probe.isCurrentRun, false, "an unattributed run must not arm the abort guard");
-	assert.deepEqual(await attempt.completion, {
-		status: "failed",
-		reason: "Another agent run started before the silent probe was recognized.",
-	});
+	const result = await attempt.completion;
+	assert.equal(result.status === "failed" ? result.cause : undefined, "foreign-run");
 
 	// A delayed probe run is still claimed, so it is aborted and sanitized.
 	assert.equal(probe.beginRun("user", attempt.token), true);
@@ -171,10 +169,8 @@ test("SilentProbe leaves a custom-message run with its token untouched and fails
 	// Another extension's nested sendMessage() from an input handler inherits the token
 	assert.equal(probe.beginRun("custom", attempt.token), false);
 	assert.equal(probe.isCurrentRun, false, "a custom-message run must not arm the abort guard");
-	assert.deepEqual(await attempt.completion, {
-		status: "failed",
-		reason: "Another agent run started before the silent probe was recognized.",
-	});
+	const result = await attempt.completion;
+	assert.equal(result.status === "failed" ? result.cause : undefined, "foreign-run");
 
 	// The probe's own user-message run that follows is still claimed
 	assert.equal(probe.beginRun("user", attempt.token), true);
@@ -286,7 +282,7 @@ test("SilentProbe filters restored identities without consuming the probe attemp
 	assert.equal(probe.isCurrentRun, false);
 	const attempt = probe.start(1_000);
 	assert.equal(attempt.started, true);
-	probe.fail("cleanup");
+	probe.fail("shutdown");
 });
 
 test("SilentProbe persists every known identity only after recording new ones", () => {
@@ -319,7 +315,8 @@ test("SilentProbe keeps a timed-out running probe abortable until settlement", a
 	const attempt = probe.start(1);
 	assert.equal(probe.beginRun("user", attempt.token), true);
 
-	assert.deepEqual(await attempt.completion, { status: "failed", reason: "Silent probe timed out." });
+	const result = await attempt.completion;
+	assert.equal(result.status === "failed" ? result.cause : undefined, "timeout");
 	assert.equal(probe.isCurrentRun, true);
 	assert.equal(probe.settle(), true);
 	assert.equal(probe.isCurrentRun, false);
@@ -329,7 +326,8 @@ test("SilentProbe retains a delayed synthetic turn after a pre-run timeout", asy
 	const { probe } = createProbe();
 	const attempt = probe.start(1);
 
-	assert.deepEqual(await attempt.completion, { status: "failed", reason: "Silent probe timed out." });
+	const result = await attempt.completion;
+	assert.equal(result.status === "failed" ? result.cause : undefined, "timeout");
 	assert.equal(probe.isCurrentRun, false);
 
 	assert.equal(probe.beginRun("user", undefined), false);

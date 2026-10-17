@@ -12,6 +12,7 @@ import type {
 	ProjectedSessionEntry,
 } from "@earendil-works/pi-coding-agent";
 
+import { probeFailure, type ProbeFailure, type ProbeFailureCause } from "./failure.ts";
 import { type PersistedIdentities, PROBE_IDENTITIES_CUSTOM_TYPE, type ProbeFilter } from "./filter.ts";
 import { createProbeToken, type ProbeToken, readProbeToken } from "./token.ts";
 
@@ -28,7 +29,7 @@ const SETUP_ABORT_ERROR_MESSAGES = new Set([
  */
 export type ProbeOutcome =
 	| { readonly status: "settled" }
-	| { readonly status: "failed"; readonly reason: string };
+	| ProbeFailure;
 
 /** A probe start request; concurrent callers share `token` and `completion`. */
 export interface ProbeAttempt {
@@ -91,7 +92,7 @@ export class SilentProbe {
 		const { promise: completion, resolve } = Promise.withResolvers<ProbeOutcome>();
 		this.resolveCompletion = resolve;
 		this.timeout = setTimeout(() => {
-			this.resolve({ status: "failed", reason: "Silent probe timed out." });
+			this.resolve(probeFailure("timeout"));
 		}, timeoutMs);
 		this.attempt = { started: true, token: createProbeToken(), completion };
 		return this.attempt;
@@ -125,7 +126,7 @@ export class SilentProbe {
 	public beginRun(messageType: BeforeAgentStartEvent["messageType"], token: ProbeToken | undefined): boolean {
 		if (this.phase !== "waiting") return false;
 		if (messageType !== "user" || !this.ownsToken(token)) {
-			this.fail("Another agent run started before the silent probe was recognized.");
+			this.fail("foreign-run");
 			return false;
 		}
 		this.phase = "running";
@@ -193,9 +194,9 @@ export class SilentProbe {
 	 * End a pending attempt during shutdown or a synchronous startup failure.
 	 * Ownership is untouched: only the attempt's own completion is resolved.
 	 */
-	public fail(reason: string): void {
+	public fail(cause: ProbeFailureCause, detail?: string): void {
 		if (this.attempt === undefined) return;
-		this.resolve({ status: "failed", reason });
+		this.resolve(probeFailure(cause, detail));
 	}
 
 	/**
@@ -302,6 +303,6 @@ export function registerSilentProbe(pi: ExtensionAPI, probe: SilentProbe): void 
 		// A shutdown mid-probe can leave probe messages already persisted in the
 		// session; write their identities so the next runtime keeps filtering them.
 		persistIdentities();
-		probe.fail("Session ended before the silent probe completed.");
+		probe.fail("shutdown");
 	});
 }

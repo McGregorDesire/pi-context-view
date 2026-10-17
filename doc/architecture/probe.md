@@ -329,7 +329,9 @@ passive capture.
 
 Any skipped precondition above, a missing model, missing authentication, a
 startup failure, a timeout, or a probe that settles without a request snapshot
-reports a precise reason that extension additions were not observed.
+reports a precise reason that extension additions were not observed. Each
+failure also carries a typed cause from `src/probe/failure.ts`; callers and tests
+branch on the cause, while the reason is display text.
 Injections then shows a current prompt/tool snapshot; Usage counts the current
 branch without request changes. Neither fallback enters the store.
 

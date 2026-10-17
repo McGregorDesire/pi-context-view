@@ -16,6 +16,7 @@ import {
 } from "../src/command.ts";
 import { CompactionState } from "../src/compaction.ts";
 import { MIN_PI_VERSION } from "../src/pi-version.ts";
+import { probeFailure } from "../src/probe/failure.ts";
 import { ProbeFilter } from "../src/probe/filter.ts";
 import { SilentProbe } from "../src/probe/silent-probe.ts";
 import { ProbeTrigger } from "../src/probe/trigger.ts";
@@ -146,7 +147,7 @@ test("resolveRequestSnapshot sends the synthetic prompt inside the probe token s
 			sentContent = content;
 			tokenDuringSend = readProbeToken();
 			// No agent lifecycle follows in this harness; end the attempt at once.
-			probe.fail("No agent run in this harness.");
+			probe.fail("startup", "No agent run in this harness.");
 		},
 	} as unknown as ExtensionAPI;
 	const context = {
@@ -166,10 +167,8 @@ test("resolveRequestSnapshot sends the synthetic prompt inside the probe token s
 	assert.equal(probe.isProbeInput({ source: "extension" }, tokenDuringSend), true,
 		"the send must carry this attempt's token");
 	assert.equal(readProbeToken(), undefined, "the token must not outlive the send");
-	assert.deepEqual(result, {
-		type: "missing",
-		degradedReason: "No agent run in this harness. Extension additions were not observed.",
-	});
+	assert.equal(result.type, "missing");
+	assert.ok(result.type === "missing" && result.degradedReason.includes("No agent run in this harness."));
 });
 
 test("resolveRequestSnapshot skips the probe when compaction starts while waiting for idle", async () => {
@@ -196,16 +195,14 @@ test("resolveRequestSnapshot skips the probe when compaction starts while waitin
 
 	assert.equal(waitedForIdle, true);
 	assert.equal(sentUserMessages, 0);
-	assert.deepEqual(result, {
-		type: "missing",
-		degradedReason:
-			"Silent probe unavailable: context compaction is in progress. Extension additions were not observed.",
-	});
+	assert.equal(result.type, "missing");
+	assert.ok(result.type === "missing" && result.degradedReason.includes(probeFailure("compaction").reason));
 
 	const unusedAttempt = probe.start(1_000);
 	assert.equal(unusedAttempt.started, true, "skipping compaction must not consume the runtime's probe attempt");
-	probe.fail("test cleanup");
-	assert.deepEqual(await unusedAttempt.completion, { status: "failed", reason: "test cleanup" });
+	probe.fail("shutdown");
+	const outcome = await unusedAttempt.completion;
+	assert.equal(outcome.status === "failed" ? outcome.cause : undefined, "shutdown");
 });
 
 /** A published snapshot with no changes; only its identity matters to snapshot resolution. */
@@ -250,17 +247,15 @@ test("resolveRequestSnapshot asks ProbeTrigger once the store is empty and repor
 	const failing = {
 		request: async () => {
 			probed++;
-			return { status: "failed", reason: "Silent probe unavailable: a virtual model is selected." };
+			return { status: "failed", cause: "virtual-model", reason: "fixture-probe-failure" };
 		},
 	} as unknown as ProbeTrigger;
 	const context = { waitForIdle: async () => undefined } as unknown as ExtensionCommandContext;
 
 	const missing = await resolveRequestSnapshot(store, failing, context);
 	assert.equal(probed, 1);
-	assert.deepEqual(missing, {
-		type: "missing",
-		degradedReason: "Silent probe unavailable: a virtual model is selected. Extension additions were not observed.",
-	});
+	assert.equal(missing.type, "missing");
+	assert.ok(missing.type === "missing" && missing.degradedReason.includes("fixture-probe-failure"));
 
 	const capturing = {
 		request: async () => {

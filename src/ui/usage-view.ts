@@ -39,19 +39,13 @@ import {
 	wrapDescriptionLines,
 } from "./layout.ts";
 import { forcedMarker } from "./markers.ts";
+import { descriptionNoteLines, emptyPreviewNote, thinkingNote, usageNote } from "./notes.ts";
 import { previewBodyLines, previewLegendLines } from "./section-preview.ts";
 import { splitSkillPreview } from "./skill-preview.ts";
 import { buildUsageMap, calculateFitMapScale, type UsageMap, type UsageMapCell } from "./usage-map.ts";
 import { BlockNavigator, layoutPreviewBlocks, type PreviewLayout } from "./usage-preview.ts";
 import { DEFAULT_WHEEL_SCROLL_LINES, parseWheelDirection, readWheelScrollLines } from "./wheel.ts";
 
-const USAGE_DESCRIPTION = "Estimated context for the next model request. " +
-	"Token counts are approximate and may differ from the provider's estimate.";
-const INVISIBLE_REASONING_DESCRIPTION =
-	"Entry headers read: [DD-MM-YYYY] [assistant] visible + Reasoning ≈invisible (≈total). " +
-	"≈ is a provider-reported count; ~ is a rough approximation when no breakdown " +
-	"is reported and excluded from category totals. " +
-	"Encoded replaces Reasoning when the provider replays encrypted reasoning with its message.";
 /** Dashboard rows below the content, excluding the collapsible description: blank, hints, blank, border. */
 const USAGE_TAIL_FIXED_LINE_COUNT = 4;
 const DETAIL_CATEGORY_HEADER_LINE_COUNT = 1;
@@ -423,7 +417,7 @@ export class UsageView {
 	 * important block on the frame, so it goes before any of them degrades.
 	 */
 	private dashboardDescriptionLines(width: number, availableRows: number, map: UsageMap | undefined): string[] {
-		const lines = wrapDescriptionLines(this.theme, USAGE_DESCRIPTION, "dim", width);
+		const lines = descriptionNoteLines(this.theme, usageNote(), width);
 		const required = this.fullDashboardRows(width, map) + descriptionBlockRows(lines);
 		return required <= availableRows ? lines : [];
 	}
@@ -951,7 +945,7 @@ export class UsageView {
 	/** Visible window of the block stream, or the message an empty category shows instead. */
 	private previewStreamLines(stream: PreviewStream, visibleCount: number, width: number): string[] {
 		if (stream.blocks.length === 0) {
-			const message = this.theme.fg("muted", `${BODY_INDENT}No content captured for this category.`);
+			const message = this.theme.fg("muted", `${BODY_INDENT}${emptyPreviewNote().text}`);
 			return Array.from({ length: visibleCount }, (_, index) => index === 0 ? this.fit(message, width) : "");
 		}
 		const start = this.blockNavigator.offset;
@@ -1106,7 +1100,7 @@ export class UsageView {
 		const hasInvisibleReasoning = this.previewEntries(row)
 			.some((entry) => entry.invisibleReasoning !== undefined);
 		return hasInvisibleReasoning
-			? wrapDescriptionLines(this.theme, INVISIBLE_REASONING_DESCRIPTION, "dim", width)
+			? descriptionNoteLines(this.theme, thinkingNote(), width)
 			: [];
 	}
 

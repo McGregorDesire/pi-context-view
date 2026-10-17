@@ -160,7 +160,7 @@ and the compact frame that keeps the selected row and bar on short terminals.
 ## UI Checks
 
 `pnpm check` includes pure rendering and interaction tests. Cover the design
-rules in [UI.md](../UI.md), not only exact output strings:
+rules in [UI.md](../UI.md) without freezing incidental copy or layout values:
 
 - Width and height bounds at 60, 80, and 120 columns, narrower fallbacks, very
   short terminals, and height-only resizing; include Unicode and styled text.
@@ -174,10 +174,28 @@ rules in [UI.md](../UI.md), not only exact output strings:
   before explicit preview.
 
 `usage-view`, `usage-map`, `injections-view`, `usage-preview`, `injected-preview`,
-`diff-preview`, `json-preview`, `skill-preview`, `status-bar`, `color`, and `wheel`
-cover these areas; the focused cases above cover accounting and attribution.
-Exact strings and layout values can remain regression assertions without being
-copied into the design documentation.
+`diff-preview`, `json-preview`, `skill-preview`, `status-bar`, `notes`, `color`, and
+`wheel` cover these areas; the focused cases above cover accounting and attribution.
+
+Keep these tests independent of display wording:
+
+- **Typed decisions.** Test decisions such as change scope, payload check, note
+  kind, marker, and probe failure cause as typed values in the module that makes them.
+- **Copy checks.** For each set of messages, check that every case has text, the
+  texts are distinct, dynamic values appear, and unsafe text is sanitized.
+- **Component output as the expected block.** View tests render the expected block
+  with its owning function, such as `statusBarLines()`, `markerLegendLines()`, or
+  `descriptionNoteLines()`, then check it with `test/harness/frame.ts`: whole,
+  absent, or contained after wrapping.
+- **Layout rules.** Sweep widths and heights and check bounds, priorities,
+  whole-or-absent blocks, and restoration, not exact thresholds or line indexes.
+  Check colors with `theme.fg()` instead of raw escape codes.
+
+Keep exact text only where it is a contract: command grammar and usage, config
+file output, captured content shown in previews, and notation such as `≈`, `~`,
+`+N -N`, and formatted token values. When changing these tests, reword the
+relevant copy temporarily: the tests should pass. Then break the behavior
+temporarily: they should fail.
 
 Run real-PTY checks and provider smoke tests only when explicitly requested.
 When requested, follow the `pi-extension` skill and exercise both views and
