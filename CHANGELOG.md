@@ -17,6 +17,7 @@ Maintenance release for Pi 1.3.0, which is now required, with fixes for its remo
 * `[capture]` Skip GPT-6 `configuration_update` items in the message channel.
 * `[probe]` Detect nested user sends during a probe; warn when one took the probe's place.
 * `[ci]` Clean up dependencies and pin protobufjs 7.6.6 to fix an audit warning.
+* `[capture]` Don't fail when Pi sends no `hiddenTools` ([#15](https://github.com/dimk90/pi-context-view/issues/15)).
 
 
 ## `[v0.7.1]` - 13.10.2026
