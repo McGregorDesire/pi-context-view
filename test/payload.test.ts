@@ -233,6 +233,15 @@ test("Responses message units: items in order; reasoning and inline tool items a
 	]);
 });
 
+test("Responses configuration_update items before a reply and at the end add no units", () => {
+	const reply = { type: "message", role: "assistant", content: [{ type: "output_text", text: "one", annotations: [] }] };
+	const update = (effort: string) => ({ type: "configuration_update", reasoning: { effort } });
+	const user = (text: string) => ({ role: "user", content: [{ type: "input_text", text }] });
+	const plain = [user("first"), reply, user("second")];
+	const updated = [user("first"), update("low"), reply, user("second"), update("high")];
+	assert.deepEqual(units("openai-responses", { input: updated }), units("openai-responses", { input: plain }));
+});
+
 test("Anthropic message units: OAuth identity, held system text, merged blocks, and skipped thinking", () => {
 	const payload = {
 		system: [{ type: "text", text: CLAUDE_CODE_IDENTITY }, { type: "text", text: "prompt" }],

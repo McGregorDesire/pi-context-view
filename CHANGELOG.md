@@ -8,6 +8,7 @@
 
 ### Fixed
 * `[capture]` Match Pi 1.3's removal of thinking from other models.
+* `[capture]` Skip GPT-6 `configuration_update` items in the message channel.
 * `[ci]` Clean up dependencies and pin protobufjs 7.6.6 to fix an audit warning.
 
 

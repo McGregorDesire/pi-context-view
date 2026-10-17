@@ -178,7 +178,10 @@ description lines.
 tool call, and tool result. Text blocks merge within one message part, not
 across message boundaries. Tool calls keep their name and canonical JSON
 arguments, or raw grammar input. Tool IDs, unsent metadata, images, reasoning
-blocks, and inline declaration changes are not message text. Only Pi's exact
+blocks, OpenAI Responses `configuration_update` items, and inline declaration
+changes are not message text. With `compat.supportsMidConvoEffort` and thinking
+on, Pi sends a `configuration_update` before each same-model reply that has a
+`providerThinkingLevel`, and one at the end. Only Pi's exact
 leading Claude Code identity block is skipped in Anthropic's top-level `system`
 array. Unknown message roles, item types, or content blocks leave the channel
 unsupported rather than silently disappearing. Tool-channel support is checked

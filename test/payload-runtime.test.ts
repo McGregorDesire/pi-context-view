@@ -47,6 +47,8 @@ interface RuntimeOptions {
 	readonly compat?: Record<string, unknown>;
 	readonly oauth?: boolean;
 	readonly warming?: boolean;
+	/** Reasoning models, with the session starting at thinking level `low`. */
+	readonly thinking?: boolean;
 	/** Selected model; `text` has no image input. */
 	readonly modelId?: "vision" | "text";
 }
@@ -215,6 +217,19 @@ test("Completions system-message tool additions, then removals and redefinitions
 	const sent = runtime.provider.requests.map((request) => request.body.messages as Array<Record<string, unknown>>);
 	assert.ok(sent.some((messages) => messages.some((message) => message.role === "system" && message.tools !== undefined)),
 		"a system message declared a later tool inline");
+});
+
+test("Responses configuration_update items of supportsMidConvoEffort are not payload changes", async (t) => {
+	const runtime = await createRuntime(t, { api: "openai-responses", thinking: true, compat: { supportsMidConvoEffort: true } });
+	await runtime.session.prompt("first");
+	runtime.session.setThinkingLevel("high");
+	await runtime.session.prompt("second");
+	const input = runtime.provider.requests.at(-1)?.body.input as Array<Record<string, unknown>>;
+	const efforts = input.filter((item) => item.type === "configuration_update").map((item) => item.reasoning);
+	assert.deepEqual(efforts, [{ effort: "low" }, { effort: "high" }], "the first reply's level, then the active one");
+	const snapshots = await runtime.snapshots();
+	assert.equal(snapshots.length, 2);
+	for (const snapshot of snapshots) assert.deepEqual(findings(snapshot), []);
 });
 
 for (const oauth of [false, true]) {
@@ -607,7 +622,7 @@ async function createRuntime(t: TestContext, options: RuntimeOptions = {}): Prom
 		authPath: join(directory, "auth.json"), modelsPath: null, refreshOnCreate: false, allowModelNetwork: false,
 	});
 	const models: Model[] = APIS.flatMap((api) => ["vision", "text"].map((id) => ({
-		provider: `mock-${api}`, id, api, name: id, baseUrl: provider.baseUrls[api], reasoning: false,
+		provider: `mock-${api}`, id, api, name: id, baseUrl: provider.baseUrls[api], reasoning: options.thinking ?? false,
 		input: id === "vision" ? ["text", "image"] : ["text"], maxTokens: 128, contextWindow: 100_000,
 		cost: { input: 1, output: 1, cacheRead: 0.1, cacheWrite: 1 },
 		compat: options.compat,
@@ -636,7 +651,7 @@ async function createRuntime(t: TestContext, options: RuntimeOptions = {}): Prom
 		cwd: directory, agentDir: directory, settingsManager, resourceLoader, modelRuntime,
 		sessionManager: SessionManager.inMemory(directory),
 		model: models.find((model) => model.api === (options.api ?? "openai-completions") && model.id === (options.modelId ?? "vision")),
-		thinkingLevel: "off",
+		thinkingLevel: options.thinking ? "low" : "off",
 	});
 	stopSession = async () => {
 		await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });

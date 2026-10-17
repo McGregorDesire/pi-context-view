@@ -1,22 +1,5 @@
 ## `TODO`
 
-- [ ] **Skip GPT-6 `configuration_update` Items in the Message Channel**:
-  - Since Pi 1.3.0, on `openai-responses` models with
-    `compat.supportsMidConvoEffort` (GPT-6), with thinking on and API-key auth,
-    every request has these items: one before each same-model reply with
-    `providerThinkingLevel`, and one at the end. The parser rejects them, so
-    message comparison is always incomplete on these models.
-  - `src/capture/payload.ts`: add `configuration_update` to
-    `RESPONSES_SKIPPED_ITEMS`; like `reasoning`, it has no message text.
-  - `test/payload.test.ts`: a Responses payload with these items before an
-    assistant reply and at the end parses to the same units as without them.
-  - `test/payload-runtime.test.ts`: on an `openai-responses` model with
-    `supportsMidConvoEffort` and thinking on, change the thinking level between
-    prompts; the guard is complete and both diffs stay empty.
-  - Docs: list the items as non-text in
-    [Message Channel](architecture/payload-guard.md#message-channel) and add
-    the case to [validation.md](architecture/validation.md).
-
 - [ ] **Leave Out Other Models' Thinking in Usage**:
   - Since Pi 1.3.0, Pi drops thinking from assistant messages of another
     provider, API, or model before it sends a request. The payload guard does

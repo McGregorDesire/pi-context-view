@@ -109,6 +109,10 @@ same-model replay, successful and failed image results, grouped captions after
 all tool results, foreign ID normalization, text-only models, and blocked images.
 Caption edits remain payload findings.
 
+`payload` and `payload-runtime` cover the `configuration_update` items of
+OpenAI Responses with `supportsMidConvoEffort`: a thinking-level change between
+prompts keeps the guard complete and both diffs empty.
+
 ### Prompt source rows
 
 `system-prompt-rows`, `injections`, and `injections-view` test the diff-only
