@@ -219,18 +219,38 @@ test("Completions system-message tool additions, then removals and redefinitions
 		"a system message declared a later tool inline");
 });
 
-test("Responses configuration_update items of supportsMidConvoEffort are not payload changes", async (t) => {
-	const runtime = await createRuntime(t, { api: "openai-responses", thinking: true, compat: { supportsMidConvoEffort: true } });
-	await runtime.session.prompt("first");
-	runtime.session.setThinkingLevel("high");
-	await runtime.session.prompt("second");
-	const input = runtime.provider.requests.at(-1)?.body.input as Array<Record<string, unknown>>;
-	const efforts = input.filter((item) => item.type === "configuration_update").map((item) => item.reasoning);
-	assert.deepEqual(efforts, [{ effort: "low" }, { effort: "high" }], "the first reply's level, then the active one");
-	const snapshots = await runtime.snapshots();
-	assert.equal(snapshots.length, 2);
-	for (const snapshot of snapshots) assert.deepEqual(findings(snapshot), []);
-});
+/** A model setup that sends thinking-level messages, and the level each payload message carries. */
+interface EffortCase {
+	readonly api: MockApi;
+	readonly compat: Record<string, unknown>;
+	effortOf(message: Record<string, unknown>): unknown;
+}
+
+const EFFORT_CASES: readonly EffortCase[] = [
+	{
+		api: "openai-responses", compat: { supportsMidConvoEffort: true },
+		effortOf: (item) => item.type === "configuration_update" ? item.reasoning : undefined,
+	},
+	// Anthropic maps a thinking level to an effort only for adaptive thinking
+	{
+		api: "anthropic-messages", compat: { supportsMidConvoEffort: true, forceAdaptiveThinking: true },
+		effortOf: (message) => message.role === "system" ? message.output_config : undefined,
+	},
+];
+
+for (const { api, compat, effortOf } of EFFORT_CASES) {
+	test(`${api}: supportsMidConvoEffort thinking-level messages are not payload changes`, async (t) => {
+		const runtime = await createRuntime(t, { api, thinking: true, compat });
+		await runtime.session.prompt("first");
+		runtime.session.setThinkingLevel("high");
+		await runtime.session.prompt("second");
+		const efforts = payloadMessages(api, runtime.provider.requests.at(-1)?.body).map(effortOf).filter(Boolean);
+		assert.deepEqual(efforts, [{ effort: "low" }, { effort: "high" }], "the first reply's level, then the active one");
+		const snapshots = await runtime.snapshots();
+		assert.equal(snapshots.length, 2);
+		for (const snapshot of snapshots) assert.deepEqual(findings(snapshot), []);
+	});
+}
 
 for (const oauth of [false, true]) {
 	test(`Anthropic native inline additions/removals/redefinitions${oauth ? " with OAuth casing" : ""}`, async (t) => {

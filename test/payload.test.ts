@@ -242,6 +242,15 @@ test("Responses configuration_update items before a reply and at the end add no 
 	assert.deepEqual(units("openai-responses", { input: updated }), units("openai-responses", { input: plain }));
 });
 
+test("Anthropic empty system messages with output_config before a reply and at the end add no units", () => {
+	const reply = { role: "assistant", content: [{ type: "text", text: "one" }] };
+	const update = (effort: string) => ({ role: "system", content: [], output_config: { effort } });
+	const user = (text: string) => ({ role: "user", content: text });
+	const plain = [user("first"), reply, user("second")];
+	const updated = [user("first"), update("low"), reply, user("second"), update("high")];
+	assert.deepEqual(units("anthropic-messages", { messages: updated }), units("anthropic-messages", { messages: plain }));
+});
+
 test("Anthropic message units: OAuth identity, held system text, merged blocks, and skipped thinking", () => {
 	const payload = {
 		system: [{ type: "text", text: CLAUDE_CODE_IDENTITY }, { type: "text", text: "prompt" }],

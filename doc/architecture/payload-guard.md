@@ -181,7 +181,9 @@ arguments, or raw grammar input. Tool IDs, unsent metadata, images, reasoning
 blocks, OpenAI Responses `configuration_update` items, and inline declaration
 changes are not message text. With `compat.supportsMidConvoEffort` and thinking
 on, Pi sends a `configuration_update` before each same-model reply that has a
-`providerThinkingLevel`, and one at the end. Only Pi's exact
+`providerThinkingLevel`, and one at the end. Anthropic sends these thinking
+levels as system messages with empty content and an `output_config`; they have
+no text, so they add no units. Only Pi's exact
 leading Claude Code identity block is skipped in Anthropic's top-level `system`
 array. Unknown message roles, item types, or content blocks leave the channel
 unsupported rather than silently disappearing. Tool-channel support is checked
