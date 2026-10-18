@@ -8,6 +8,7 @@
 ### Changed
 * `[injections]` Mark section edits that a forced system prompt replaced as `Forced`.
 * `[views]` Match Pi's (v0.86+) section names: Tools, Rules, Docs, and Addendum.
+* `[capture]` Drop the `provider_stream_event` handler, which cost an emit per streamed chunk.
 
 
 ## `[v0.7.2]` - 17.10.2026

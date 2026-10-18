@@ -4,7 +4,7 @@
   - Match current Pi terminology: Available Tools → Tools,
     Guidelines → Rules, Documentation → Docs, Appended Prompt → Addendum.
   - Keep Instruction Files and Current Dir unchanged.
-- [ ] **Drop the `provider_stream_event` Handler**:
+- [x] **Drop the `provider_stream_event` Handler**:
   - Pi emits the event only when a handler exists; ours costs an awaited
     emit and a new `ctx` per streamed chunk, but only the first one is used.
   - Confirm dispatch from assistant `message_start`, with `message_end` as the

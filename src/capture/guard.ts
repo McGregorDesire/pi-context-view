@@ -106,7 +106,7 @@ export class PayloadGuard {
 	}
 
 	/**
-	 * Read identity once, without parsing in a stream handler. Physical identity
+	 * Read identity once, without parsing in the event handler. Physical identity
 	 * mismatches invalidate the result, never reparse. Virtual
 	 * requests use the dispatched model's API, not the payload shape.
 	 */
