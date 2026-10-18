@@ -13,6 +13,12 @@ import type { CaptureOrigin, RequestMessage } from "../snapshot.ts";
 import { trimMatchedEnds, type UnmatchedMessages } from "./diff.ts";
 import type { GuardModel } from "./guard.ts";
 
+/**
+ * Forced prompt per capture, resolved by whichever deferred job asks first.
+ * Weak keys release an entry with its capture.
+ */
+const FORCED_PROMPTS = new WeakMap<ForcedPromptInput, string | undefined>();
+
 /** A baseline message with the session entry that owns it. */
 export interface BaselineMessage {
 	readonly entryId: string;
@@ -65,11 +71,21 @@ export interface CapturedRequest extends RequestCopy {
 	readonly id: number;
 	readonly origin: CaptureOrigin;
 	readonly baseline: Baseline;
-	readonly forcedPrompt?: string;
+	/**
+	 * `ctx.getSystemPrompt()` at capture. Deferred jobs compare it with the
+	 * baseline replay to detect a forced prompt ({@link resolveForcedPrompt}).
+	 */
+	readonly effectivePrompt: string;
 	/** `ctx.model` at capture: the dispatched model on a physical selection, the virtual one otherwise. */
 	readonly requestModel?: GuardModel;
 	/** Tools Pi left out of the request; absent when it hid none. */
 	readonly hiddenTools?: readonly string[];
+}
+
+/** What forced-prompt detection reads from a capture. */
+export interface ForcedPromptInput {
+	readonly effectivePrompt: string;
+	readonly baseline: { readonly messages: readonly BaselineMessage[] };
 }
 
 /** Inputs of one capture, read from the `context_with_system` event and its context. */
@@ -88,9 +104,9 @@ export interface CaptureInput {
 }
 
 /**
- * Read the baseline, copy what differs from it, and detect a forced prompt.
- * Throws when a differing message cannot be cloned, for example when a handler
- * added a function value to it.
+ * Read the baseline, copy what differs from it, and keep the effective prompt
+ * for deferred forced-prompt detection. Throws when a differing message cannot
+ * be cloned, for example when a handler added a function value to it.
  */
 export function captureRequest(input: CaptureInput): CapturedRequest {
 	const baseline = readBaseline(input.sessionManager, input.probe);
@@ -99,7 +115,7 @@ export function captureRequest(input: CaptureInput): CapturedRequest {
 		origin: input.origin,
 		baseline,
 		...copyRequest(baseline.messages, input.messages),
-		forcedPrompt: detectForcedPrompt(input.effectivePrompt, baseline.messages),
+		effectivePrompt: input.effectivePrompt,
 		...(input.requestModel === undefined ? {} : { requestModel: copyGuardModel(input.requestModel) }),
 		...(input.hiddenTools === undefined || input.hiddenTools.length === 0
 			? {}
@@ -143,9 +159,22 @@ export function readBaseline(
 }
 
 /**
+ * The capture's forced prompt, replaying its baseline at most once: the
+ * snapshot builder and the payload guard both read it, in either order.
+ */
+export function resolveForcedPrompt(capture: ForcedPromptInput): string | undefined {
+	if (FORCED_PROMPTS.has(capture)) return FORCED_PROMPTS.get(capture);
+	const forced = detectForcedPrompt(capture.effectivePrompt, capture.baseline.messages);
+	FORCED_PROMPTS.set(capture, forced);
+	return forced;
+}
+
+/**
  * The forced prompt of the current run, or undefined when the effective prompt
  * is the one the baseline replays. Pi records structured sections even for a
  * forced prompt and projects the forced text onto the request afterwards.
+ * Runs off the request's critical path: baseline messages are append-only
+ * session objects, so the replay matches the one at capture.
  */
 export function detectForcedPrompt(effectivePrompt: string, baseline: readonly BaselineMessage[]): string | undefined {
 	const replayed = getCurrentSystemPrompt(baseline.map(({ message }) => message));

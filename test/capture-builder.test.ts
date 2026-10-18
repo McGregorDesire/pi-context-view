@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { getCurrentSystemPrompt } from "@earendil-works/pi-ai";
+
 import { attributeMessage } from "../src/capture/attribution.ts";
 import { buildRequestSnapshot, SnapshotBuilder } from "../src/capture/builder.ts";
 import { redactMessage } from "../src/capture/redact.ts";
-import { type BaselineMessage, type CapturedRequest, copyRequest, detectForcedPrompt } from "../src/capture/request.ts";
+import {
+	type BaselineMessage, type CapturedRequest, copyRequest, detectForcedPrompt, resolveForcedPrompt,
+} from "../src/capture/request.ts";
 import type { RequestMessage, RequestSnapshot } from "../src/snapshot.ts";
 
 const IMAGE_DATA = "A".repeat(2_048);
@@ -15,7 +19,7 @@ function request(id: number, messages: RequestMessage[]): CapturedRequest {
 	const baseline: BaselineMessage[] = [{ entryId: "u1", message: { role: "user", content: "hello", timestamp: 1 } }];
 	return {
 		id, origin: "real-turn",
-		baseline: { leafId: "leaf", messages: baseline },
+		baseline: { leafId: "leaf", messages: baseline }, effectivePrompt: "",
 		...copyRequest(baseline, messages),
 	};
 }
@@ -80,7 +84,7 @@ test("a snapshot keeps redacted, attributed changes and entry references", () =>
 	};
 	const snapshot = buildRequestSnapshot({
 		...request(1, [{ role: "user", content: "hello, edited", timestamp: 1 }, added]),
-		forcedPrompt: "forced",
+		effectivePrompt: "forced",
 	}, { status: "pending" });
 	assert.equal(snapshot.leafId, "leaf");
 	assert.equal(snapshot.forcedPrompt, "forced");
@@ -130,6 +134,7 @@ test("a request copy keeps only the differing messages and the replayed system s
 		"system texts are owned copies");
 	const snapshot = buildRequestSnapshot({
 		id: 1, origin: "real-turn", baseline: { leafId: "leaf", messages: baseline }, ...copy,
+		effectivePrompt: getCurrentSystemPrompt(baseline.map(({ message }) => message)),
 	}, { status: "pending" });
 	assert.deepEqual(snapshot.changes.system, [], "the copied tool schema is unchanged");
 	const [modified] = snapshot.changes.conversation;
@@ -208,4 +213,17 @@ test("a forced prompt is the effective prompt only when it differs from the repl
 	};
 	assert.equal(detectForcedPrompt("Alpha\n\nBeta", [head]), undefined);
 	assert.equal(detectForcedPrompt("Replacement", [head]), "Replacement");
+});
+
+test("a capture's forced prompt is resolved once for the builder and the guard", () => {
+	const head: BaselineMessage = { entryId: "s", message: { role: "system", content: "Base.", timestamp: 1 } };
+	const unforced = { effectivePrompt: "Base.", baseline: { messages: [head] } };
+	assert.equal(resolveForcedPrompt(unforced), undefined);
+	// A second resolution reuses the first instead of replaying the baseline again
+	unforced.effectivePrompt = "Changed.";
+	assert.equal(resolveForcedPrompt(unforced), undefined);
+	const forced = { effectivePrompt: "Forced.", baseline: { messages: [head] } };
+	assert.equal(resolveForcedPrompt(forced), "Forced.");
+	forced.effectivePrompt = "Base.";
+	assert.equal(resolveForcedPrompt(forced), "Forced.");
 });

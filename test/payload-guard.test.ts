@@ -17,7 +17,7 @@ function capture(model: GuardModel | undefined = MODEL, origin: CaptureOrigin = 
 	const baseline = [{ entryId: "s", message: { role: "system" as const, content: "prompt", toolsAdded: [TOOL], timestamp: 1 } }];
 	return {
 		id: 1, origin, requestModel: model,
-		baseline: { leafId: "s", messages: baseline },
+		baseline: { leafId: "s", messages: baseline }, effectivePrompt: "prompt",
 		...copyRequest(baseline, baseline.map(({ message }) => message)),
 	};
 }
@@ -172,6 +172,7 @@ for (const api of ["openai-completions", "openai-responses", "anthropic-messages
 		];
 		const request: CapturedRequest = {
 			id: 1, origin: "real-turn", requestModel: model, baseline: { leafId: "u", messages: baseline },
+			effectivePrompt: "you are pi",
 			...copyRequest(baseline, baseline.map(({ message }) => message)),
 		};
 		const h = harness(request);

@@ -11,7 +11,7 @@
     fallback; remove `noteWarmRefresh` and the `stream` identity source.
   - Check `test/dispatch-runtime.test.ts` and the virtual path; update
     `payload-guard.md` and `pi-requests.md`.
-- [ ] **Defer Forced-Prompt Detection**:
+- [x] **Defer Forced-Prompt Detection**:
   - `detectForcedPrompt` renders `getCurrentSystemPrompt(baseline)` inside the
     `context_with_system` handler on every request.
   - Keep only the `ctx.getSystemPrompt()` string in the handler; compare it in

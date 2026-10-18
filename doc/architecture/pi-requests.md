@@ -56,7 +56,7 @@ flowchart TD
 | Session projection | Capture reads the branch baseline inside `context_with_system`, including compaction, context edits, and custom messages ([baseline](capture.md#baseline)). |
 | Request model | Capture records `ctx.model` inside `context_with_system`. A virtual selection stays selected while `route()` chooses the physical model ([request model and dispatch](payload-guard.md#request-model-and-dispatch)). |
 | `context` | Not observed directly. Pi passes each handler's conversation changes onward and restores system state afterward. |
-| `context_with_system` | ProbeFilter removes known probe identities, preserving system positions; capture then copies the structured request and records any forced prompt ([request copy](capture.md#request-copy)). |
+| `context_with_system` | ProbeFilter removes known probe identities, preserving system positions; capture then copies the structured request and the effective prompt for forced-prompt detection ([request copy](capture.md#request-copy)). |
 | Hidden declarations and forced prompt | Pi applies the hidden set and forced text after capture; the guard reproduces these projections ([Pi's own adjustments](payload-guard.md#pis-own-adjustments)). |
 | `convertToLlm()` | Used for estimates, previews, and the guard. Pi converts custom, bash, and summary messages and drops bash executions excluded from context. |
 | Settings conversion | Guard reads `images.blockImages` at the payload hook and accounts for Pi's image placeholders. |
