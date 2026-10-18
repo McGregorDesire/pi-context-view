@@ -5,6 +5,7 @@
  */
 import {
 	type ChangeEditor,
+	type ForcedEdit,
 	type InjectionItem,
 	type InjectionSnapshot,
 	type RequestChange,
@@ -69,6 +70,8 @@ export type InjectionRow =
 		readonly moved?: boolean;
 		/** Request-only change of this contribution. */
 		readonly change?: RequestChange;
+		/** Whether a forced prompt replaced this part's request edit, and still sent the part; no edit text. */
+		readonly forcedEdit?: Pick<ForcedEdit, "sent">;
 		/** Tokens this contribution gained and lost against its base. */
 		readonly diff?: TokenDiff;
 		/** Whether the request sent other content than the session keeps. */
@@ -132,6 +135,7 @@ export function buildInjectionRows(snapshot: InjectionSnapshot): InjectionRow[] 
 				dropped: item.dropped,
 				moved: item.moved,
 				change: item.change,
+				...forcedEditField(item),
 				diff: item.diff,
 				requestOnly: item.requestOnly,
 				diffOnly: item.diffOnly,
@@ -150,6 +154,7 @@ export function buildInjectionRows(snapshot: InjectionSnapshot): InjectionRow[] 
 					dropped: child.dropped,
 					moved: child.moved,
 					change: child.change,
+					...forcedEditField(child),
 					diff: child.diff,
 					requestOnly: child.requestOnly,
 					...rowStatus(child),
@@ -161,6 +166,11 @@ export function buildInjectionRows(snapshot: InjectionSnapshot): InjectionRow[] 
 	rows.push({ kind: "separator", label: "", tokens: 0, depth: 0 });
 	rows.push({ kind: "total", label: "TOTAL (Prompt, Tools, Injections)", tokens: snapshot.totalTokens, depth: 0 });
 	return rows;
+}
+
+/** A row's replaced-edit state, without the edit text the list never shows. */
+function forcedEditField(item: InjectionItem): { forcedEdit?: Pick<ForcedEdit, "sent"> } {
+	return item.forcedEdit === undefined ? {} : { forcedEdit: { sent: item.forcedEdit.sent } };
 }
 
 /**

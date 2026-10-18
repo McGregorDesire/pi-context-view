@@ -140,7 +140,8 @@ differing effective text as a structured request-only change. Pi projects that
 text after the final `context_with_system` handler, replacing all system
 messages with one leading message that holds the forced text and the current
 tools. Section patches in the captured transcript therefore do not reach that
-request; the payload guard applies the same projection. Pi keeps the run's
+request; the payload guard applies the same projection, and Injections marks
+the replaced edits ([views](views.md#injections)). Pi keeps the run's
 prompt options until the run settles, so detection also works in probe runs.
 
 Pi turns every `systemPrompt` returned from `before_agent_start` into a forced

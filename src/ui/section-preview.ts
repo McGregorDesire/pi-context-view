@@ -7,9 +7,11 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
-import type { InjectedReference, InjectionSection, JsonSpan, RequestChange, TokenDiff } from "../model.ts";
+import type {
+	ForcedEdit, InjectedReference, InjectionSection, JsonSpan, RequestChange, TokenDiff,
+} from "../model.ts";
 import { normalizeInlineText, normalizePreviewText } from "../text.ts";
-import { messageDiffLines, payloadDiffLines } from "./diff-preview.ts";
+import { forcedEditDiffLines, messageDiffLines, payloadDiffLines } from "./diff-preview.ts";
 import { shiftJsonSpan } from "./json-preview.ts";
 import { BODY_INDENT, calculateViewport, descriptionBlockRows } from "./layout.ts";
 import {
@@ -46,6 +48,8 @@ export interface SectionedContent {
 	readonly moved?: boolean;
 	/** Request-only change of this content; only `forced` has a marker. */
 	readonly change?: RequestChange;
+	/** Request edit a forced prompt replaced; the body shows it as a diff from the sent text. */
+	readonly forcedEdit?: ForcedEdit;
 	/** Tokens this content gained and lost against its base; only Injections measures them. */
 	readonly diff?: TokenDiff;
 	/** True when the request sent other content than the session keeps; only Injections measures it. */
@@ -91,7 +95,8 @@ export function previewLegendLines(
 /**
  * Preview body lines for one item or entry: labeled parts under their
  * subheaders, or the raw text when no breakdown exists. A payload change's
- * part renders its changed lines instead of its text. The caller supplies
+ * part renders its changed lines instead of its text, and a part with a
+ * replaced edit renders that edit as a diff. The caller supplies
  * `wrapText` so each view keeps its own sanitizing, wrapping, indentation, and
  * choice of whether the marked JSON run is expanded at this level, and
  * `heading` so an undivided body can drop a line the heading already shows.
@@ -104,7 +109,10 @@ export function previewBodyLines(
 	heading?: string,
 ): string[] {
 	const sections = content.sections ?? [];
-	if (sections.length === 0) return contentBodyLines(theme, content, wrapWidth, wrapText, heading);
+	if (sections.length === 0) {
+		if (content.forcedEdit !== undefined) return forcedEditDiffLines(theme, content.text, content.forcedEdit, wrapWidth);
+		return contentBodyLines(theme, content, wrapWidth, wrapText, heading);
+	}
 	const lines: string[] = [];
 	for (const section of sections) {
 		if (lines.length > 0) {
@@ -115,6 +123,9 @@ export function previewBodyLines(
 		lines.push(...sectionHeaderLines(theme, section, wrapWidth));
 		if (section.message !== undefined) lines.push(...messageDiffLines(theme, section, wrapWidth));
 		else if (section.changedLines !== undefined) lines.push(...payloadDiffLines(theme, section.changedLines, wrapWidth));
+		else if (section.forcedEdit !== undefined) {
+			lines.push(...forcedEditDiffLines(theme, section.text, section.forcedEdit, wrapWidth));
+		}
 		else lines.push(...contentBodyLines(theme, section, wrapWidth, wrapText, section.label));
 	}
 	return lines;

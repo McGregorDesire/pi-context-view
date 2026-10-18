@@ -64,6 +64,12 @@ Separate the amount of a change from whether the session keeps it. Token diffs
 alone cannot communicate that distinction. Mark affected request-only content
 consistently between the tree and previews; a forced prompt explains a
 replacement of the whole prompt, not a separate forced state on every part.
+Only a part whose captured request edit the forced prompt replaced carries
+Forced itself: the edit would otherwise vanish silently. Show such a part once,
+with the estimate of what Pi sent; its status says whether Pi still sent the
+part, and its preview diffs from the replaced edit to the sent text, so added
+lines are what Pi sent, as in the row's diff. The preview legend explains every
+marked part at once, so it never claims whether a particular part was sent.
 
 Keep dropped, moved, forced, and request-only states distinct. They describe
 absence, position, replacement, and persistence respectively, not source

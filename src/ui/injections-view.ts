@@ -325,7 +325,9 @@ export class InjectionsView {
 		const note = item.diffOnly === true
 			? theme.fg("dim", " · ") + theme.fg("muted", DIFF_ONLY_NOTE)
 			: "";
-		const marker = stateMarkers(theme, { moved: item.moved, change: item.change, requestOnly: item.requestOnly });
+		const marker = stateMarkers(theme, {
+			moved: item.moved, change: item.change, forcedEdit: item.forcedEdit, requestOnly: item.requestOnly,
+		});
 		// Drop the marker first when space runs out, then the accounting note, then the diff
 		const headerWidth = visibleWidth(title) + visibleWidth(meta) + 2;
 		const fitsDiff = headerWidth + visibleWidth(diff) <= width;

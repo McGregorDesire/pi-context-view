@@ -2,7 +2,7 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
-import type { InjectionSection, TextSpan } from "../model.ts";
+import type { ForcedEdit, InjectionSection, TextSpan } from "../model.ts";
 import type { PayloadChangeLine } from "../snapshot.ts";
 import { normalizePreviewText } from "../text.ts";
 import { diffWords, type WordDiffPart } from "../token-diff.ts";
@@ -36,6 +36,17 @@ export function messageDiffLines(theme: Theme, section: InjectionSection, width:
 		? text : normalizePreviewText(expandJsonSpan(original.text, original.jsonSpan));
 	const after = section.change === "deleted" ? "" : text;
 	return messageRows(diffWords(before, after)).flatMap((row) => renderRow(theme, row, width));
+}
+
+/**
+ * Word diff from the request edit a forced prompt replaced to the text Pi
+ * sent instead, laid out like a message diff. Added lines are what Pi sent,
+ * as in every other diff; an unsent part compares with no text.
+ */
+export function forcedEditDiffLines(theme: Theme, sent: string, edit: ForcedEdit, width: number): string[] {
+	const after = edit.sent ? normalizePreviewText(sent) : "";
+	return messageRows(diffWords(normalizePreviewText(edit.text), after))
+		.flatMap((row) => renderRow(theme, row, width));
 }
 
 /**

@@ -10,6 +10,7 @@ import { analyzeSystemPrompt } from "../src/measure.ts";
 import { buildSnapshot, type InjectionSnapshot } from "../src/model.ts";
 import { markForcedPrompt } from "../src/replay.ts";
 import type { RequestMessage } from "../src/snapshot.ts";
+import { forcedEditDiffLines } from "../src/ui/diff-preview.ts";
 import { InjectionsView } from "../src/ui/injections-view.ts";
 import { type ContextMarker, markerLegendLines, markerStatusField, stateMarkers } from "../src/ui/markers.ts";
 import { previewBodyLines, previewLegendLines } from "../src/ui/section-preview.ts";
@@ -765,4 +766,23 @@ test("native-only System Prompt and sibling previews do not claim extension inje
 	injected.handleInput("j"); // Preamble sibling of attributed Guidelines
 	injected.handleInput("\r");
 	assert.ok(!hasHighlightLegend(injected.render(120)));
+});
+
+test("replaced edits preview as diffs with the Forced marker and its own legend", () => {
+	const theme = createTheme();
+	const sent = { label: "review", text: "Review the change.", tokens: 5, forcedEdit: { text: "Review the tests.", sent: true } };
+	const unsent = { label: "checklist", text: "", tokens: 0, forcedEdit: { text: "Run the tests.", sent: false } };
+	const content = { text: sent.text, sections: [sent, unsent] };
+	const body = previewBodyLines(theme, content, 100, () => { throw new Error("A replaced edit renders its diff"); });
+	assert.ok(containsBlock(body, forcedEditDiffLines(theme, sent.text, sent.forcedEdit, 100)));
+	assert.ok(containsBlock(body, forcedEditDiffLines(theme, unsent.text, unsent.forcedEdit, 100)));
+	assert.equal(body.filter((line) => line.includes(stateMarkers(theme, { forcedEdit: { sent: true } }))).length, 2);
+	const standalone = previewBodyLines(theme, sent, 100, () => []);
+	assert.deepEqual(standalone, forcedEditDiffLines(theme, sent.text, sent.forcedEdit, 100));
+	const legend = previewLegendLines(theme, [content], { width: 100, availableRows: 100, contentLineCount: body.length });
+	assert.ok(containsBlock(legend, markerLegendLines(theme, ["forced-edit"], 100)));
+	// The legend names diff signs in the colors their lines open with
+	assert.ok(legend.some((line) => line.includes(theme.fg("toolDiffAdded", "+"))));
+	assert.ok(legend.some((line) => line.includes(theme.fg("toolDiffRemoved", "-"))));
+	assert.ok(!containsBlock(legend, markerLegendLines(theme, ["forced"], 100)), "only a whole forced prompt explains Forced prompts");
 });

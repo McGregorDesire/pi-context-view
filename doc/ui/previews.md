@@ -59,7 +59,7 @@ as the marks themselves. Keep these meanings distinct:
 | (guess) | Attribution inferred rather than reported |
 | Dropped | Replaced content that counts nowhere |
 | Moved | A different prompt position, not a different owner |
-| Forced | An extension's prompt replaced pi's for this request |
+| Forced | An extension's prompt replaced pi's for this request, or replaced a part's request edit |
 | +N / -N | Added and removed tokens against the stated base |
 | Request-Only | Changes the session does not keep |
 
