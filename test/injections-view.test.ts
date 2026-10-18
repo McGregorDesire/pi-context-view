@@ -1277,7 +1277,7 @@ test("InjectionsView shows a system prompt row's diff without a value and previe
 	const plain = view.render(100).map(stripSgr);
 	const line = (label: string) => plain.find((candidate) => candidate.includes(label)) ?? "";
 
-	assert.match(line("system prompt"), /└─ system prompt \.+ {3}\+27$/, "dots run through the empty value column");
+	assert.match(line("system prompt"), /└─ system prompt \.+ {2}\+27$/, "dots run through the empty value column");
 	assert.equal(line("system prompt").length, line("search").length + "  +27".length,
 		"the diff column follows the shared value column");
 	assert.match(line("TOTAL"), / 1,000$/);
@@ -1329,7 +1329,7 @@ test("InjectionsView previews an unattributed system prompt deletion without a t
 	const view = new InjectionsView(theme, { snapshot }, () => {}, () => 40);
 	const list = view.render(100).map(stripSgr);
 	assert.match(list.find((candidate) => candidate.includes("system prompt")) ?? "",
-		/system prompt \.+ {3}-7 · Request-Only$/);
+		/system prompt \.+ {2}-7 · Request-Only$/);
 	assert.doesNotMatch(list.join("\n"), /Deleted|documentation/);
 	view.handleInput("j");
 	view.handleInput("\r");

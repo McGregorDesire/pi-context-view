@@ -489,7 +489,10 @@ export class InjectionsView {
 		const left = fitLine(this.styledRowLabel(row, selected, labelWidth), labelWidth);
 		const diffOnly = isDiffOnly(row);
 		const value = diffOnly ? "" : row.tokens.toLocaleString("en-US").padStart(columns.valueWidth);
-		const leader = this.tokenLeader(columns.value - visibleWidth(left) + (diffOnly ? columns.valueWidth : 0));
+		const leader = this.tokenLeader(
+			columns.value - visibleWidth(left) + (diffOnly ? columns.valueWidth : 0),
+			!diffOnly,
+		);
 		const tokens = row.kind === "total"
 			? this.theme.bold(this.theme.fg("text", value))
 			: this.theme.fg(selected ? "accent" : "muted", value);
@@ -535,10 +538,10 @@ export class InjectionsView {
 		return row.kind === "item" ? stateMarkers(this.theme, row) : "";
 	}
 
-	/** Fill a label/value gap with dim dots, retaining spaces at both ends. */
-	private tokenLeader(width: number): string {
+	/** Fill a label/value gap with dim dots, omitting the trailing space for an empty value. */
+	private tokenLeader(width: number, trailingSpace = true): string {
 		if (width < 3) return " ".repeat(Math.max(0, width));
-		return ` ${this.theme.fg("dim", ".".repeat(width - 2))} `;
+		return ` ${this.theme.fg("dim", ".".repeat(width - (trailingSpace ? 2 : 1)))}${trailingSpace ? " " : ""}`;
 	}
 
 	/** Unstyled hierarchy label used to keep the value column stable while scrolling. */
