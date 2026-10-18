@@ -107,6 +107,17 @@ export interface ForcedEdit {
 }
 
 /**
+ * The two texts a changed System Prompt part's token diff compares, so its
+ * preview shows the same change as a diff body. Process-local, like `text`.
+ */
+export interface TextDiff {
+	/** The part's diff base: pi's default text, the session's version, or empty when the part has none. */
+	readonly base: string;
+	/** What the request sent; empty for a deletion. */
+	readonly request: string;
+}
+
+/**
  * Tokens a contribution gained and lost against its base: pi's default prompt
  * for rows under pi, the session for extension tools and messages, and the
  * captured request for payload changes. Rounded so that the base estimate plus
@@ -210,6 +221,8 @@ export interface InjectionSection {
 	readonly change?: RequestChange;
 	/** Edit of this part that a forced prompt replaced; see `InjectionItem.forcedEdit`. */
 	readonly forcedEdit?: ForcedEdit;
+	/** Texts behind this part's diff, rendered as its diff body; see `InjectionItem.textDiff`. */
+	readonly textDiff?: TextDiff;
 	/** Tokens this part gained and lost against its base; absent when unchanged. */
 	readonly diff?: TokenDiff;
 	/** True when the message or child row this part stands for is request-only; see `InjectionItem.requestOnly`. */
@@ -270,6 +283,12 @@ export interface InjectionItem {
 	 * Only Injections measures it.
 	 */
 	readonly forcedEdit?: ForcedEdit;
+	/**
+	 * Texts behind a changed System Prompt part's diff, for a diff body in its
+	 * previews. Absent when its extension lines alone explain the diff: their
+	 * highlighted, annotated lines already show it. Only Injections measures it.
+	 */
+	readonly textDiff?: TextDiff;
 	/** Tokens this contribution gained and lost against its base; a parent sums its children. */
 	readonly diff?: TokenDiff;
 	/**

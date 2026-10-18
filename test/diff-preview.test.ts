@@ -99,7 +99,11 @@ test("added, deleted, unchanged, and empty message sections all keep the diff bo
 	const theme = createTheme();
 	const base = { label: "note", text: "body", tokens: 1, message: {} };
 	assert.deepEqual(plain(messageDiffLines(theme, base, 100)), ["    body"]);
-	assert.deepEqual(plain(messageDiffLines(theme, { ...base, change: "added" }, 100)), ["  + body"]);
+	assert.deepEqual(plain(messageDiffLines(theme, { ...base, change: "added" }, 100)), ["    body"],
+		"an addition has nothing to compare with, so it reads like plain content");
+	assert.deepEqual(plain(messageDiffLines(theme, {
+		...base, change: "added", message: { original: { text: "ignored" } },
+	}, 100)), ["    body"]);
 	assert.deepEqual(plain(messageDiffLines(theme, { ...base, change: "deleted", tokens: 0 }, 100)), ["  - body"]);
 	assert.deepEqual(messageDiffLines(theme, { ...base, text: "", tokens: 0 }, 100), []);
 });

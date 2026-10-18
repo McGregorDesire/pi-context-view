@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### New
+* `[injections]` Preview changed System Prompt parts as diffs, matching their `+N`/`-N`.
+
+### Changed
+* `[injections]` Preview added messages and parts as plain text instead of `+` lines.
+
 ### Changed
 * `[injections]` Mark section edits that a forced system prompt replaced as `Forced`.
 

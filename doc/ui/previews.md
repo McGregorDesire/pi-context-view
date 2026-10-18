@@ -24,6 +24,11 @@ Follow pi's diff style: distinguish added, removed, and unchanged lines with
 both signs and semantic colors; emphasize changed words within replacements.
 Keep wrapped text aligned and the signs distinct from captured content.
 
+Show a diff body only when there is something to compare with. A wholly added
+message or part reads as plain content: its `+N` already says it is new, and
+all-added lines only make it harder to read. Payload findings and Forced parts
+keep their signs, because their lines are the change itself.
+
 A message comparison may include unchanged context. A payload finding contains
 only retained changed lines and must not suggest it shows the entire payload.
 Display transformations must not alter estimates or imply a different

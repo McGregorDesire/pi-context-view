@@ -47,7 +47,9 @@ system prompt rows repeat the prompt diffs split by source, not a new comparison
   children. Diff-only source rows increase neither group diffs nor totals;
   the overall total has no diff.
 
-The same word alignment supplies preview runs. Whole-line additions and
+The same word alignment supplies preview runs. A changed System Prompt part
+without extension lines keeps both compared texts (`InjectionItem.textDiff`),
+including in the unattributed `system prompt` row. Whole-line additions and
 removals need no word-level emphasis; an oversized comparison keeps common
 ends and treats the unalignable middle as replaced. Expanding marked JSON for
 display changes neither the counted estimate nor the diff.

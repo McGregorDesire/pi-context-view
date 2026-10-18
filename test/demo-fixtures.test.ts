@@ -183,6 +183,8 @@ function assertAttributedTool(snapshot: InjectionSnapshot): void {
 		const references = part?.injectedReferences?.filter((reference) => reference.source.label === "review-checklist.ts");
 		assert.equal(references?.length, 1);
 		assert.equal(references?.[0].attribution, undefined);
+		// Highlighted extension lines show this change; a diff body would hide their sources
+		assert.equal(part?.textDiff, undefined);
 	}
 }
 

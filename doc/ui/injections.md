@@ -111,7 +111,11 @@ repeated attribution into a second counted contribution.
 Keep list and preview states consistent. Explain visible markers and the diff
 base without repeating unrelated list-wide details. Message previews compare
 with the session original; payload previews compare retained changed lines with
-the captured request. Preserve their meaningful order and distinguish tool
+the captured request. A changed System Prompt part previews a diff against the
+same base as its `+N`/`-N`, so its body never contradicts its subheader; a
+part without a base is wholly added and reads as plain content. A part
+with extension lines keeps its highlighted, annotated text instead: its
+owners' rows split its diff, and the annotations show their sources. Preserve their meaningful order and distinguish tool
 declarations from tool calls. Deleted content remains inspectable as a
 zero-token reference, not content the request sent.
 

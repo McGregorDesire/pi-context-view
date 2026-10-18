@@ -257,6 +257,32 @@ test("system changes apply to the measured prompt and tools and mark what they t
 	assert.equal(items.get("tool:builtin")?.requestOnly, undefined);
 });
 
+test("changed prompt parts carry the texts their diff compares, in both previews", () => {
+	const { session } = createSession();
+	const snapshot = buildInjectionsSnapshot(input(session, {
+		system: [
+			{ type: "section", name: "cwd", text: "<cwd>\n/tmp/project\nwith a note\n</cwd>" },
+			{ type: "section", name: "fixture_notes", text: "<fixture_notes>\nRequest-only section.\n</fixture_notes>" },
+			{ type: "section", name: "docs", text: null },
+		],
+	}));
+	const items = itemsById(snapshot);
+	const currentDir = items.get("base-prompt:current-dir");
+	assert.deepEqual(currentDir?.textDiff, { base: "/tmp/project", request: "/tmp/project\nwith a note" });
+	assert.deepEqual(items.get("base-prompt:section:fixture_notes")?.textDiff,
+		{ base: "", request: "Request-only section." }, "a custom section has no pi default, as its +N says");
+	assert.deepEqual(items.get("base-prompt:documentation")?.textDiff,
+		{ base: "Pi documentation lives here.", request: "" }, "a deletion removes the session text, as its -N says");
+	assert.equal(items.get("base-prompt:available-tools")?.textDiff, undefined, "an unchanged part has none");
+	const prompt = items.get("base-prompt");
+	assert.deepEqual(prompt?.sections?.map((part) => part.textDiff), prompt?.children?.map((child) => child.textDiff));
+	const row = snapshot.groups.find((group) => group.source.label === "unattributed")?.items
+		.find((item) => item.diffOnly === true);
+	assert.deepEqual(new Map(row?.sections?.map((part) => [part.label, part.textDiff])), new Map(prompt?.children
+		?.filter((child) => child.diff !== undefined).map((child) => [child.label, child.textDiff])),
+	"the unattributed row previews the same diff bodies");
+});
+
 test("a forced prompt is measured whole and ignores section changes", () => {
 	const { session } = createSession();
 	const snapshot = buildInjectionsSnapshot(input(session, {

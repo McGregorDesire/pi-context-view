@@ -2,7 +2,7 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
-import type { ForcedEdit, InjectionSection, TextSpan } from "../model.ts";
+import type { ForcedEdit, InjectionSection, TextDiff, TextSpan } from "../model.ts";
 import type { PayloadChangeLine } from "../snapshot.ts";
 import { normalizePreviewText } from "../text.ts";
 import { diffWords, type WordDiffPart } from "../token-diff.ts";
@@ -26,13 +26,14 @@ interface DiffRow extends DiffLine {
 
 /**
  * One message's full diff body. Expand marked JSON on each side before
- * comparing, never affecting estimates. Unchanged messages keep the gutter;
- * additions and deletions use only their side's color, without inverse words.
+ * comparing, never affecting estimates. Unchanged and added messages keep the
+ * gutter without signs: an addition has nothing to compare with, and its `+N`
+ * already says so. Deletions use only their side's color, without inverse words.
  */
 export function messageDiffLines(theme: Theme, section: InjectionSection, width: number): string[] {
 	const text = normalizePreviewText(expandJsonSpan(section.text, section.jsonSpan));
 	const original = section.message?.original;
-	const before = section.change === "added" ? "" : original === undefined
+	const before = section.change === "added" || original === undefined
 		? text : normalizePreviewText(expandJsonSpan(original.text, original.jsonSpan));
 	const after = section.change === "deleted" ? "" : text;
 	return messageRows(diffWords(before, after)).flatMap((row) => renderRow(theme, row, width));
@@ -44,8 +45,15 @@ export function messageDiffLines(theme: Theme, section: InjectionSection, width:
  * as in every other diff; an unsent part compares with no text.
  */
 export function forcedEditDiffLines(theme: Theme, sent: string, edit: ForcedEdit, width: number): string[] {
-	const after = edit.sent ? normalizePreviewText(sent) : "";
-	return messageRows(diffWords(normalizePreviewText(edit.text), after))
+	return textDiffLines(theme, { base: edit.text, request: edit.sent ? sent : "" }, width);
+}
+
+/**
+ * Word diff of a System Prompt part from its diff base to what the request
+ * sent, laid out like a message diff, so the body matches its token diff.
+ */
+export function textDiffLines(theme: Theme, diff: TextDiff, width: number): string[] {
+	return messageRows(diffWords(normalizePreviewText(diff.base), normalizePreviewText(diff.request)))
 		.flatMap((row) => renderRow(theme, row, width));
 }
 

@@ -33,6 +33,7 @@ import {
 	type InjectionSnapshot,
 	type RequestChange,
 	sumTokenDiffs,
+	type TextDiff,
 	type TokenDiff,
 } from "./model.ts";
 import { type MessageFilter, type ProjectedMessage, readProjection } from "./projection.ts";
@@ -526,10 +527,12 @@ function withItemDiff(item: InjectionItem, context: DiffContext, promptPart: boo
 		};
 		if (!promptPart) return diffed;
 		const editors = partEditors(diffed);
+		const textDiff = diffed.diff === undefined ? undefined : partTextDiff(item, base, request);
 		return {
 			...diffed,
 			...(hasSavedChange(item, base, context) ? { savedChange: true } : {}),
 			...(editors === undefined ? {} : { editors }),
+			...(textDiff === undefined ? {} : { textDiff }),
 		};
 	}
 	const parts = item.id === SYSTEM_PROMPT_ITEM_ID;
@@ -548,8 +551,20 @@ function withItemDiff(item: InjectionItem, context: DiffContext, promptPart: boo
 			...section,
 			...diffField(diffed[index]?.diff),
 			...(diffed[index]?.requestOnly === true ? { requestOnly: true } : {}),
+			...(diffed[index]?.textDiff === undefined ? {} : { textDiff: diffed[index]?.textDiff }),
 		})),
 	};
+}
+
+/**
+ * The texts behind one changed System Prompt part's diff, against the same
+ * base as its token diff. Undefined for a part with extension lines: their
+ * highlighted, annotated lines show the change, and their owners' rows
+ * split the diff, so one body would not match each row's share.
+ */
+function partTextDiff(item: InjectionItem, base: DiffSide | undefined, request: DiffSide): TextDiff | undefined {
+	if ((item.injectedReferences?.length ?? 0) > 0) return undefined;
+	return { base: base?.text ?? "", request: request.text };
 }
 
 /**

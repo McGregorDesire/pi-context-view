@@ -1822,7 +1822,7 @@ test("InjectionsView lists messages in one unattributed row and previews one par
 	assert.ok(preview.includes("  - original prompt"));
 	assert.ok(preview.includes("  + edited prompt"));
 	assert.ok(preview.includes("  - deleted prompt"));
-	assert.ok(preview.includes("  + added note"));
+	assert.ok(preview.includes("    added note"), "an addition reads like plain content, its +4 already says it is new");
 	const styled = view.render(100);
 	assert.ok(styled.some((line) => line.includes(theme.fg("muted", " · user prompt #1"))));
 	assert.ok(styled.some((line) => line.includes(theme.inverse("original"))));

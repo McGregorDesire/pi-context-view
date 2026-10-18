@@ -10,7 +10,7 @@ import { analyzeSystemPrompt } from "../src/measure.ts";
 import { buildSnapshot, type InjectionSnapshot } from "../src/model.ts";
 import { markForcedPrompt } from "../src/replay.ts";
 import type { RequestMessage } from "../src/snapshot.ts";
-import { forcedEditDiffLines } from "../src/ui/diff-preview.ts";
+import { forcedEditDiffLines, textDiffLines } from "../src/ui/diff-preview.ts";
 import { InjectionsView } from "../src/ui/injections-view.ts";
 import { type ContextMarker, markerLegendLines, markerStatusField, stateMarkers } from "../src/ui/markers.ts";
 import { previewBodyLines, previewLegendLines } from "../src/ui/section-preview.ts";
@@ -785,4 +785,20 @@ test("replaced edits preview as diffs with the Forced marker and its own legend"
 	assert.ok(legend.some((line) => line.includes(theme.fg("toolDiffAdded", "+"))));
 	assert.ok(legend.some((line) => line.includes(theme.fg("toolDiffRemoved", "-"))));
 	assert.ok(!containsBlock(legend, markerLegendLines(theme, ["forced"], 100)), "only a whole forced prompt explains Forced prompts");
+});
+
+test("changed prompt parts preview their text diff, standalone and as parts", () => {
+	const theme = createTheme();
+	const removed = { label: "legacy", text: "Legacy note.", tokens: 0, change: "deleted" as const,
+		diff: { added: 0, removed: 3 }, textDiff: { base: "Legacy note.", request: "" } };
+	const body = previewBodyLines(theme, { text: "", sections: [removed] }, 100,
+		() => { throw new Error("A changed part renders its diff"); });
+	assert.ok(containsBlock(body, textDiffLines(theme, removed.textDiff, 100)));
+	assert.deepEqual(previewBodyLines(theme, removed, 100, () => []), textDiffLines(theme, removed.textDiff, 100));
+	assert.match(plain(textDiffLines(theme, removed.textDiff, 100)), /^ {2}- Legacy note\.$/);
+	// Without a base the whole part is added: plain text, as before diff bodies
+	const added = { label: "notes", text: "New note.", tokens: 3, diff: { added: 3, removed: 0 },
+		textDiff: { base: "", request: "New note." } };
+	const plainText = previewBodyLines(theme, { ...added, textDiff: undefined }, 100, (text) => [text]);
+	assert.deepEqual(previewBodyLines(theme, added, 100, (text) => [text]), plainText);
 });
