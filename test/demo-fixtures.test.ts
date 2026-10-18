@@ -36,6 +36,8 @@ const OBSOLETE_MESSAGE_TEXT = "Limit the review to formatting; skip error handli
 const PAYLOAD_ORIGINAL = "Keep the review brief.";
 const PAYLOAD_MODIFIED = "Keep the review brief. Include a short explanation for each finding.";
 const REVIEW_SUFFIX = "Give recommendations only; do not edit files.";
+const SECTION_REVIEW_TEXT = "Review the changed files for correctness, error handling, and test coverage.";
+const SECTION_MIGRATION_TEXT = "Use the legacy configuration format for migration.";
 
 for (const api of ["openai-completions", "openai-responses", "anthropic-messages"] as const) {
 	for (const after of [false, true]) {
@@ -93,6 +95,9 @@ for (const api of ["openai-completions", "openai-responses", "anthropic-messages
 				const removedSection = promptParts.find((part) => part.label === "demo_legacy_migration");
 				assert.equal(removedSection?.tokens, 0);
 				assert.equal(removedSection?.requestOnly, true);
+				// Pi wraps seeded sections once; previews show only the body
+				assert.equal(removedSection?.text, SECTION_MIGRATION_TEXT);
+				assert.equal(promptParts.find((part) => part.label === "demo_review")?.text, SECTION_REVIEW_TEXT);
 			}
 
 			await runtime.session.prompt("Explain the most important finding.");

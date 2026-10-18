@@ -399,7 +399,7 @@ suite("structured edits", { concurrency: true }, () => {
 				for (const [name, text] of Object.entries(SECTION_DELETE_SECTIONS)) {
 					const part = parts.find((part) => part.label === name);
 					assert.equal(part?.tokens, 0);
-					assert.ok(part?.text.includes(text.split("\n")[1]), "deleted preview retains its original");
+					assert.equal(part?.text, text, "deleted preview retains its original without tags");
 				}
 			} else assertEmpty(probe);
 
