@@ -17,7 +17,7 @@
   - Keep only the `ctx.getSystemPrompt()` string in the handler; compare it in
     the deferred job. The baseline is append-only session objects, which the
     deferred diff already relies on.
-- [ ] **Trim Exactly Equal Units in the Message Channel**:
+- [x] **Trim Exactly Equal Units in the Message Channel**:
   - The deferred guard normalizes (two regex passes) and interns a key for
     every unit of the whole conversation on every request.
   - Before building keys, trim units with equal `part`, `name`, and `text`

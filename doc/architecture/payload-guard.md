@@ -244,8 +244,11 @@ exported, so uncertain differences are never treated as proven Pi adjustments.
 
 `src/capture/messages.ts` aligns whitespace-insensitive unit keys with the same
 LCS helper as structured capture. Keys also remove unpaired UTF-16 surrogates,
-as Pi does. Empty system, user, and assistant text does not count; empty tool
-results do. In each unmatched gap, units of the same part pair in order as
+as Pi does. Before building keys, it drops exactly equal units (part, name,
+and text) at both ends, so only the middle is normalized; the start first
+extends by key, as the alignment would, and the end stops there, so findings
+match a whole alignment. Empty system, user, and assistant text does not
+count; empty tool results do. In each unmatched gap, units of the same part pair in order as
 modifications; unpaired units are additions or deletions. Findings keep the
 message part, the change kind, and the added and removed lines, without
 attribution or baseline entry IDs. Blank lines and whitespace-only differences
