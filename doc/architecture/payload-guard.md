@@ -319,8 +319,11 @@ adapters. Other adapters were checked in the source only.
 - **Payload copy.** A payload's JSON is about as large as its context: about
   0.8 MB at 200k tokens and 4 MB at 1M tokens, plus base64 images. On an
   i7-8650U with Node.js 26, `structuredClone` took 1–13 ms and kept a full
-  copy. A copy of only arrays and objects that shares strings took 0.2–3 ms and
-  kept 2–5% of the JSON size.
+  copy. A copy of only arrays and objects that shares strings took 0.2–1.5 ms
+  with plain loops, 3–6 times less than with `Object.entries()` and
+  `Object.fromEntries()`, and kept 2–5% of the JSON size. Copying only the
+  fields the parsers read saved at most 0.5 ms more, and parsing both channels
+  in the handler took 1–8 ms.
 - **Payload shapes.** Payloads with tools, a tool call and result, and a
   mid-conversation system message each passed only their own API's structural
   check. OpenAI Responses sends `input` items instead of `messages`. OpenAI
