@@ -599,8 +599,8 @@ test("system prompt rows split pi's prompt changes by source and count toward no
 	assert.deepEqual([webRow?.tokens, webRow?.diffOnly, webRow?.diff, webRow?.requestOnly], [0, true, { added: 13,
 		removed: 0 }, undefined], "the extension's lines are saved");
 	assert.deepEqual(webRow?.sections?.map((section) => [section.label, section.text, section.diff, section.diffOnly]), [
-		["Available Tools", "\n- search: Search the web", { added: 6, removed: 0 }, true],
-		["Guidelines", "\n- Use search to verify claims", { added: 7, removed: 0 }, true],
+		["Tools", "\n- search: Search the web", { added: 6, removed: 0 }, true],
+		["Rules", "\n- Use search to verify claims", { added: 7, removed: 0 }, true],
 	]);
 	assert.deepEqual([unattributedRow?.diff, unattributedRow?.requestOnly], [{ added: 15, removed: 11 }, true]);
 	assert.equal(webRow?.savedChange, true);
@@ -610,7 +610,7 @@ test("system prompt rows split pi's prompt changes by source and count toward no
 		["Current Dir", 3, 0, true],
 		["fixture-review", 7, 0, false],
 		["fixture-added", 5, 0, true],
-		["Documentation", 0, 7, true],
+		["Docs", 0, 7, true],
 		["fixture-obsolete", 0, 4, true],
 	]);
 	const prompt = items.get("base-prompt");
@@ -639,7 +639,7 @@ test("an extension's system prompt row is request-only when its lines differ fro
 
 	assert.deepEqual([row?.diff, row?.requestOnly], [{ added: 7, removed: 0 }, true],
 		"the request dropped the snippet line the session keeps");
-	assert.deepEqual(row?.sections?.map((section) => section.label), ["Guidelines"]);
+	assert.deepEqual(row?.sections?.map((section) => section.label), ["Rules"]);
 });
 
 test("system prompt rows hold guessed additions, and an unchanged prompt has none", () => {

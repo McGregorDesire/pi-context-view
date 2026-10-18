@@ -501,26 +501,26 @@ test("a replaced prompt marks its dropped blocks in the tree and in previews", (
 	const list = view.render(120);
 
 	// Dropped blocks stay visible at 0 tokens, marked after the estimate they explain.
-	for (const label of ["Available Tools", "Guidelines", "Documentation"]) {
+	for (const label of ["Tools", "Rules", "Docs"]) {
 		assert.match(plain(list).replace(/\.{2,}/g, "\u2026"), new RegExp(`${label} \u2026 +0 · Dropped`));
 	}
-	const row = list.find((line) => plain([line]).includes("Documentation"));
+	const row = list.find((line) => plain([line]).includes("Docs"));
 	assert.ok(row?.includes(styledMarker(theme, "dropped")), "a dim separator carries the keyword's fixed color");
 	// The status bar explains the marker of the selected row.
 	for (let step = 0; step < 3; step++) view.handleInput("j"); // Available Tools
 	assertStatusMarker(view.render(120), theme, "dropped");
 	// A marker that no longer fits is dropped whole rather than truncated, while the bar still explains it.
-	const narrow = view.render(34);
-	assert.match(rowLine(narrow, "Documentation"), /Documentation/);
-	assert.doesNotMatch(rowLine(narrow, "Documentation"), /Dropped/);
+	const narrow = view.render(25);
+	assert.match(rowLine(narrow, "Docs"), /Docs/);
+	assert.doesNotMatch(rowLine(narrow, "Docs"), /Dropped/);
 	assertStatusMarker(narrow, theme, "dropped");
 	view.handleInput("\u001b[H");
 
 	view.handleInput("j"); // System Prompt
 	view.handleInput("\r");
 	const parent = plain(view.render(120));
-	assert.match(parent.replace(/\s+/g, " "), /Available Tools · 0 tokens · Dropped/);
-	assert.match(parent.replace(/\s+/g, " "), /Documentation · 0 tokens · Dropped/);
+	assert.match(parent.replace(/\s+/g, " "), /Tools · 0 tokens · Dropped/);
+	assert.match(parent.replace(/\s+/g, " "), /Docs · 0 tokens · Dropped/);
 	assert.ok(parent.includes(`- search: ${SNIPPET}${ARROW}${SOURCE}:${TOOL}`));
 	assert.ok(parent.includes(`- ${GUIDELINE}${ARROW}${SOURCE}:${TOOL}`));
 	// Extension Additions survive the replacement, so this preview explains attribution and dropped parts
@@ -585,32 +585,32 @@ test("a relocated block stays a counted System Prompt part, marked where it now 
 	// Both sections follow cwd, keep their estimates, and name their new position.
 	const rows = plain(list).replace(/\.{2,}/g, "\u2026").split("\n");
 	assert.deepEqual(
-		rows.filter((row) => /Current Dir|Available Tools|Guidelines/.test(row))
-			.map((row) => row.replace(/^[\s│├└─]+/, "")),
-		["Current Dir \u2026  2", "Available Tools \u2026 11 · Moved", "Guidelines \u2026 16 · Moved"],
+		rows.map((row) => row.replace(/^[\s│├└─]+/, ""))
+			.filter((row) => /^(Current Dir|Tools|Rules) …/.test(row)),
+		["Current Dir \u2026  2", "Tools \u2026 11 · Moved", "Rules \u2026 16 · Moved"],
 	);
-	const row = list.find((line) => plain([line]).includes("Guidelines"));
+	const row = list.find((line) => plain([line]).includes("Rules"));
 	assert.ok(row?.includes(styledMarker(theme, "moved")), "a dim separator carries the keyword's fixed color");
 	for (let step = 0; step < 5; step++) view.handleInput("j"); // Guidelines
 	assertStatusMarker(view.render(120), theme, "moved");
 	// A marker that no longer fits is dropped whole rather than truncated, while the bar still explains it.
-	const narrow = view.render(32);
-	assert.match(rowLine(narrow, "Guidelines"), /Guidelines/);
-	assert.doesNotMatch(rowLine(narrow, "Guidelines"), /Moved/);
+	const narrow = view.render(27);
+	assert.match(rowLine(narrow, "Rules"), /Rules/);
+	assert.doesNotMatch(rowLine(narrow, "Rules"), /Moved/);
 	assertStatusMarker(narrow, theme, "moved");
 	view.handleInput("\u001b[H");
 
 	view.handleInput("j"); // System Prompt
 	view.handleInput("\r");
 	const parent = plain(view.render(120));
-	assert.match(parent.replace(/\s+/g, " "), /Available Tools · 11 tokens · Moved/);
-	assert.match(parent.replace(/\s+/g, " "), /Guidelines · 16 tokens · Moved/);
+	assert.match(parent.replace(/\s+/g, " "), /Tools · 11 tokens · Moved/);
+	assert.match(parent.replace(/\s+/g, " "), /Rules · 16 tokens · Moved/);
 	assert.ok(parent.includes(`- ${SNIPPET_LINE}${ARROW}${SOURCE}:${TOOL}`));
 
 	view.handleInput("\u001b");
 	for (let step = 0; step < 4; step++) view.handleInput("j"); // Available Tools
 	view.handleInput("\r");
-	assert.match(plain(view.render(120)), /Available Tools\s+pi · 11 tokens · Moved/);
+	assert.match(plain(view.render(120)), /Tools\s+pi · 11 tokens · Moved/);
 	assert.ok(plain(view.render(120)).includes(`- ${SNIPPET_LINE}${ARROW}${SOURCE}:${TOOL}`));
 
 	for (const width of [30, 60, 80, 120]) {
@@ -631,8 +631,8 @@ test("Usage preserves moved parts, their estimates, and their marker across them
 	assert.doesNotMatch(plain(dashboard), /Read files|Moved/);
 	view.handleInput("\r");
 	const preview = view.render(120);
-	assert.match(plain(preview), /Available Tools · 11 tokens · Moved/);
-	assert.match(plain(preview), /Guidelines · 16 tokens · Moved/);
+	assert.match(plain(preview), /Tools · 11 tokens · Moved/);
+	assert.match(plain(preview), /Rules · 16 tokens · Moved/);
 	assertLegend(preview, theme, ["highlighted", "moved"]);
 	assert.ok(preview.some((line) => line.includes(styledMarker(theme, "moved"))));
 	const originalFg = theme.fg.bind(theme);
@@ -650,8 +650,8 @@ test("a tool preview shows its dropped prompt lines without claiming their token
 	view.handleInput("\u001b[F"); // last selectable row: the extension tool
 	view.handleInput("\r");
 	const preview = plain(view.render(120)).replace(/\s+/g, " ");
-	assert.match(preview, new RegExp(`Available Tools · 0 tokens · Dropped - search: ${SNIPPET}`));
-	assert.match(preview, new RegExp(`Guidelines · 0 tokens · Dropped - ${GUIDELINE}`));
+	assert.match(preview, new RegExp(`Tools · 0 tokens · Dropped - search: ${SNIPPET}`));
+	assert.match(preview, new RegExp(`Rules · 0 tokens · Dropped - ${GUIDELINE}`));
 	// A tool's own lines are not injections into someone else's text.
 	assert.ok(!hasHighlightLegend([preview]));
 
@@ -683,7 +683,7 @@ test("Usage explains markers in categories beyond the System Prompt, at both pre
 	};
 
 	const direct = open([tools]);
-	assert.match(plain(direct), /Available Tools · 0 tokens · Dropped/);
+	assert.match(plain(direct), /Tools · 0 tokens · Dropped/);
 	// A tool's own lines are not injections, so the state marker alone is explained.
 	assertLegend(direct, theme, ["dropped"]);
 

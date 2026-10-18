@@ -6,10 +6,8 @@
 * `[injections]` Preview changed System Prompt parts as diffs, matching their `+N`/`-N`.
 
 ### Changed
-* `[injections]` Preview added messages and parts as plain text instead of `+` lines.
-
-### Changed
 * `[injections]` Mark section edits that a forced system prompt replaced as `Forced`.
+* `[views]` Match Pi's (v0.86+) section names: Tools, Rules, Docs, and Addendum.
 
 
 ## `[v0.7.2]` - 17.10.2026

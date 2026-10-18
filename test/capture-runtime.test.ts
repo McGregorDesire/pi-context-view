@@ -461,7 +461,7 @@ suite("Injections composition", { concurrency: true }, () => {
 			.map((part) => `${messages?.source.label} / ${part.label}: ${part.change}`);
 		assert.deepEqual([...marked, ...markedMessages].sort(), [
 			`unattributed / ${CONTEXT_ADD_TYPE}: added`,
-			"pi / Documentation: deleted",
+			"pi / Docs: deleted",
 			"pi / Preamble: modified",
 			...Object.keys(SECTION_PATCH_SECTIONS).map((name) => `pi / ${name}: added`),
 			...Object.keys(SECTION_DELETE_SECTIONS).map((name) => `pi / ${name}: deleted`),

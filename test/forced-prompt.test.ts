@@ -94,7 +94,7 @@ test("a forced prompt extending Pi's sections keeps the section parts and its ad
 	assert.equal(base?.children?.some((child) => child.change !== undefined), false);
 	assert.deepEqual(
 		base?.children?.map((child) => child.label),
-		["Preamble", "Available Tools", "Guidelines", "Documentation", "Appended Prompt", "Current Dir",
+		["Preamble", "Tools", "Rules", "Docs", "Addendum", "Current Dir",
 			"Extension Additions"],
 	);
 	assert.equal(base?.children?.at(-1)?.text.trim(), "EXTRA INSTRUCTION");

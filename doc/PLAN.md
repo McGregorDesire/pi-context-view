@@ -1,6 +1,6 @@
 ## `TODO`
 
-- [ ] **Rename System Prompt Sections in the Injections View**:
+- [x] **Rename System Prompt Sections in the Injections View**:
   - Match current Pi terminology: Available Tools → Tools,
     Guidelines → Rules, Documentation → Docs, Appended Prompt → Addendum.
   - Keep Instruction Files and Current Dir unchanged.

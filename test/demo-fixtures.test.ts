@@ -175,10 +175,10 @@ function assertAttributedTool(snapshot: InjectionSnapshot): void {
 	const prompt = group.items.find((item) => item.diffOnly);
 	assert.ok(prompt?.diff && prompt.diff.added > 0);
 	assert.equal(prompt.requestOnly, undefined);
-	assert.deepEqual(prompt.sections?.map((part) => part.label), ["Available Tools", "Guidelines"]);
+	assert.deepEqual(prompt.sections?.map((part) => part.label), ["Tools", "Rules"]);
 	const piPrompt = snapshot.groups.find((group) => group.source.label === "pi")?.items
 		.find((item) => item.kind === "base-prompt");
-	for (const label of ["Available Tools", "Guidelines"]) {
+	for (const label of ["Tools", "Rules"]) {
 		const part = piPrompt?.children?.find((part) => part.label === label);
 		const references = part?.injectedReferences?.filter((reference) => reference.source.label === "review-checklist.ts");
 		assert.equal(references?.length, 1);

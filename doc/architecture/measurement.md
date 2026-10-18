@@ -62,8 +62,8 @@ its default base.
 ## Prompt Parts and Moved Blocks
 
 Pi wraps independently replaceable sections in XML. Map `tools`, `rules`,
-`docs`, `addendum`, and `cwd` to Available Tools, Guidelines, Documentation,
-Appended Prompt, and Current Dir. Keep the unwrapped preamble separately.
+`docs`, `addendum`, and `cwd` to Tools, Rules, Docs, Addendum, and Current Dir.
+Keep the unwrapped preamble separately.
 Read `project_context` instruction records and `skills` records as their existing
 aggregates. Overridden content that is not those generated records stays visible
 as a System Prompt part; never substitute stale loader content.
@@ -118,7 +118,7 @@ bullets and built-in tool bullets get no reference.
 For each matched extension line, retain its range in the part's text, source,
 and owning tool as a typed preview reference. Keep that reference on the System
 Prompt section and standalone child that hold the line. This applies to both
-Available Tools snippets and Guidelines bullets.
+Tools snippets and Rules bullets.
 
 References name the source of counted text for inspection. They add no text,
 characters, or tokens. Only exactly matched, rendered lines receive
@@ -126,7 +126,7 @@ references, except for the explicit dropped-block case below.
 
 ## Blocks Dropped by a Custom System Prompt
 
-When `--system-prompt` drops Available Tools, Guidelines, or Documentation,
+When `--system-prompt` drops Tools, Rules, or Docs,
 keep those parts in the model and mark them as dropped. They must contain no
 pi-authored text. Their text holds only the extension lines that pi would
 otherwise have rendered, with references like rendered lines.
