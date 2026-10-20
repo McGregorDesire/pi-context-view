@@ -1,86 +1,113 @@
 # Context Injections view
 
-`/context injections` opens **Context Injections**. Frame, color, description,
-and interaction rules live in the [UI specification](../UI.md); rules shared
-with Usage previews live in [previews.md](previews.md).
+`/context injections` explains the latest request's contributions and changes.
+Apply the [shared design rules](../UI.md) and [preview rules](previews.md).
+[Views on snapshots](../architecture/views.md#injections) owns composition and
+snapshot behavior; [measurement](../architecture/measurement.md) owns estimates
+and attribution.
 
-Its header is:
+## Latest request
 
-```text
-Context Injections · [INITIAL]
-```
+Make the request's origin and capture limits clear. A silent probe is not an
+ordinary user request and may miss prompt-dependent injections. Keep that
+origin recognizable even when optional explanations collapse.
 
-`INITIAL` uses the active `mdHeading` treatment. Runtime inspection is
-roadmap-only, so no Runtime label, switching key, or Runtime status renders
-until that step lands. If the combined header does not fit, put title and label
-on separate lines with one empty row before and after the label.
+Distinguish pending, unchecked, and partially checked payload comparisons from
+a completed comparison. No findings from an incomplete check must never imply
+that the payload matched. Keep incomplete status near the header; detailed
+reasons can live in the description. A degraded fallback also needs its precise
+reason visible, not only a generic warning. Configuration problems follow it in
+a bounded notice block that makes omitted notices apparent; the degraded reason
+itself is never cut. Disabled probing is an expected state, not a degradation:
+explain it only as a description note.
+
+The view describes one request, not the whole session or necessarily the last
+user prompt. Do not blur this distinction with Usage's current-branch estimate.
+Hidden-tool details and longer probe or payload explanations are supporting
+information and may collapse with the description.
 
 ## Contribution tree
 
-Present Initial contributions in this order:
+Group contributions by source: pi first, identified extensions by size, then
+one shared unattributed group. Within pi, preserve the prompt's meaningful
+structure and order. Children explain a parent's contribution; they are not
+extra usage. Omit empty sources while retaining meaningful zero-token states,
+such as deletions and dropped parts.
 
-- `pi`
-  - System Prompt, including when `--system-prompt` replaced pi's default,
-    with one child per part pi assembles it from, in prompt order: `Preamble`,
-    `Available Tools`, `Guidelines`, `Documentation`, `Appended Prompt`
-    (`--append-system-prompt` text), `Current Dir`, and `Extension Additions`.
-    A custom XML section keeps its own tag as the child label, at its actual
-    position, including after `Current Dir`. Parts pi rendered no text into are
-    absent. A replaced prompt keeps its whole
-    body as the `Preamble` part and still lists `Available Tools`, `Guidelines`,
-    and `Documentation`, each at 0 tokens with the
-    [`Dropped` marker](../UI.md#color-and-casing) after its estimate, so the
-    tree shows what the replacement gave up; a section the replacement kept is
-    an ordinary part instead. `Extension Additions` holds no
-    counted text of its own: it always reads 0 tokens and exists to present the
-    additions its owners count. Structurally recovered `Available Tools` and
-    `Guidelines` blocks remain System Prompt children, at their actual prompt
-    position with a [`Moved` marker](../UI.md#color-and-casing). For example,
-    blocks relocated past the footer follow `Current Dir`, not `Preamble`.
-    `Extension Additions` still consolidates all other additions at the end;
-    recovered block text is excluded from those owners' counts.
-  - `Instruction Files (M)`, with one child per context file, abbreviating home
-    paths with `~`
-  - Skills (K), with one content-only child per skill
-  - Built-in Tools (N), with one child per active built-in tool
-- each extension/tool source
-  - one child per active tool
-  - `system prompt additions` when text appended after pi's footer was
-    attributed to that source
-  - injected messages identified by `customType` where available
-- `unattributed` for prompt additions no signal could attribute
+Keep ownership distinct from editing: a source group identifies affected
+content, not who changed it. Messages and payload findings use aggregate rows
+with labeled preview parts rather than expanding every detail in the tree.
+The architecture's [source rules](../architecture/measurement.md) determine
+which contributions have known, guessed, or unknown owners.
 
-Within the `pi` group, keep the fixed semantic order above and sort remaining
-prompt additions by size. Children break down parent contributions and do not
-increase totals. Measurements and previews exclude transport wrappers and
-section-introduction scaffolding; pi sends its working-directory footer with
-every request, so it is measured as the `Current Dir` part instead.
+Use hierarchy and stable value columns to make comparisons easy. Prefer
+filenames over middle directories when shortening paths; leave captured paths
+and preview identities unchanged. Preserve estimates before decorative leaders
+or optional metadata when width is limited.
 
-Use dim `├─`, `└─`, and `│` connectors for source, item, and constituent
-hierarchy. Align every token estimate to one shared column capped near the tree
-(`MAX_TOKEN_VALUE_COLUMN`) on wide terminals, leaving unused space to the right.
-Fill label/value gaps with dim dot leaders; as width shrinks, shorten or remove
-leaders before truncating labels or token values, and retain tree connectors
-where space permits.
+Keep the total outside the scrollable tree so it remains available through
+navigation and resizing. Make its scope clear: these contributions are neither
+the full conversation nor the provider payload's size. The total is not a
+selectable or previewable row.
 
-Place one empty row before `TOTAL`. It is the last row in the scrollable Initial
-list, counts only the frozen Initial snapshot, and is not selectable: cursor
-navigation, the selectable-row counter, and Enter preview skip it.
+### System prompt rows
 
-The list description survives scrolling, per the floor in
-[Descriptions](../UI.md#descriptions); the `(current/total)` counter never
-collapses it by itself. When capture is degraded, wrap the precise reason below
-the header and show a `[Degraded: …]` indicator beside the description, keeping
-the fallback hierarchy usable. Below both, the description block ends with one
-[legend bullet](previews.md#marker-legend) per marker the rows carry — `Dropped`,
-`Moved`, or neither — and collapses with the rest of the block.
+Source-level system prompt rows explain changes already counted under pi.
+Show their diffs without a token estimate and explain the existing accounting;
+a displayed zero would suggest that the contributed text costs nothing.
+[Measurement](../architecture/measurement.md#system-prompt-rows) owns the split
+and no-double-counting rule.
+
+### Request-only changes
+
+Separate the amount of a change from whether the session keeps it. Token diffs
+alone cannot communicate that distinction. Mark affected request-only content
+consistently between the tree and previews; a forced prompt explains a
+replacement of the whole prompt, not a separate forced state on every part.
+Only a part whose captured request edit the forced prompt replaced carries
+Forced itself: the edit would otherwise vanish silently. Show such a part once,
+with the estimate of what Pi sent; its status says whether Pi still sent the
+part, and its preview diffs from the replaced edit to the sent text, so added
+lines are what Pi sent, as in the row's diff. The preview legend explains every
+marked part at once, so it never claims whether a particular part was sent.
+
+Keep dropped, moved, forced, and request-only states distinct. They describe
+absence, position, replacement, and persistence respectively, not source
+ownership or usage categories. Payload findings are a separate observation
+layer and must not be presented as captured request-only edits.
+
+### Selected-row status bar
+
+Keep a persistent area outside the tree for the selected row's change and state
+details. Explain where changes live, whether an editor is known or inferred,
+and whether a diff is already counted elsewhere. Show only relevant details;
+never raw content or an editor guessed from the source group.
+
+Parents summarize the contributions they count rather than claiming a single
+editor. Unknown attribution must remain explicit. Selecting another row updates
+the explanation; returning from a preview restores it.
+
+This area and the total take priority over optional descriptions. On short
+terminals, reduce decoration before sacrificing capture status, the degraded
+reason, the selected row, the total, or its explanation. Restore the normal
+frame when space returns. If narrow rows omit diff columns or markers, the
+selected-row explanation must still make their meaning available.
+
+### Token diffs
+
+Use signed added/removed values with consistent semantic colors, separate from
+the sent-content estimate. Keep their columns stable while scrolling. Explain
+the comparison base when inspecting a diff; different contribution kinds do
+not all compare against the same thing.
+[Token diff accounting](../architecture/measurement.md#token-diffs) owns those
+rules and their limits.
 
 ## Filter
 
-`/` filters the list under the shared
+`/` filters the tree under the shared
 [search and filter rules](../UI.md#search-and-filter). It compares names by
 default; Tab in the open prompt switches between names and content, and the
-prompt label reads `Filter by Name` or `Filter by Content`.
+prompt names the active mode.
 
 - Name mode matches group and item labels. A matching group or item keeps its
   whole subtree, since naming a container asks for its contents; rows inside it
@@ -89,27 +116,33 @@ prompt label reads `Filter by Name` or `Filter by Content`.
   matches through them: its own text concatenates theirs, so it stands alone
   only when no child matches. Group labels are names and never match here.
 
-Filtered rows rebuild their tree connectors and keep their estimates, and
-`TOTAL` still counts the whole Initial snapshot. Name mode highlights the query
-inside row labels. Content mode highlights nothing and shows no matching text,
-because raw text never appears in rows. With no match, the list reads
-`No injections match the filter.` and Enter does nothing.
+A filter only hides rows. Shown rows keep their tree connectors, estimates,
+diffs, and status as in the whole tree, and the total still counts the whole
+request. Name mode highlights the query inside matched labels. Content mode
+highlights nothing, because rows never show raw text. An empty result says so
+explicitly, and Enter then opens nothing.
 
 Enter on a content-mode match opens its preview with the same query already
 searched, at its first match.
 
 ## Injection preview
 
-Enter on an injection item opens its sanitized raw text. Show item title,
-source, and estimated tokens in the header; wrap content to available width and
-support arrow and page scrolling, plus `/` search under the shared
-[search and filter rules](../UI.md#search-and-filter). Escape returns to the
-same selected row. Raw text must never appear in row descriptions.
+Enter opens sanitized full content with enough identity and accounting context
+to understand it. Aggregates expose labeled parts; a preview must not turn
+repeated attribution into a second counted contribution.
 
-A tool item renders its labeled parts under the
-[labeled part rules](previews.md#labeled-parts) instead of one undivided block
-of raw text. An item with children — System Prompt, Instruction Files, Skills,
-Built-in Tools — renders one part per child under the same rules, so children
-stay separated by two blank rows instead of running together. The whole preview
-is full content, so marked JSON expands here, in an aggregate part as much as in
-a tool's own definition.
+Keep list and preview states consistent. Explain visible markers and the diff
+base without repeating unrelated list-wide details. Message previews compare
+with the session original; payload previews compare retained changed lines with
+the captured request. A changed System Prompt part previews a diff against the
+same base as its `+N`/`-N`, so its body never contradicts its subheader; a
+part without a base is wholly added and reads as plain content. A part
+with extension lines keeps its highlighted, annotated text instead: its
+owners' rows split its diff, and the annotations show their sources. Preserve their meaningful order and distinguish tool
+declarations from tool calls. Deleted content remains inspectable as a
+zero-token reference, not content the request sent.
+
+Use the shared [preview rules](previews.md) for diff bodies, source annotations,
+and display-only transformations. `/` searches the preview under the shared
+[search and filter rules](../UI.md#search-and-filter). Escape returns to the
+same tree position.

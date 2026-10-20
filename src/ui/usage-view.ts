@@ -24,6 +24,7 @@ import { expandJsonSpan } from "./json-preview.ts";
 import {
 	BODY_INDENT,
 	calculateViewport,
+	capNoticeLines,
 	DEFAULT_TERMINAL_ROWS,
 	descriptionBlockRows,
 	fitHintRow,
@@ -39,6 +40,8 @@ import {
 	STEP_KEY_HINT,
 	wrapDescriptionLines,
 } from "./layout.ts";
+import { forcedMarker } from "./markers.ts";
+import { descriptionNoteLines, emptyPreviewNote, probingDisabledNote, thinkingNote, usageNote } from "./notes.ts";
 import {
 	findMatches,
 	highlightLine,
@@ -55,13 +58,6 @@ import { buildUsageMap, calculateFitMapScale, type UsageMap, type UsageMapCell }
 import { BlockNavigator, layoutPreviewBlocks, type PreviewLayout } from "./usage-preview.ts";
 import { DEFAULT_WHEEL_SCROLL_LINES, parseWheelDirection, readWheelScrollLines } from "./wheel.ts";
 
-const USAGE_DESCRIPTION = "Estimated context for the next model request. " +
-	"Token counts are approximate and may differ from the provider's estimate.";
-const INVISIBLE_REASONING_DESCRIPTION =
-	"Entry headers read: [DD-MM-YYYY] [assistant] visible + Reasoning ≈invisible (≈total). " +
-	"≈ is a provider-reported count; ~ is a rough approximation when no breakdown " +
-	"is reported and excluded from category totals. " +
-	"Encoded replaces Reasoning when the provider replays encrypted reasoning with its message.";
 /** Dashboard rows below the content, excluding the collapsible description: blank, hints, blank, border. */
 const USAGE_TAIL_FIXED_LINE_COUNT = 4;
 const DETAIL_CATEGORY_HEADER_LINE_COUNT = 1;
@@ -110,6 +106,8 @@ const EMPTY_FILTER_MESSAGE = "No categories match the filter.";
 export interface UsageViewInput {
 	readonly usage: ContextUsageSnapshot;
 	readonly degradedReason?: string;
+	/** True when no request was captured yet and configuration disables the silent probe. */
+	readonly probingDisabled?: boolean;
 	/** Non-fatal problems shown under the header, such as ignored configuration entries. */
 	readonly notices?: readonly string[];
 	/** Category colors resolved from user overrides, or `DEFAULT_CATEGORY_COLORS`. */
@@ -366,13 +364,15 @@ export class UsageView {
 	private renderDashboard(width: number, terminalRows: number): string[] {
 		const theme = this.theme;
 		const border = theme.fg("border", "─".repeat(Math.max(1, width)));
+		const notices = this.noticeLines(width);
 		const prefix = [
 			border,
 			"",
 			...this.headerLines(width),
 			"",
 			...this.filterLines(width),
-			...this.noticeLines(width),
+			...notices,
+			...(notices.length > 0 ? [""] : []),
 		];
 		const availableRows = Math.max(1, terminalRows - prefix.length - USAGE_TAIL_FIXED_LINE_COUNT);
 		const map = this.dashboardMap(width, availableRows);
@@ -577,7 +577,8 @@ export class UsageView {
 	 * important block on the frame, so it goes before any of them degrades.
 	 */
 	private dashboardDescriptionLines(width: number, availableRows: number, map: UsageMap | undefined): string[] {
-		const lines = wrapDescriptionLines(this.theme, USAGE_DESCRIPTION, "dim", width);
+		const notes = [usageNote(), ...(this.input.probingDisabled === true ? [probingDisabledNote(this.theme)] : [])];
+		const lines = notes.flatMap((note) => descriptionNoteLines(this.theme, note, width));
 		const required = this.fullDashboardRows(width, map) + descriptionBlockRows(lines);
 		return required <= availableRows ? lines : [];
 	}
@@ -882,11 +883,7 @@ export class UsageView {
 		const degraded = this.input.degradedReason === undefined ? [] : [this.input.degradedReason];
 		const blocks = [...degraded, ...this.input.notices ?? []]
 			.map((notice) => this.wrapNotice(notice, width));
-		const lines = blocks.flat();
-		if (lines.length <= MAX_NOTICE_LINES) return lines;
-		const kept = lines.slice(0, MAX_NOTICE_LINES - 1);
-		const hidden = blocks.length - countWholeBlocks(blocks, kept.length);
-		return [...kept, ...this.wrapNotice(`… +${hidden} more`, width)];
+		return capNoticeLines(blocks, MAX_NOTICE_LINES, (notice) => this.wrapNotice(notice, width));
 	}
 
 	/** One sanitized notice wrapped to the available width, indented on every line. */
@@ -1220,22 +1217,26 @@ export class UsageView {
 		return fitToTerminalHeight(lines, terminalRows, border);
 	}
 
-	/** Accent category title with its token and percentage metadata, shared by both preview levels. */
+	/**
+	 * Accent category title with its token and percentage metadata, shared by
+	 * both preview levels. A forced prompt adds its `Forced` marker, dropped whole
+	 * when it does not fit, as in the Injections preview header.
+	 */
 	private categoryHeaderLine(row: CategoryLegendRow, width: number): string {
 		const theme = this.theme;
 		const title = theme.fg("accent", theme.bold(normalizeInlineText(row.category.label)));
 		const percent = this.plainLegendPercent(row.category.tokens);
-		const meta = theme.fg(
-			"muted",
-			`${formatTokens(row.category.tokens)}${percent === "" ? "" : ` · ${percent}`} `,
-		);
-		return spreadLine(title, meta, width);
+		const meta = theme.fg("muted", `${formatTokens(row.category.tokens)}${percent === "" ? "" : ` · ${percent}`}`);
+		const forced = this.previewEntries(row).some((entry) => entry.change === "forced");
+		const marker = forced ? forcedMarker(theme) : "";
+		const fitsMarker = visibleWidth(title) + visibleWidth(meta) + visibleWidth(marker) + 2 <= width;
+		return spreadLine(title, `${meta}${fitsMarker ? marker : ""} `, width);
 	}
 
 	/** Visible window of the block stream, or the message an empty category shows instead. */
 	private previewStreamLines(stream: PreviewStream, visibleCount: number, width: number): string[] {
 		if (stream.blocks.length === 0) {
-			const message = this.theme.fg("muted", `${BODY_INDENT}No content captured for this category.`);
+			const message = this.theme.fg("muted", `${BODY_INDENT}${emptyPreviewNote().text}`);
 			return Array.from({ length: visibleCount }, (_, index) => index === 0 ? this.fit(message, width) : "");
 		}
 		const start = this.blockNavigator.offset;
@@ -1396,7 +1397,7 @@ export class UsageView {
 		const hasInvisibleReasoning = this.previewEntries(row)
 			.some((entry) => entry.invisibleReasoning !== undefined);
 		return hasInvisibleReasoning
-			? wrapDescriptionLines(this.theme, INVISIBLE_REASONING_DESCRIPTION, "dim", width)
+			? descriptionNoteLines(this.theme, thinkingNote(), width)
 			: [];
 	}
 
@@ -1540,18 +1541,6 @@ function blockAtRow(starts: readonly number[], row: number): number {
 	let index = 0;
 	while (index + 1 < starts.length && (starts[index + 1] ?? Infinity) <= row) index++;
 	return index;
-}
-
-/** Notices whose wrapped lines fit entirely into the first `keptLines` rows. */
-function countWholeBlocks(blocks: readonly (readonly string[])[], keptLines: number): number {
-	let used = 0;
-	let whole = 0;
-	for (const block of blocks) {
-		if (used + block.length > keptLines) break;
-		used += block.length;
-		whole += 1;
-	}
-	return whole;
 }
 
 /** Stream lines one block occupies, including its truncation marker row. */

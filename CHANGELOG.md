@@ -1,10 +1,78 @@
 # Changelog
 
-
 ## Unreleased
 
+### New
+* `[injections]` Preview changed System Prompt parts as diffs, matching their `+N`/`-N`.
+
+### Changed
+* `[injections]` Mark section edits that a forced system prompt replaced as `Forced`.
+* `[views]` Match Pi's (v0.86+) section names: Tools, Rules, Docs, and Addendum.
+* `[capture]` Drop the `provider_stream_event` handler, which cost an emit per streamed chunk.
+* `[capture]` Detect a forced system prompt off the request's critical path.
+* `[capture]` Skip equal conversation ends before normalizing message units for the guard.
+* `[capture]` Copy provider payloads 3–6 times faster with plain loops.
+
+
+## `[v0.7.2]` - 17.10.2026
+
+Maintenance release for Pi 1.3.0, which is now required, with fixes for its removal of thinking from other models.
+
+### Added
+* `[config]` Add `autoProbing` setting to disable the silent probe (enabled by default).
+
+### Changed
+* `[package]` Require Pi 1.3.0 for its provider message adjustments.
+* `[ci]` Target ES2024 and use its `Map.groupBy` and `Promise.withResolvers`.
+
 ### Fixed
+* `[usage]` Leave out thinking from other models, which Pi 1.3 no longer sends.
+* `[capture]` Match Pi 1.3's removal of thinking from other models.
+* `[capture]` Skip GPT-6 `configuration_update` items in the message channel.
+* `[probe]` Detect nested user sends during a probe; warn when one took the probe's place.
+* `[ci]` Clean up dependencies and pin protobufjs 7.6.6 to fix an audit warning.
+* `[capture]` Don't fail when Pi sends no `hiddenTools` ([#15](https://github.com/dimk90/pi-context-view/issues/15)).
+
+
+## `[v0.7.1]` - 13.10.2026
+
+Support for Pi 1.2.0, which is now required, with fixes for its breaking changes.
+
+### Fixed
+* `[probe]` Stop blanking messages that extensions send while the probe run starts.
+* `[probe]` Stop aborting custom-message runs that other extensions start during a probe.
+
+
+## `[v0.7.0]` - 12.10.2026
+
+Injection capture has been redesigned for Pi 1.1. Instead of freezing the first request (Initial),
+it now captures every request and compares it with the saved session. This shows request-only
+injections that were invisible before: changes from later handlers, deleted or modified messages,
+forced prompts, and tools Pi hides.
+
+### New
+* `[injections]` Use the latest request instead of the frozen Initial snapshot.
+* `[injections]` Show payload changes and tools Pi hides.
+* `[injections]` Update the injections view UI: clearer grouping, `+N`/`-N` diffs indicators, and previews.
+
+### Changed
+* `[usage]` Apply the latest request's added/modified/deleted messages instead of first-turn copies.
+* `[usage]` Count the latest request's forced system prompt and mark it as Forced in the System Prompt preview.
+* `[probe]` Skip probing for queued input, virtual models, and idle warming.
+* `[probe]` Skip probing above the auto-compaction threshold or when settings cannot be checked.
+* `[context]` Refuse both views with a warning while compaction is in progress.
+* `[package]` Require Pi 1.1 and report older versions, drop the pre-0.86 prompt parser.
+* `[injections]` Keep filenames visible by shortening the middle of long instruction-file paths.
+* `[injections]` Group messages and payload changes into single rows with (N) counter.
+* `[injections]` Keep TOTAL visible below the scrollable contribution tree.
+
+### Fixed
+* `[injections]` Fixed the issue reported in PR [#9](https://github.com/dimk90/pi-context-view/pull/9) by [@Drakejiejie](https://github.com/Drakejiejie) and adopted the PR’s tests.
+* `[usage]` Leave out tools hidden from the model, such as by codemode `only` ([#11](https://github.com/dimk90/pi-context-view/issues/11)).
+* `[usage]` Count request replacements once and exclude removals ([#6](https://github.com/dimk90/pi-context-view/issues/6)).
 * `[capture]` Hide silent-probe setup aborts on Bun ([#10](https://github.com/dimk90/pi-context-view/pull/10) by [@VinhLe1410](https://github.com/VinhLe1410)).
+* `[probe]` Preserve system-message positions when filtering and persist probe context omissions.
+* `[views]` Group and label path-loaded extensions by file, not as one `cli` or `local` source.
 
 
 ## `[v0.6.0]` - 20.09.2026

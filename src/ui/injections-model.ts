@@ -1,8 +1,45 @@
 /**
- * Pure presentation model for the Injections view: flattened rows and
- * list navigation/scrolling state. No pi or TUI access — unit-testable.
+ * Pure presentation model for the Injections view: flattened rows, what the
+ * status bar tells about each, and list navigation/scrolling state. No pi or
+ * TUI access — unit-testable.
  */
-import type { InitialSnapshot, InjectionGroup, InjectionItem } from "../model.ts";
+import {
+	type ChangeEditor,
+	type ForcedEdit,
+	type InjectionGroup,
+	type InjectionItem,
+	type InjectionSnapshot,
+	type RequestChange,
+	sumTokenDiffs,
+	type TokenDiff,
+} from "../model.ts";
+
+/** Editor of every change no extension line explains. */
+const UNKNOWN_EDITOR: ChangeEditor = { type: "unknown" };
+
+/** Prefix of a tool row outside `Built-in Tools (N)`, whose group does not name it a tool. */
+const TOOL_LABEL_PREFIX = "tool:";
+
+/**
+ * Where a row's changes live, one status-bar phrase each:
+ *   saved            the session keeps every change
+ *   saved-and-edit   a leaf with saved changes and an edit only in this request
+ *   partly           an aggregate whose changes are partly only in this request
+ *   request          an aggregate whose changes are all only in this request
+ *   request-edit     a leaf changed only in this request; the session keeps the original
+ *   request-new      a leaf only this request has
+ *   payload          only in the provider payload
+ * Aggregates are parents, groups, and the `system prompt`, `messages (N)`,
+ * and `payload changes (N)` rows.
+ */
+export type ChangeScope =
+	| "saved"
+	| "saved-and-edit"
+	| "partly"
+	| "request"
+	| "request-edit"
+	| "request-new"
+	| "payload";
 
 /** What a list filter compares the query against. */
 export type InjectionFilterMode = "name" | "content";
@@ -16,10 +53,15 @@ export interface InjectionFilter {
 	readonly contentMatches: (item: InjectionItem) => boolean;
 }
 
-/** Snapshot pruned to a filter, plus which groups and items matched themselves. */
-export interface FilteredInjections {
-	readonly snapshot: InitialSnapshot;
-	/** Item ids and `source:<id>` group keys of rows that matched directly, not as context. */
+/**
+ * Rows a filter leaves, by item id and `source:<id>` group key. The snapshot
+ * itself stays whole, so estimates, diffs, and change scopes never depend on
+ * which rows a filter hides.
+ */
+export interface InjectionFilterResult {
+	/** Rows to show: matches and the ancestors kept as their context. */
+	readonly kept: ReadonlySet<string>;
+	/** Rows that matched directly, not as context. */
 	readonly matched: ReadonlySet<string>;
 }
 
@@ -30,12 +72,18 @@ export type InjectionRow =
 		readonly label: string;
 		readonly tokens: number;
 		readonly depth: 0;
+		/** Sum of the group's token diffs. */
+		readonly diff?: TokenDiff;
+		/** Where the changes of the rows it counts live; absent when none changed. */
+		readonly scope?: ChangeScope;
 		/** Whether an active filter matched this row itself rather than keeping it as context. */
 		readonly matched?: boolean;
 	}
 	| {
 		readonly kind: "item";
 		readonly label: string;
+		/** Dim prefix before the label: `tool:` on a tool row outside `Built-in Tools (N)`. */
+		readonly labelPrefix?: string;
 		readonly tokens: number;
 		/** One for items and two for constituent sub-items. */
 		readonly depth: 1 | 2;
@@ -47,6 +95,20 @@ export type InjectionRow =
 		readonly dropped?: boolean;
 		/** Whether an extension moved this part out of the region pi renders it into. */
 		readonly moved?: boolean;
+		/** Request-only change of this contribution. */
+		readonly change?: RequestChange;
+		/** Whether a forced prompt replaced this part's request edit, and still sent the part; no edit text. */
+		readonly forcedEdit?: Pick<ForcedEdit, "sent">;
+		/** Tokens this contribution gained and lost against its base. */
+		readonly diff?: TokenDiff;
+		/** Whether the request sent other content than the session keeps. */
+		readonly requestOnly?: boolean;
+		/** Whether the row shows only a diff of text other rows count, without a value. */
+		readonly diffOnly?: boolean;
+		/** Where the row's changes live; absent when it has none. */
+		readonly scope?: ChangeScope;
+		/** Who made a changed leaf row's change; absent on parents, groups, diff-only rows, and unchanged rows. */
+		readonly editors?: readonly ChangeEditor[];
 		/** Stable preview target id from the snapshot. */
 		readonly itemId: string;
 		/** Whether an active filter matched this row itself rather than keeping it as context. */
@@ -60,13 +122,13 @@ export type InjectionRow =
 	}
 	| {
 		readonly kind: "total";
-		readonly label: "TOTAL";
+		readonly label: "TOTAL (Prompt, Tools, Injections)";
 		readonly tokens: number;
 		readonly depth: 0;
 	};
 
 /** Index snapshot items (including sub-items) by id for preview lookup. */
-export function collectItemsById(snapshot: InitialSnapshot): Map<string, InjectionItem> {
+export function collectItemsById(snapshot: InjectionSnapshot): Map<string, InjectionItem> {
 	const items = new Map<string, InjectionItem>();
 	for (const group of snapshot.groups) {
 		for (const item of group.items) {
@@ -78,55 +140,61 @@ export function collectItemsById(snapshot: InitialSnapshot): Map<string, Injecti
 }
 
 /**
- * Prune the snapshot to rows the filter matches, keeping each match's
- * ancestors as context. In name mode a matching group or item keeps its whole
- * subtree, since naming a container asks for its contents. In content mode an
- * item with children matches through them: its own text concatenates theirs,
- * so it stands alone only when no child matches. Estimates stay unchanged.
+ * Rows the filter matches, plus each match's ancestors as context. In name
+ * mode a matching group or item keeps its whole subtree, since naming a
+ * container asks for its contents. In content mode an item with children
+ * matches through them: its own text concatenates theirs, so it stands alone
+ * only when no child matches.
  */
-export function filterInjections(snapshot: InitialSnapshot, filter: InjectionFilter): FilteredInjections {
+export function filterInjections(snapshot: InjectionSnapshot, filter: InjectionFilter): InjectionFilterResult {
+	const kept = new Set<string>();
 	const matched = new Set<string>();
 	const matches = (item: InjectionItem): boolean => filter.mode === "name"
 		? filter.nameMatches(item.label)
 		: filter.contentMatches(item);
-	const groups: InjectionGroup[] = [];
 	for (const group of snapshot.groups) {
-		if (filter.mode === "name" && filter.nameMatches(group.source.label)) {
-			matched.add(groupKey(group));
-			for (const item of group.items) filterItem(item, "name", matches, matched);
-			groups.push(group);
-			continue;
-		}
-		const items: InjectionItem[] = [];
+		const wholeGroup = filter.mode === "name" && filter.nameMatches(group.source.label);
+		if (wholeGroup) matched.add(groupKey(group));
+		let groupKept = wholeGroup;
 		for (const item of group.items) {
-			const kept = filterItem(item, filter.mode, matches, matched);
-			if (kept !== undefined) items.push(kept);
+			if (filterItem(item, filter.mode, matches, wholeGroup, kept, matched)) groupKept = true;
 		}
-		if (items.length > 0) groups.push({ ...group, items });
+		if (groupKept) kept.add(groupKey(group));
 	}
-	return { snapshot: { ...snapshot, groups }, matched };
+	return { kept, matched };
 }
 
-/** One item pruned to its matching children, or undefined when nothing in it matches. */
+/**
+ * Record which rows of one item the filter keeps and matches; true when any
+ * is kept. `whole` keeps the full subtree, as inside a matching group.
+ */
 function filterItem(
 	item: InjectionItem,
 	mode: InjectionFilterMode,
 	matches: (item: InjectionItem) => boolean,
+	whole: boolean,
+	kept: Set<string>,
 	matched: Set<string>,
-): InjectionItem | undefined {
+): boolean {
 	const children = item.children ?? [];
-	const keptChildren = children.filter(matches);
-	if (mode === "name" && matches(item)) {
-		for (const id of [item.id, ...keptChildren.map((child) => child.id)]) matched.add(id);
-		return item;
+	const matchedChildren = children.filter(matches);
+	for (const child of matchedChildren) matched.add(child.id);
+	const itemMatched = matches(item);
+	if (whole || (mode === "name" && itemMatched)) {
+		if (itemMatched) matched.add(item.id);
+		for (const entry of [item, ...children]) kept.add(entry.id);
+		return true;
 	}
-	for (const child of keptChildren) matched.add(child.id);
-	if (keptChildren.length > 0) return { ...item, children: keptChildren };
-	if (mode === "content" && matches(item)) {
+	if (matchedChildren.length > 0) {
+		for (const entry of [item, ...matchedChildren]) kept.add(entry.id);
+		return true;
+	}
+	if (mode === "content" && itemMatched) {
 		matched.add(item.id);
-		return { ...item, children: undefined };
+		kept.add(item.id);
+		return true;
 	}
-	return undefined;
+	return false;
 }
 
 /** Match key of a group row, kept apart from item ids. */
@@ -135,33 +203,48 @@ function groupKey(group: InjectionGroup): string {
 }
 
 /**
- * Flatten snapshot groups into rows separated from the non-selectable Initial
- * total, flagging the rows a filter matched directly.
+ * Flatten snapshot groups into rows separated from the non-selectable snapshot
+ * total. A filter result hides the rows it does not keep and flags the rows it
+ * matched; every shown row keeps the values and status of the whole snapshot.
  */
-export function buildInjectionRows(snapshot: InitialSnapshot, matched?: ReadonlySet<string>): InjectionRow[] {
+export function buildInjectionRows(snapshot: InjectionSnapshot, filter?: InjectionFilterResult): InjectionRow[] {
+	const shown = (key: string): boolean => filter === undefined || filter.kept.has(key);
+	const matched = (key: string): boolean | undefined => filter?.matched.has(key);
 	const rows: InjectionRow[] = [];
 	for (const group of snapshot.groups) {
+		if (!shown(groupKey(group))) continue;
 		rows.push({
 			kind: "group",
 			label: group.source.label,
 			tokens: group.totalTokens,
 			depth: 0,
-			matched: matched?.has(groupKey(group)),
+			diff: group.diff,
+			scope: combineScopes(group.items.filter((item) => item.diffOnly !== true).map(itemScope)),
+			matched: matched(groupKey(group)),
 		});
-		group.items.forEach((item, itemIndex) => {
-			const isLastItem = itemIndex === group.items.length - 1;
+		const items = group.items.filter((item) => shown(item.id));
+		items.forEach((item, itemIndex) => {
+			const isLastItem = itemIndex === items.length - 1;
 			rows.push({
 				kind: "item",
 				label: item.label,
+				// Built-in tools are pi's children of Built-in Tools (N)
+				...(item.kind === "tool" && !item.source.native ? { labelPrefix: TOOL_LABEL_PREFIX } : {}),
 				tokens: item.tokens,
 				depth: 1,
 				isLast: isLastItem,
 				dropped: item.dropped,
 				moved: item.moved,
+				change: item.change,
+				...forcedEditField(item),
+				diff: item.diff,
+				requestOnly: item.requestOnly,
+				diffOnly: item.diffOnly,
+				...rowStatus(item),
 				itemId: item.id,
-				matched: matched?.has(item.id),
+				matched: matched(item.id),
 			});
-			const children = item.children ?? [];
+			const children = (item.children ?? []).filter((child) => shown(child.id));
 			children.forEach((child, childIndex) => {
 				rows.push({
 					kind: "item",
@@ -172,15 +255,89 @@ export function buildInjectionRows(snapshot: InitialSnapshot, matched?: Readonly
 					parentContinues: !isLastItem,
 					dropped: child.dropped,
 					moved: child.moved,
+					change: child.change,
+					...forcedEditField(child),
+					diff: child.diff,
+					requestOnly: child.requestOnly,
+					...rowStatus(child),
 					itemId: child.id,
-					matched: matched?.has(child.id),
+					matched: matched(child.id),
 				});
 			});
 		});
 	}
 	rows.push({ kind: "separator", label: "", tokens: 0, depth: 0 });
-	rows.push({ kind: "total", label: "TOTAL", tokens: snapshot.totalTokens, depth: 0 });
+	rows.push({ kind: "total", label: "TOTAL (Prompt, Tools, Injections)", tokens: snapshot.totalTokens, depth: 0 });
 	return rows;
+}
+
+/** A row's replaced-edit state, without the edit text the list never shows. */
+function forcedEditField(item: InjectionItem): { forcedEdit?: Pick<ForcedEdit, "sent"> } {
+	return item.forcedEdit === undefined ? {} : { forcedEdit: { sent: item.forcedEdit.sent } };
+}
+
+/**
+ * Status-bar fields of one item row: where its changes live and, for a
+ * changed leaf other than a `system prompt` row, who made them. An editor pi
+ * does not report is unknown, never the row's source group.
+ */
+function rowStatus(item: InjectionItem): { scope?: ChangeScope; editors?: readonly ChangeEditor[] } {
+	const scope = itemScope(item);
+	if (scope === undefined) return {};
+	const leaf = (item.children ?? []).length === 0 && item.diffOnly !== true;
+	return leaf ? { scope, editors: item.editors ?? [UNKNOWN_EDITOR] } : { scope };
+}
+
+/**
+ * Where one item's changes live. A parent combines its children and the
+ * removal of children only the session has, which is request-only. A
+ * `system prompt` row combines its saved and request-only changes like a
+ * parent. Every message change is only in this request, so the messages row
+ * has no saved ones. A forced prompt without parts exists only in this request.
+ */
+function itemScope(item: InjectionItem): ChangeScope | undefined {
+	const children = item.children ?? [];
+	if (children.length > 0) return combineScopes(children.map(itemScope), removesChildren(item, children));
+	if (item.kind === "payload-change") return "payload";
+	if (item.kind === "message") return item.requestOnly === true ? "request" : undefined;
+	if (item.diffOnly === true) {
+		if (item.requestOnly !== true) return item.diff === undefined ? undefined : "saved";
+		return item.savedChange === true ? "partly" : "request";
+	}
+	if (item.requestOnly === true) {
+		if (item.savedChange === true) return "saved-and-edit";
+		return item.change === "added" || item.sessionOriginal === false ? "request-new" : "request-edit";
+	}
+	if (item.change === "forced") return "request-edit";
+	return item.diff === undefined ? undefined : "saved";
+}
+
+/** Whether a parent's diff removes more than its children's: children only the session has. */
+function removesChildren(parent: InjectionItem, children: readonly InjectionItem[]): boolean {
+	const shown = sumTokenDiffs(children.map((child) => child.diff));
+	return (parent.diff?.added ?? 0) > (shown?.added ?? 0) || (parent.diff?.removed ?? 0) > (shown?.removed ?? 0);
+}
+
+/**
+ * One aggregate scope: saved, request-only, or partly both. Payload changes
+ * mixed with other changes count as request-only, since the session keeps
+ * neither.
+ */
+function combineScopes(scopes: ReadonlyArray<ChangeScope | undefined>, request = false): ChangeScope | undefined {
+	let saved = false;
+	let payload = false;
+	for (const scope of scopes) {
+		if (scope === undefined) continue;
+		if (scope === "payload") {
+			payload = true;
+			continue;
+		}
+		if (scope === "saved" || scope === "saved-and-edit" || scope === "partly") saved = true;
+		if (scope !== "saved") request = true;
+	}
+	if (saved) return request || payload ? "partly" : "saved";
+	if (request) return "request";
+	return payload ? "payload" : undefined;
 }
 
 /**

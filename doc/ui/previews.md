@@ -1,153 +1,97 @@
 # Preview rules
 
-Rules shared by every preview in both views. Frame, color, description, and
-interaction rules live in the [UI specification](../UI.md).
+Shared design decisions for previews in both views. Apply the
+[shared design rules](../UI.md); [privacy](../architecture/privacy.md#privacy)
+and [measurement](../architecture/measurement.md) own what content may be shown
+and how it counts.
 
 ## Labeled parts
 
-Content that decomposes into labeled parts — a tool's `Available Tools`,
-`Guidelines`, and `Definition`, the System Prompt's own blocks — renders every
-part under its own bold `syntaxKeyword` subheader followed by a muted
-` · N tokens` share, with exactly two blank rows between parts. Replace any
-trailing blank rows of the preceding part with this separator; preserve blank
-rows inside its body and leave captured text and token estimates unchanged.
-Part shares reconcile exactly with the item or entry estimate and never add to
-it. Show the applicable subheader even when `Definition` is the only captured
-part; omit parts with no captured text rather than rendering zero-token
-placeholders. Two kinds of part carry no counted text by design and still
-render at 0 tokens: `Extension Additions` whenever it hosts restored lines, and
-any part a `--system-prompt` replacement dropped, which keeps its subheader with
-the [`Dropped` marker](../UI.md#color-and-casing) after its estimate — even with
-an empty body, since the point is to show what the replacement gave up.
+Use labeled parts when content has meaningful constituents, such as prompt
+sections, tool definitions, or aggregate messages. Make the hierarchy clear
+without extra navigation levels or repeated headings. Keep related metadata
+with its part and use whitespace to separate bodies.
 
-A recovered block out of pi's normal order keeps its ordinary token share and
-adds the [`Moved` marker](../UI.md#color-and-casing) after it. This applies in
-both views, including the direct System Prompt Usage preview and standalone
-Injections part metadata. Its extension lines still render with their known
-owning-tool references; movement alone never guesses a rewriting extension's
-identity, and its [legend bullet](#marker-legend) explains position only.
+Token shares explain the parent estimate; they never add to it. Retain parts
+whose state matters even without counted text, such as deletions or dropped
+content. Diff-only references show changes, not misleading zero-token shares.
+Otherwise omit empty placeholders. Preserve the content's meaningful order,
+not an order chosen for visual convenience.
 
-Why `syntaxKeyword`: parts nest under item and entry headings that already carry
-`mdHeading`.
+## Diff bodies
 
-## Restored extension lines
+Follow pi's diff style: distinguish added, removed, and unchanged lines with
+both signs and semantic colors; emphasize changed words within replacements.
+Keep wrapped text aligned and the signs distinct from captured content.
 
-The System Prompt `Available Tools`, `Guidelines`, and `Extension Additions`
-previews restore the text extensions contributed to those blocks in prompt
-order, alongside pi's own. A dropped block restores the extension lines pi would
-have rendered into it and shows no pi-authored content at all, so it renders
-empty when no extension contributed to it; the tools themselves keep the same
-lines as their own dropped sections, unannotated like any other owning-tool
-preview. Each restored line uses `syntaxNumber` followed by a
-`borderMuted` ` <- ` and the owning extension's source label in `mdLink` — fixed
-semantic theme colors, independent of category color overrides. A tool
-contributes at most one `Available Tools` snippet, and a shared guideline bullet
-names only the first owning tool's source, never every tool declaring it.
-Built-in tool lines are pi's own and carry no annotation.
+Show a diff body only when there is something to compare with. A wholly added
+message or part reads as plain content: its `+N` already says it is new, and
+all-added lines only make it harder to read. Payload findings and Forced parts
+keep their signs, because their lines are the change itself.
 
-When the line belongs to one tool or slash command of that extension, the label
-gains a `mdLinkUrl` `:<tool>` — colon included, e.g.
-`<- npm:pi-web:web_search` or `<- npm:@eko24ive/pi-ask:/ask`. Carved tool lines
-always carry it; an `Extension Additions` block carries it only when its text
-names exactly one of that extension's registered names. An extension label
-without a qualifier means no single owner was identified, never that the
-extension registered none.
+A message comparison may include unchanged context. A payload finding contains
+only retained changed lines and must not suggest it shows the entire payload.
+Display transformations must not alter estimates or imply a different
+comparison from the one measured. [Token diffs](../architecture/measurement.md#token-diffs)
+own the comparison and its bounds.
 
-A source pi did not report, but this extension inferred from the injected text,
-carries a `dim` ` (guess)` after its label, once for the whole
-`extension:tool` label. `Extension Additions` is the only block with such owners
-today: carved tool lines name a source pi reported. A part that opens with a
-restored line drops its captured leading blank lines, as plain part text does.
+## Extension lines
 
-Non-breaking spaces on both sides of the arrow join the preceding content word,
-arrow, and source label into one wrapping unit. Move that whole unit to the next
-line when it fits the content width but not the remaining space. If the unit is
-wider than the content width, hard-wrap it to fit; this may split the label or
-leave the arrow at the end of a line.
+Highlight extension contributions in System Prompt previews and attach their
+source annotations to the corresponding text. Keep pi-authored text visually
+distinct. Owning-tool previews need not repeat annotations naming themselves.
 
-The annotations are preview-only: the part and System Prompt estimates still
-exclude these lines, while the tool preview keeps its counted `Available Tools`
-and `Guidelines` sections unchanged. Sanitize line text and source labels before
-applying colors, preserve styling through wrapping, and include annotations in
-preview scrolling and cap line counts. Never show raw lines in the overview list
-or dashboard.
+Distinguish reported ownership from inferred attribution. Keep guesses visibly
+qualified, including a guessed tool or command qualifier; an unknown source
+must not become known merely because it appears inside a named section. Show
+only attribution supplied by the semantic model, never inferred from labels by
+the renderer.
+
+Annotations are preview-only and add no counted content. Sanitize source labels
+as well as bodies, and keep their association readable through wrapping. They
+must remain part of the scrollable content rather than leak into overview rows.
+[Measurement](../architecture/measurement.md#tool-ownership-and-preview-references)
+owns attribution and the special treatment of dropped prompt lines.
 
 ## Marker legend
 
-Every frame explains the marks it shows, as one dash bullet per mark. A preview
-places its bullets at the bottom, outside the scrollable content and
-block-selection gutter, between blank rows immediately above the hints; the
-Injections list appends them to its own description sentence. Bullets always
-render in this order, each opening with the keyword in the fixed color that mark
-uses, followed by dim text:
+Explain the marks relevant to the open preview, using the same semantic colors
+as the marks themselves. Keep these meanings distinct:
 
-> - **Highlighted** parts are injected by extensions into pi’s system prompt.
->   They are excluded from the System Prompt token count and included in the
->   injecting extension’s count.
-> - **(guess)** sources are inferred from the injected text itself.
-> - **Dropped** parts were replaced by a custom system prompt and are counted
->   nowhere.
-> - **Moved** blocks appear in a different position in the system prompt than
->   usual. Their token counts are unchanged.
+| Mark | Meaning to communicate |
+| --- | --- |
+| Highlighted | Text contributed by extensions to pi's prompt |
+| (guess) | Attribution inferred rather than reported |
+| Dropped | Replaced content that counts nowhere |
+| Moved | A different prompt position, not a different owner |
+| Forced | An extension's prompt replaced pi's for this request, or replaced a part's request edit |
+| +N / -N | Added and removed tokens against the stated base |
+| Request-Only | Changes the session does not keep |
 
-Each sentence is fixed and states its own accounting, so the `Dropped` bullet
-reads as the exception to the `Highlighted` one wherever a preview shows both.
-The `(guess)` bullet covers a guessed `:<tool>` qualifier as well, which is
-inferred the same way and never gets a marker of its own.
+These meanings are stable; the explanatory sentences and their arrangement are
+not fixed copy. Do not show legends for unrelated states. Explanations belong
+outside the scrollable body, stay available as marked content scrolls away,
+and collapse as a whole under the shared description rules. The Injections list
+uses its [selected-row status bar](injections.md#selected-row-status-bar) instead.
 
-A bullet renders only where its mark is visible on that frame:
+## Display-only transformations
 
-- `Highlighted` and `(guess)` follow injected-reference metadata, so native-only
-  System Prompt and part previews, sibling parts without references, and
-  owning-tool previews show neither. Restored lines appear in the System Prompt
-  preview of both views, including the direct single-entry Usage preview, in the
-  standalone `Available Tools` and `Guidelines` children in Injections, and in
-  multi-entry Usage streams and their full content levels.
-- `Dropped` and `Moved` follow the part states a frame renders: preview
-  subheaders and item metadata in any category, and Injections hierarchy rows.
-  They follow the captured state, not each row's fit, so a row too narrow for
-  its own marker keeps the bullet that explains it.
+Improve readability without changing captured content or its token estimate:
 
-The Usage category stream inspects all entries; full content, opened directly or
-from a block, inspects only its open entry.
+- Omit a leading line that only repeats the heading above it; keep lines that
+  add information.
+- Keep previews focused on model-facing content, not message-envelope
+  bookkeeping. Summary and bash content follow the
+  [privacy contract](../architecture/privacy.md#raw-text-and-message-previews).
+- Usage may replace complete skill expansions in user messages with recognizable
+  skill badges; leave malformed wrappers visible.
+- Base content caps and hidden-line counts on the transformed, wrapped text the
+  full-content view actually opens. Clearly distinguish a cap from absent data.
 
-Wrap bullets onto hanging-indented continuation lines without truncation and
-keep them pinned while scrolling, even when the marked content is offscreen or
-hidden by a block cap. The block collapses whole, including its preceding blank
-row, below the floor in [Descriptions](../UI.md#descriptions), allowing for the
-overflow counter, and returns on height-only resize. It never contributes to
-scroll counters or `… +N lines` counts, though its reserved rows affect the
-viewport and block cap. For a Usage stream, decide collapse from the uncapped
-content plus entry headers and separators, before deriving the legend-dependent
-block cap — otherwise the layout decision is circular.
+### Marked JSON
 
-## Repeated headings
-
-A preview body never repeats the heading directly above it: drop a first content
-line identical to the item title, part label, or entry name, as a skill block
-that opens with its own name has. Matching ignores case and a trailing colon, so
-pi's own block headers (`Available tools:`, `Guidelines:`) disappear under the
-parts named after them; a line carrying more than its heading, such as pi's
-`Pi documentation (…):` sentence, stays visible. This preview-only omission
-still counts the dropped line toward the estimate shown in that heading.
-
-## Captured message content
-
-Captured branch and compaction summaries show only the summary text, without
-message-envelope bookkeeping. Captured bash executions show pi's provider-facing
-text, including failure, cancellation, and truncation notices; a full-output
-path appears only when pi includes it in a truncation notice. These previews are
-plain text, not marked JSON, even when a summary itself looks like JSON. Both
-Injections and Usage's frozen request-only entries use this captured form.
-
-## Marked JSON
-
-Preview text may carry a JSON document that the model marks structurally — a
-tool's parameter schema, tool-call arguments, serialized message content. Every
-preview level re-serializes that run across lines indented `JSON_INDENT` (2)
-spaces per level, so a block small enough to escape the cap still shows its
-expanded form, and block caps and `… +N lines` counts measure the expanded lines
-the Enter level opens. Marking is structural, never heuristic: text that merely
-looks like JSON stays as captured, and a marked run that no longer parses
-renders unchanged. Like skill badges, this transformation never changes token
-estimates.
+Expand structurally marked JSON for readability at every preview level, so the
+same content does not change format merely because it fits below a block cap.
+Never guess that ordinary captured text is JSON from its appearance. If marked
+text no longer parses, leave it unchanged. The estimate still uses the original
+representation, not display indentation.

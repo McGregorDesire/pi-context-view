@@ -1,209 +1,134 @@
-# UI specification
+# UI design rules
 
-Canonical rendering contract for pi-context-view. Both `/context` views are
-focused fullscreen TUI overlays; Usage and Injections are separate views, with
-no tab state. `/context config` opens no overlay, so it runs in every run mode
-and reports creation, refusal, or failure through a notification, or through
-stderr where no UI is available.
+Canonical design decisions for `pi-context-view`, not a transcript of its current
+screens. Usage and Injections are separate fullscreen TUI overlays, with no tab
+state. `/context config` opens no overlay and remains available in every mode.
 
-This file holds the rules both views share. Load only the page your change
-touches:
+| Document                             | Covers                                                                |
+| ------------------------------------ | --------------------------------------------------------------------- |
+| This file                            | Shared style, information hierarchy, interaction, responsive behavior |
+| [ui/usage.md](ui/usage.md)           | Usage overview, map, category navigation                              |
+| [ui/injections.md](ui/injections.md) | Request status, contribution tree, change inspection                  |
+| [ui/previews.md](ui/previews.md)     | Content presentation, attribution, marker explanations                |
 
-| Document | Covers |
-| --- | --- |
-| This file | Frame, color, casing, descriptions, interaction, responsive rendering |
-| [ui/previews.md](ui/previews.md) | Labeled parts, restored extension lines, marker legend, repeated headings, marked JSON |
-| [ui/usage.md](ui/usage.md) | Context Usage: header, notices, map, map scale, legend, category preview |
-| [ui/injections.md](ui/injections.md) | Context Injections: contribution tree, injection preview |
+## Documentation boundary
 
-Constants are named where a rule needs a number; the module owning the constant
-is authoritative.
+Update these pages when a change alters a design decision, interaction contract,
+or the meaning of displayed information. Wording, header composition, spacing,
+glyphs, numeric breakpoints, and layout constants belong in code; changing them
+alone does not require a documentation update. Use existing project terms
+consistently without treating every displayed sentence as fixed.
 
-| Area | Module |
-| --- | --- |
-| Frame, viewport, description blocks | `src/ui/layout.ts` |
-| Configurable color resolution | `src/ui/color.ts` |
-| Map cell model, Fit scale | `src/ui/usage-map.ts` |
-| Usage rendering and interaction | `src/ui/usage-view.ts` |
-| Usage entry and block model | `src/ui/usage-preview.ts` |
-| Injections tree model / rendering | `src/ui/injections-model.ts`, `src/ui/injections-view.ts` |
-| Labeled parts, preview legend | `src/ui/section-preview.ts` |
-| State markers and legend bullets | `src/ui/markers.ts` |
-| Search prompt, matching, highlighting | `src/ui/search.ts` |
-| Marked JSON, skill badges, wheel | `src/ui/json-preview.ts`, `src/ui/skill-preview.ts`, `src/ui/wheel.ts` |
+Keep the reason for a non-obvious decision, not an inventory of its rendering
+cases. Accounting, attribution, capture limits, and privacy belong in
+[ARCHITECTURE.md](ARCHITECTURE.md) and its linked pages. Configuration formats
+and defaults belong in [CONFIG.md](CONFIG.md). Tests protect behavior and
+regressions; exact-string assertions do not make incidental copy a design rule.
 
 ## Style rules
 
 ### Frame
 
-Follow pi's native selector style (`/settings`, `/model`):
+Follow pi's native selector style rather than building a separate visual system:
 
-- horizontal top and bottom borders with one blank row inside each;
-- one blank row after the dialog header;
-- accent title and responsive summary alignment as specified by each view;
-- fixed-column `→` cursor flush at column 0;
-- dim description wrapped onto indented continuation lines, never ellipsized,
-  between blank rows above the hints;
-- dim key plus muted description hints joined by ` · `;
-- dim `(current/total)` shown only when content overflows.
-
-Headers, subheaders, and the cursor start at column 0. Indent descriptions,
-scroll counters, hint rows, and preview bodies by two spaces (`BODY_INDENT`).
+- Use a bordered frame, clear headings, and whitespace to separate content,
+  explanations, and keyboard hints.
+- Keep selection obvious with a stable cursor and accent foreground, without a
+  selection background. Subordinate content must not compete with the selection.
+- Align comparable values and keep their columns stable while scrolling.
+- Keep hints concise and tied to actions available in the current state.
+  Show progress counters only when content overflows.
 
 ### Color and casing
 
-Use `dim` for dialog descriptions, bright `text` for primary rows, `muted` for
-subordinate rows and values, and `dim` for deeper breakdowns. Selected labels
-and values use `accent` with no background. Subheaders are bold `mdHeading`.
+Use the active theme's semantic colors: accent for selection, bright text for
+primary content, muted or dim text for supporting information, and heading styles
+for hierarchy. Use pi's theme conversion and border styling, not hardcoded
+terminal colors or ANSI escapes.
 
-Always use current-theme semantic colors through `theme.fg(...)` and themed
-border colorizers; never hardcode ANSI escapes, hex values, or named terminal
-colors. Use pi's injected keybindings, `matchesKey`, ANSI-aware width helpers,
-render caching, and theme invalidation.
+Category colors describe composition; state markers and diffs describe meaning.
+Keep those roles separate: category overrides must not recolor warnings,
+attribution, or change states. Pair color with text or symbols so color alone
+never carries the distinction. Explicit user-configured colors follow
+[CONFIG.md](CONFIG.md#category-colors).
 
-Content a `--system-prompt` replacement dropped carries a fixed `toolDiffRemoved`
-`Dropped` marker directly after the estimate it explains, in hierarchy rows
-and preview subheaders alike. It marks a state rather than a usage category, so
-it is never configurable, and its 0-token entries never color map cells. A row
-too narrow for the whole marker drops it instead of truncating it.
-
-Every marker keyword hangs off a `dim` ` · ` separator: like the ` · ` joining
-hint pairs and header labels, the separator is punctuation and never takes the
-color of the text around it. Only the keyword carries the marker's fixed color.
-
-Every frame showing a marker also explains it, through the
-[marker legend](ui/previews.md#marker-legend) in its description block. A legend
-bullet opens with the keyword in the same fixed color as the marker it explains,
-so `Highlighted` uses `syntaxNumber`, `(guess)` `dim`, `Dropped`
-`toolDiffRemoved`, and `Moved` `warning`.
-
-Recovered `Available Tools` and `Guidelines` blocks outside pi's normal order
-carry a fixed `warning` `Moved` marker after the estimate, in hierarchy rows,
-preview subheaders, and the standalone part preview's metadata. A narrow row or
-standalone header omits the whole marker when it will not fit. It describes
-position, not ownership or a dropped contribution: these parts count normally,
-and extension tool lines keep their own attribution. Like `Dropped`, it is not
-configurable and does not change category/map colors.
-
-A user-configurable color names either a pi theme color key, which tracks the
-active theme, or a literal `#rgb`/`#rrggbb` value, which pins the element across
-themes. Literals render through pi's own theme conversion, so they down-convert
-to the closest 256-color index wherever pi itself would. ANSI escapes and
-terminal color names stay invalid in configuration, and code keeps naming theme
-keys alone. An unrecognized value falls back to the built-in color for that
-element and warns once instead of failing the view.
-[PI-THEME-COLORS.md](PI-THEME-COLORS.md) lists the keys.
-
-Titles, section names, and hint labels use Title Case (`Context Injections`,
-`Esc Close`). Key names use conventional casing (`PgUp/PgDn`). Preserve literal
-identifiers such as `pi`, `edit`, and `web_search`; descriptions use sentence
-case.
+Use Title Case for UI labels and sentence case for explanations. Preserve
+literal identifiers, tool names, paths, and conventional key names.
 
 ### Descriptions
 
-A description is the least important block on a frame. It renders completely or
-not at all: when the terminal is too short it collapses whole, together with the
-blank row above it, and reappears once the terminal grows back. It is never
-partial and never ellipsized.
+Optional descriptions and preview legends are lower priority than the content.
+Wrap them fully or collapse the whole block; never leave a partial explanation
+or ellipsize it. Restore the block when space returns. Long lists and previews
+must still be able to show explanations without requiring all content to fit.
 
-| Description | Renders while |
-| --- | --- |
-| Usage dashboard | Map, complete legend, and full key all fit |
-| Injections list | `LIST_DESCRIPTION_MIN_ROWS` (26) rows visible, or a shorter list in full |
-| Preview marker legend | `DESCRIPTION_MIN_CONTENT_ROWS` (22) content rows visible, or a shorter preview in full |
-
-Hints, borders, capture warnings, and configuration notices are not descriptions
-and never collapse. The Injections `[Degraded: …]` indicator belongs to its
-description block and collapses with it, while the wrapped reason below the
-header stays. The Usage thinking-notation explanation is view content, not a
-description, and also never collapses.
-
-Why the floors differ: the Usage dashboard has a bounded legend and can drop its
-description early, while the unbounded Injections list and attributed previews
-would otherwise hide theirs permanently.
+Do not collapse important status with these descriptions. Capture limitations,
+degraded reasons, configuration problems, and the Injections total and selected
+row's status must remain discoverable. Per-view pages define what stays visible
+and what can yield on small terminals. Notices belong inside an open overlay,
+not in notifications it would hide.
 
 ## Interaction
 
-The Injections view has list and raw-preview states. The Usage view has a
-category legend and opens a single-entry category directly as full content.
-Multi-entry categories have a block stream with a full-content level for capped
-blocks; empty categories keep their explicit no-content state.
-
-- Up/Down and vim-style `k`/`j` navigate selectable rows or blocks and scroll
-  full-content previews. Hints render the pair as one `↑↓/jk` label
-  (`STEP_KEY_HINT`).
-- PgUp/PgDn and `Ctrl+U`/`Ctrl+D` page through lists or previews. From the first
-  or last page of a Usage block stream, another page key selects the first or
-  last block.
-- Home/End jump to boundaries.
-- Enter opens the selected row's preview; in a Usage block stream it opens full
-  content only when the selected block is capped.
-- Escape returns one level while preserving selection, then closes the view.
-  A kept list filter counts as a level.
+- Up/Down and `k`/`j` navigate selectable rows or blocks, or scroll full content.
+- PgUp/PgDn and Ctrl+U/Ctrl+D page; Home/End reach the boundaries. Navigation
+  must reach all content, including blocks taller than the viewport.
+- Enter opens the selected content. Do not add an extra preview level when it
+  would reveal nothing new.
+- Escape returns one level with selection and viewport preserved, then closes
+  the overlay. Reopening content starts at the top. A kept list filter counts
+  as a level.
 - `/` filters a list or searches a preview, per [Search and filter](#search-and-filter).
-- Views may add keys; Usage adds `z` for the map scale.
+- Skip non-selectable rows and keep selection and scrolling bounded after
+  resize. View-specific actions must be available and advertised together.
 
-The mouse wheel scrolls wherever the keys navigate: one notch moves the
-selection one row or block, and scrolls a full-content preview by pi's own
-viewport step, defaulting to `DEFAULT_WHEEL_SCROLL_LINES` (3) when that step is
-unreadable. Only fullscreen mode enables mouse reporting, so in regular mode the
-wheel keeps scrolling the terminal's scrollback; hint rows therefore stay
-keyboard-only and never advertise an affordance one mode lacks.
+Use pi's keybinding APIs. In fullscreen mode, the mouse wheel follows keyboard
+navigation; in regular mode it remains terminal scrollback. Keep hints usable
+without mouse support.
 
-Navigation skips non-selectable rows and remains bounded after terminal resize.
-All content is terminal-sanitized before rendering and raw content appears only
-after explicit Enter selection; [ARCHITECTURE.md](ARCHITECTURE.md) owns the full
-privacy contract.
+Raw content appears only after explicit Enter selection, never in overview
+rows, descriptions, or status bars. Sanitize dynamic text before styling and
+rendering; [privacy.md](architecture/privacy.md#privacy) owns the full contract.
 
 ### Search and filter
 
-`/` opens a one-line prompt in every list and preview. The prompt row sits below
-the header, followed by one blank row, and shows a dim label, the query, and a
-right-aligned dim status. It edits through pi's own `Input`, so word deletion,
-kill/yank, and undo behave as in pi's editor. While it is open, printable keys —
-`j`, `k`, `n`, and `q` included — type into it; only the arrow keys, the page
-keys, and the wheel keep navigating.
+Search follows pi's own fullscreen transcript search, so it needs no new
+habits. The prompt sits below the header and edits through pi's `Input`, so
+word deletion, kill/yank, and undo behave as in pi's editor. While it is open,
+printable keys type into it, `j`, `k`, `n`, and `q` included; only the arrow and
+page keys and the wheel keep navigating. Its right edge reports the match state.
 
-Matching is case-insensitive, and every whitespace run, line breaks included,
-matches a single space, as in pi's fullscreen transcript search: a phrase
-wrapped across two preview lines is still found. Matches use pi's
-transcript-search styles — underlined `searchMatchText` on `searchMatchBg`, and
-bold inverse for the current match — so they follow the theme.
+Matching is case-insensitive and treats every whitespace run, line breaks
+included, as one space, so a phrase wrapped across preview lines is still found.
+Matches use pi's transcript-search theme styles, with the current match set
+apart.
 
-- **Lists** filter live and select the first row that matched itself; a
-  match's ancestors stay as unmatched context. The status counts rows that
-  matched themselves: `1 match`, `N matches`, or `No matches`. Enter keeps the
-  filter and opens the selected row; Escape while typing drops the filter.
-  A kept filter shows its query read-only, and Escape clears it, keeping the
-  selected row, before it closes the view. Value columns stay where the
-  unfiltered list puts them, so filtering never shifts them.
+- **Lists** filter live and select the first row that matched itself. A
+  match's ancestors stay as unmatched context and do not count as matches.
+  Value columns stay where the unfiltered list puts them, so filtering never
+  shifts them. Enter keeps the filter and opens the selected row; Escape while
+  typing drops it, and Escape on a kept filter clears it, keeping the selected
+  row, before it closes the view.
 - **Previews** highlight live and move to the first match at or below the top
-  visible line. Enter keeps the query; Escape while typing drops it. `n`/`N`
-  move to the next or previous match, wrapping around, and scroll a hidden one
-  into view `SEARCH_CONTEXT_LINES` (2) lines below the top. The status reads
-  `current/total`. A search ends with its preview.
+  visible line. `n`/`N` step through matches, wrapping around, and scroll a
+  hidden one into view with context above it. A search ends with its preview.
 
-Hints follow the prompt: an open one shows `↑↓`, Enter, and `Esc Clear`, and a
-kept preview search replaces `PgUp/PgDn Page` with `n/N Next/Prev`. The `/`
-hint is optional (`fitHintRow`): when the hint row does not fit, it drops out
-whole before any other hint is truncated.
+Hints follow the prompt state. `/` is an optional hint: on a narrow row it drops
+out whole before any other hint is truncated.
 
 ## Responsive rendering
 
-Every rendered line must fit the supplied width. Fullscreen output must respect
-terminal width and height, including borders, wrapped notices, descriptions,
-hints, counters, and blank rows. Cache keys must include all layout-affecting
-dimensions and theme state; state changed from within a view, such as the Usage
-map scale, must invalidate cached output instead.
+Every line must fit the supplied width, and the complete frame must fit the
+available height. Measure styled text with ANSI-aware helpers. Reflow on width
+and height changes, preserve navigation state where possible, and restore
+omitted elements when space returns.
 
-UI cases `pnpm check` must cover, beyond the general matrix in
-[AGENTS.md](../AGENTS.md):
+Prefer useful content and essential status over decoration and optional detail.
+Shorten spacing and leaders before labels or values; wrap important explanations
+rather than silently clipping their meaning. Omit optional markers as whole
+units instead of displaying fragments. Extremely small terminals may require a
+compact frame, but must not imply that unavailable information is complete.
 
-- 60, 80, and 120 columns, the narrow fallback, and height-only resizing;
-- description collapse and restoration, with no height rendering a partial one;
-- both map scales, the header label's line-splitting fallback, the conditions
-  hiding the zoom binding, and every map-key degradation;
-- a configured map size larger than the width and the height can render;
-- overflow navigation, preview return position, and theme invalidation;
-- filtered and empty lists, live preview search, and every hint state of the
-  search prompt, within the width.
+Rendering caches must account for dimensions, theme changes, and view-local
+state. [Validation](architecture/validation.md#ui-checks) owns the test coverage
+and opt-in terminal checks.
