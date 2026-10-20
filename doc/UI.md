@@ -78,7 +78,8 @@ not in notifications it would hide.
 - Escape returns one level with selection and viewport preserved, then closes
   the overlay. Reopening content starts at the top. A kept list filter counts
   as a level.
-- `/` filters a list or searches a preview, per [Search and filter](#search-and-filter).
+- `/` filters the Injections tree or searches a preview, per
+  [Search and filter](#search-and-filter).
 - Skip non-selectable rows and keep selection and scrolling bounded after
   resize. View-specific actions must be available and advertised together.
 
@@ -103,7 +104,8 @@ included, as one space, so a phrase wrapped across preview lines is still found.
 Matches use pi's transcript-search theme styles, with the current match set
 apart.
 
-- **Lists** filter live and select the first row that matched itself. A
+- **Lists** long enough to need a filter, such as the Injections tree, filter
+  live and select the first row that matched itself. A
   match's ancestors stay as unmatched context and do not count as matches.
   Value columns stay where the unfiltered list puts them, so filtering never
   shifts them. Enter keeps the filter and opens the selected row; Escape while

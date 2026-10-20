@@ -1717,6 +1717,19 @@ function plainFrame(view: UsageView, width = 80): string[] {
 	return view.render(width).map((line) => stripStyle(line).trimEnd());
 }
 
+/** Move the legend selection down to the category labelled `label` and open it. */
+function openCategory(view: UsageView, label: string): void {
+	const selected = new RegExp(`→ +(?:\\S+ +)?${label} \\.`);
+	for (let step = 0; step < 50; step++) {
+		if (plainFrame(view).some((line) => selected.test(line))) {
+			view.handleInput("\r");
+			return;
+		}
+		view.handleInput("j");
+	}
+	assert.fail(`no legend row ${label}`);
+}
+
 /** Usage whose Tool Output holds three bash results; the first match hides below the block cap. */
 function searchUsage(): ContextUsageSnapshot {
 	const base = usage();
@@ -1745,63 +1758,20 @@ function searchUsage(): ContextUsageSnapshot {
 	};
 }
 
-test("UsageView filters legend rows by name, keeps parents, and Escape steps back out", () => {
-	let closed = false;
-	const view = createView(createTheme(), { usage: usage() }, () => {
-		closed = true;
-	}, () => 30);
-	view.handleInput("/");
-	typeKeys(view, "web");
-	const lines = view.render(80);
-	let plain = lines.map((line) => stripStyle(line).trimEnd());
-	const promptIndex = plain.findIndex((line) => line.startsWith("  Filter:"));
-	assert.equal(promptIndex, 4);
-	assert.match(plain[promptIndex] ?? "", /^ {2}Filter: web +1 match$/);
-	assert.ok(plain.some((line) => /■ Tool Output \.+/.test(line)), "the parent stays as context");
-	const childIndex = plain.findIndex((line) => /→ +• web_search/.test(line));
-	assert.ok(childIndex > 0, "the match is selected");
-	assert.ok((lines[childIndex] ?? "").includes(SEARCH_MATCH_BG));
-	assert.ok(!plain.some((line) => /System Prompt|read \.|Free Space/.test(line)), "non-matches, buffer, and free space hide");
-	assert.match(plain.join("\n"), /↑↓ Navigate · Enter Preview · Esc Clear/);
-
-	// Enter opens the match; Escape returns to the kept filter.
-	view.handleInput("\r");
-	assert.match(plainFrame(view)[2] ?? "", /^web_search/);
-	view.handleInput("\u001b");
-	plain = plainFrame(view);
-	assert.match(plain[promptIndex] ?? "", /^ {2}Filter: web +1 match$/);
-	assert.match(plain.join("\n"), /↑↓\/jk Navigate · Enter Preview · \/ Filter · Z Zoom · Esc Clear/);
-
-	view.handleInput("\u001b");
-	plain = plainFrame(view);
-	assert.ok(!plain.some((line) => line.includes("Filter:")));
-	assert.ok(plain.some((line) => /→ +• web_search/.test(line)), "clearing keeps the selected category");
-	assert.ok(plain.some((line) => line.includes("Free Space")));
-	view.handleInput("\u001b");
-	assert.equal(closed, true);
-});
-
-test("UsageView shows an empty filter result and keeps the legend columns while filtering", () => {
+test("UsageView dashboard has no category filter: / neither opens a prompt nor is advertised", () => {
 	const view = createView(createTheme(), { usage: usage() }, () => {}, () => 30);
-	const column = (frame: string[]) => frame.find((line) => line.includes("Tool Output"))?.indexOf("5k");
-	const before = column(plainFrame(view));
+	const before = view.render(80);
+	const hints = plainFrame(view).find((line) => line.includes("↑↓/jk")) ?? "";
+	assert.doesNotMatch(hints, /(^| )\/ /, "no / hint on the dashboard");
 	view.handleInput("/");
-	typeKeys(view, "tool");
-	assert.equal(column(plainFrame(view)), before, "the value column does not move");
-	typeKeys(view, "zzz");
-	const plain = plainFrame(view);
-	assert.match(plain.join("\n"), /Filter: toolzzz +No matches/);
-	assert.ok(plain.some((line) => line.includes("No categories match the filter.")));
-	for (const width of [40, 51, 52, 80, 120]) {
-		for (const line of view.render(width)) assert.ok(visibleWidth(line) <= width, `width ${width}`);
-	}
+	assert.deepEqual(view.render(80), before);
+	view.handleInput("j");
+	assert.notDeepEqual(view.render(80), before, "list keys still navigate");
 });
 
 test("UsageView block stream search selects the matching block and opens a capped one at its match", () => {
 	const view = createView(createTheme(), { usage: searchUsage() }, () => {}, () => 30);
-	view.handleInput("/");
-	typeKeys(view, "tool output");
-	view.handleInput("\r");
+	openCategory(view, "Tool Output");
 	let plain = plainFrame(view);
 	assert.match(plain[2] ?? "", /^Tool Output/);
 	assert.match(plain.join("\n"), /↑↓\/jk Navigate · PgUp\/PgDn Page · \/ Search · Esc Back/);
@@ -1844,9 +1814,7 @@ test("UsageView block stream search selects the matching block and opens a cappe
 
 test("UsageView searches single-entry content and keeps every line within the width", () => {
 	const view = createView(createTheme(), { usage: usage() }, () => {}, () => 30);
-	view.handleInput("/");
-	typeKeys(view, "read");
-	view.handleInput("\r");
+	openCategory(view, "read");
 	let plain = plainFrame(view);
 	assert.match(plain[2] ?? "", /^read/);
 	assert.match(plain.join("\n"), /↑↓\/jk Scroll · PgUp\/PgDn Page · \/ Search · Esc Back/);
@@ -1863,18 +1831,16 @@ test("UsageView searches single-entry content and keeps every line within the wi
 		for (const line of view.render(width)) assert.ok(visibleWidth(line) <= width, `width ${width}`);
 	}
 
-	// Escape clears an open prompt first, then leaves the content for the kept filter.
+	// Escape clears an open prompt first, then returns to the legend.
 	view.handleInput("\u001b");
 	assert.ok(!plainFrame(view).some((line) => line.includes("Search:")));
 	view.handleInput("\u001b");
-	assert.match(plainFrame(view).join("\n"), /Filter: read +1 match/);
+	assert.match(plainFrame(view)[2] ?? "", /^Context Usage/);
 });
 
 test("UsageView keeps an entry-header match when its capped block opens", () => {
 	const view = createView(createTheme(), { usage: searchUsage() }, () => {}, () => 30);
-	view.handleInput("/");
-	typeKeys(view, "tool output");
-	view.handleInput("\r");
+	openCategory(view, "Tool Output");
 	// Seconds and minutes of the second entry's header; only that header contains them.
 	view.handleInput("/");
 	typeKeys(view, ":02:00]");

@@ -31,6 +31,7 @@ import {
 	fitLine,
 	fitToTerminalHeight,
 	type Hint,
+	hintRow,
 	isPageBackKey,
 	isPageForwardKey,
 	isStepBackKey,
@@ -42,16 +43,7 @@ import {
 } from "./layout.ts";
 import { forcedMarker } from "./markers.ts";
 import { descriptionNoteLines, emptyPreviewNote, probingDisabledNote, thinkingNote, usageNote } from "./notes.ts";
-import {
-	findMatches,
-	highlightLine,
-	labelMatches,
-	MATCH_STEP_KEY_HINT,
-	matchStatus,
-	PreviewSearch,
-	SEARCH_KEY,
-	SearchPrompt,
-} from "./search.ts";
+import { MATCH_STEP_KEY_HINT, PreviewSearch, SEARCH_KEY } from "./search.ts";
 import { previewBodyLines, previewLegendLines } from "./section-preview.ts";
 import { splitSkillPreview } from "./skill-preview.ts";
 import { buildUsageMap, calculateFitMapScale, type UsageMap, type UsageMapCell } from "./usage-map.ts";
@@ -100,7 +92,6 @@ const MAP_KEY_DETAILED_SPARE_ROWS = 5;
 const MAP_KEY_COMPACT_SPARE_ROWS = 2;
 /** Lines kept above a match scrolled into view, so it is read in context. */
 const SEARCH_CONTEXT_LINES = 2;
-const EMPTY_FILTER_MESSAGE = "No categories match the filter.";
 
 /** Everything the Usage view renders, classified once when the view opens. */
 export interface UsageViewInput {
@@ -124,8 +115,6 @@ interface CategoryLegendRow {
 	readonly category: UsageCategory;
 	readonly depth: number;
 	readonly rootId: string;
-	/** Whether an active filter matched this row itself rather than keeping it as context. */
-	readonly matched?: boolean;
 }
 
 interface BufferLegendRow {
@@ -230,11 +219,8 @@ export class UsageView {
 	private readonly wheelScrollLines: number;
 	private readonly usage: ContextUsageSnapshot;
 	private readonly categoryColors: CategoryColors;
-	/** Unfiltered rows; they fix the value column so filtering never shifts it. */
-	private readonly allLegendRows: readonly LegendRow[];
-	private legendRows: readonly LegendRow[];
-	private navigator: ListNavigator;
-	private readonly filter = new SearchPrompt();
+	private readonly legendRows: readonly LegendRow[];
+	private readonly navigator: ListNavigator;
 	/** Search of the open category, shared by its block stream and the block it opens. */
 	private readonly search = new PreviewSearch();
 	private cachedStreamSearch: StreamSearchLines | undefined;
@@ -270,9 +256,10 @@ export class UsageView {
 		this.usage = input.usage;
 		this.categoryColors = input.categoryColors;
 		this.fitMapScale = calculateFitMapScale(this.usage);
-		this.allLegendRows = this.buildLegendRows();
-		this.legendRows = this.allLegendRows;
-		this.navigator = legendNavigator(this.legendRows);
+		this.legendRows = this.buildLegendRows();
+		// The trailing buffer/free block has no preview: it scrolls with the list but is never selectable.
+		const selectableCount = this.legendRows.filter((row) => row.type === "category").length;
+		this.navigator = new ListNavigator(this.legendRows.length, 1, selectableCount);
 	}
 
 	/** Handle category navigation, preview opening, and close keys. */
@@ -285,18 +272,8 @@ export class UsageView {
 			else this.handleContentInput(data);
 			return;
 		}
-		if (this.filter.editing) {
-			this.handleFilterInput(data);
-			return;
-		}
 		if (matchesKey(data, Key.escape) || data === "q") {
-			if (this.filter.active) this.clearFilter();
-			else this.done(undefined);
-			return;
-		}
-		if (data === SEARCH_KEY) {
-			this.filter.edit();
-			this.clearCache();
+			this.done(undefined);
 			return;
 		}
 		// One notch moves the selection one row, like a single step key.
@@ -365,15 +342,7 @@ export class UsageView {
 		const theme = this.theme;
 		const border = theme.fg("border", "─".repeat(Math.max(1, width)));
 		const notices = this.noticeLines(width);
-		const prefix = [
-			border,
-			"",
-			...this.headerLines(width),
-			"",
-			...this.filterLines(width),
-			...notices,
-			...(notices.length > 0 ? [""] : []),
-		];
+		const prefix = [border, "", ...this.headerLines(width), "", ...notices, ...(notices.length > 0 ? [""] : [])];
 		const availableRows = Math.max(1, terminalRows - prefix.length - USAGE_TAIL_FIXED_LINE_COUNT);
 		const map = this.dashboardMap(width, availableRows);
 		const descriptionLines = this.dashboardDescriptionLines(width, availableRows, map);
@@ -383,7 +352,10 @@ export class UsageView {
 		const tail = [
 			...(descriptionLines.length === 0 ? [] : ["", ...descriptionLines]),
 			"",
-			fitHintRow(theme, this.dashboardHints(width), width),
+			this.fit(
+				hintRow(theme, this.dashboardHints(width)),
+				width,
+			),
 			"",
 			border,
 		];
@@ -467,108 +439,14 @@ export class UsageView {
 	}
 
 	/** Dashboard hints with Zoom immediately before Close when the binding is active. */
-	private dashboardHints(width: number): Hint[] {
-		if (this.filter.editing) return [["↑↓", "Navigate"], ["Enter", "Preview"], ["Esc", "Clear"]];
-		const hints: Hint[] = [
+	private dashboardHints(width: number): Array<readonly [string, string]> {
+		const hints: Array<readonly [string, string]> = [
 			[STEP_KEY_HINT, "Navigate"],
 			["Enter", "Preview"],
-			[SEARCH_KEY, "Filter", true],
 		];
 		if (this.canToggleMapScale(width)) hints.push(["Z", "Zoom"]);
-		hints.push(["Esc", this.filter.active ? "Clear" : "Close"]);
+		hints.push(["Esc", "Close"]);
 		return hints;
-	}
-
-	// === Category filter ===
-
-	/**
-	 * Keys while the filter prompt is open: printable keys edit the query, the
-	 * arrow and page keys still move the selection, Enter keeps the filter and
-	 * opens the selected category, and Escape drops the filter.
-	 */
-	private handleFilterInput(data: string): void {
-		if (matchesKey(data, Key.escape)) {
-			this.clearFilter();
-			return;
-		}
-		if (matchesKey(data, Key.enter)) {
-			if (this.filter.active) {
-				this.filter.submit();
-				this.openPreview();
-			} else {
-				this.clearFilter();
-			}
-			this.clearCache();
-			return;
-		}
-		const wheel = parseWheelDirection(data);
-		if (wheel !== undefined) {
-			if (this.navigator.moveBy(wheel)) this.clearCache();
-		} else if (matchesKey(data, Key.up)) {
-			if (this.navigator.moveBy(-1)) this.clearCache();
-		} else if (matchesKey(data, Key.down)) {
-			if (this.navigator.moveBy(1)) this.clearCache();
-		} else if (matchesKey(data, Key.pageUp)) {
-			if (this.navigator.page(-1)) this.clearCache();
-		} else if (matchesKey(data, Key.pageDown)) {
-			if (this.navigator.page(1)) this.clearCache();
-		} else if (this.filter.type(data)) {
-			this.applyFilter();
-		} else {
-			// The cursor may have moved without changing the query.
-			this.clearCache();
-		}
-	}
-
-	/** Rebuild legend rows for the current query, selecting the first row that matched itself. */
-	private applyFilter(): void {
-		const pattern = this.filter.pattern;
-		if (pattern === undefined) {
-			this.showLegendRows(this.allLegendRows, this.selectedCategoryId());
-			return;
-		}
-		const rows = filterLegendRows(this.allLegendRows, (label) => labelMatches(label, pattern));
-		this.legendRows = rows;
-		this.navigator = legendNavigator(rows);
-		this.navigator.moveTo(Math.max(0, rows.findIndex((row) => row.type === "category" && row.matched === true)));
-		this.clearCache();
-	}
-
-	/** Drop the filter and restore every row, keeping the selected category selected. */
-	private clearFilter(): void {
-		const selected = this.selectedCategoryId();
-		this.filter.clear();
-		this.showLegendRows(this.allLegendRows, selected);
-	}
-
-	/** Replace the legend rows and reselect the category with `id`, or the first row. */
-	private showLegendRows(rows: readonly LegendRow[], id: string | undefined): void {
-		this.legendRows = rows;
-		this.navigator = legendNavigator(rows);
-		this.navigator.moveTo(Math.max(0, rows.findIndex((row) => row.type === "category" && row.category.id === id)));
-		this.clearCache();
-	}
-
-	private selectedCategoryId(): string | undefined {
-		const row = this.legendRows[this.navigator.selected];
-		return row?.type === "category" ? row.category.id : undefined;
-	}
-
-	/** Prompt row and its trailing blank row, shown while a filter is typed or kept. */
-	private filterLines(width: number): string[] {
-		if (!this.filter.editing && !this.filter.active) return [];
-		const count = this.legendRows.filter((row) => row.type === "category" && row.matched === true).length;
-		return [this.filter.render(this.theme, width, "Filter", matchStatus(this.filter.active, count, undefined)), ""];
-	}
-
-	/** Mark the filter's query inside a rendered legend label. */
-	private highlightLabel(label: string): string {
-		const pattern = this.filter.pattern;
-		if (pattern === undefined) return label;
-		const ranges = findMatches([label], pattern)
-			.flatMap((match) => match.segments)
-			.map((segment) => ({ start: segment.start, end: segment.end, current: false }));
-		return ranges.length === 0 ? label : highlightLine(this.theme, label, ranges);
 	}
 
 	/**
@@ -647,9 +525,7 @@ export class UsageView {
 		const heading = theme.fg("mdHeading", theme.bold("Category:"));
 		const rowWidth = Math.max(1, width - CURSOR_COLUMN_WIDTH);
 		const columns = this.legendColumns(rowWidth);
-		const visibleRows: string[] = this.legendRows.length === 0
-			? [this.fit(theme.fg("muted", `${BODY_INDENT}${EMPTY_FILTER_MESSAGE}`), width)]
-			: [];
+		const visibleRows: string[] = [];
 		const start = this.navigator.offset;
 		for (let index = start; index < start + this.navigator.windowSize; index++) {
 			const row = this.legendRows[index];
@@ -784,7 +660,7 @@ export class UsageView {
 
 	/** Earliest shared token column plus the width needed to align percentages. */
 	private legendColumns(width: number): LegendColumns {
-		const rows = this.allLegendRows;
+		const rows = this.legendRows;
 		const labelWidth = Math.max(1, ...rows.map((row) => this.plainLegendLabel(row).length));
 		const tokenWidth = Math.max(1, ...rows.map((row) => formatTokens(legendTokens(row)).length));
 		const percentWidth = Math.max(0, ...rows.map((row) => this.plainLegendPercent(legendTokens(row)).length));
@@ -799,7 +675,7 @@ export class UsageView {
 	/** One aligned hierarchy row with dim leaders and independent token/percentage columns. */
 	private legendLine(row: LegendRow, columns: LegendColumns, width: number, selected: boolean): string {
 		const labelWidth = Math.max(1, columns.value - 1);
-		const left = this.highlightLabel(fitLine(this.styledLegendLabel(row, selected), labelWidth));
+		const left = fitLine(this.styledLegendLabel(row, selected), labelWidth);
 		const leader = this.legendLeader(columns.value - visibleWidth(left));
 		const tokens = formatTokens(legendTokens(row));
 		const valueColor = selected ? "accent" : row.type === "category" && row.depth > 1 ? "dim" : "muted";
@@ -1499,41 +1375,6 @@ function previewBlockMaxLines(terminalRows: number, descriptionLineCount: number
 	const visibleCount = terminalRows - PREVIEW_FIXED_LINE_COUNT - descriptionLineCount - 1;
 	const fitted = Math.floor((visibleCount - TWO_BLOCK_FRAME_ROWS) / 2);
 	return Math.max(PREVIEW_BLOCK_MIN_LINES, Math.min(PREVIEW_BLOCK_MAX_LINES, fitted));
-}
-
-/** Navigator over legend rows; the trailing buffer and free-space rows scroll but are never selected. */
-function legendNavigator(rows: readonly LegendRow[]): ListNavigator {
-	return new ListNavigator(rows.length, 1, rows.filter((row) => row.type === "category").length);
-}
-
-/**
- * Legend rows whose label matches, with their parent kept as context. A
- * matching parent keeps its whole breakdown; buffer and free space have no
- * label to match and drop out while filtering.
- */
-function filterLegendRows(rows: readonly LegendRow[], matches: (label: string) => boolean): LegendRow[] {
-	const kept: LegendRow[] = [];
-	let parent: CategoryLegendRow | undefined;
-	let parentKept = false;
-	let parentMatched = false;
-	for (const row of rows) {
-		if (row.type !== "category") continue;
-		const matched = matches(row.category.label);
-		if (row.depth === 0) {
-			parent = row;
-			parentMatched = matched;
-			parentKept = matched;
-			if (matched) kept.push({ ...row, matched: true });
-			continue;
-		}
-		if (!matched && !parentMatched) continue;
-		if (!parentKept && parent !== undefined) {
-			kept.push(parent);
-			parentKept = true;
-		}
-		kept.push({ ...row, matched });
-	}
-	return kept;
 }
 
 /** Block holding one row of the flattened stream search lines. */

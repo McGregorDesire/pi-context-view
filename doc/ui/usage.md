@@ -68,12 +68,8 @@ them. A scrolling legend must remain usable independently of the map.
 Usage shows the resulting composition, not a history of changes. Request-only
 edits belong to Injections; do not add change markers throughout this overview.
 
-`/` filters the legend by category name under the shared
-[search and filter rules](../UI.md#search-and-filter). A matching Tool Output
-keeps its whole breakdown, and a matching breakdown row keeps Tool Output as
-context. Free space and the auto-compaction reserve have no name to match and
-hide while a filter is active; the map never changes. An empty result says so
-explicitly.
+The legend has no filter: it holds only a few categories, so scanning beats
+typing. Search starts inside a category preview.
 
 ## Category preview
 
