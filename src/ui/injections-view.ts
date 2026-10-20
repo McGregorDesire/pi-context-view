@@ -390,17 +390,26 @@ export class InjectionsView {
 	/** Prompt row and its trailing blank row, shown while a filter is typed or kept. */
 	private filterLines(width: number): string[] {
 		if (!this.filter.editing && !this.filter.active) return [];
-		const label = this.filterMode === "name" ? "Filter by Name" : "Filter by Content";
 		const count = this.rows.filter(isMatchedRow).length;
-		return [this.filter.render(this.theme, width, label, matchStatus(this.filter.active, count, undefined)), ""];
+		const status = matchStatus(this.filter.active, count, undefined);
+		return [this.filter.renderAfter(this.theme, width, this.filterModeSwitcher(), status), ""];
+	}
+
+	/** `Name | Content >` lead of the filter prompt: the active mode bold italic, the other dim. */
+	private filterModeSwitcher(): string {
+		const theme = this.theme;
+		const mode = (value: InjectionFilterMode, label: string): string =>
+			value === this.filterMode ? theme.bold(theme.italic(label)) : theme.fg("dim", label);
+		return `${mode("name", "Name")}${theme.fg("dim", " | ")}${mode("content", "Content")}${theme.fg("dim", " > ")}`;
 	}
 
 	/** List hints for the plain list, an open filter prompt, or a kept filter. */
 	private listHints(): Hint[] {
 		if (this.filter.editing) {
+			// The prompt shows both modes; the hint only names the key that switches them
 			return [
 				["↑↓", "Navigate"],
-				["Tab", this.filterMode === "name" ? "Content" : "Name"],
+				["Tab", "Mode"],
 				["Enter", "Preview"],
 				["Esc", "Clear"],
 			];

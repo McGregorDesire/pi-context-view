@@ -106,8 +106,10 @@ rules and their limits.
 
 `/` filters the tree under the shared
 [search and filter rules](../UI.md#search-and-filter). It compares names by
-default; Tab in the open prompt switches between names and content, and the
-prompt names the active mode.
+default; Tab in the open prompt switches between names and content. Instead of
+a label, the prompt leads with both modes, the active one emphasized, like pi's
+own selector scope toggles, so the alternative stays visible without a
+state-dependent hint; the hint names only the key.
 
 - Name mode matches group and item labels. A matching group or item keeps its
   whole subtree, since naming a container asks for its contents; rows inside it

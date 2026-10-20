@@ -2030,6 +2030,14 @@ function searchSnapshot(): InjectionSnapshot {
 	return { groups, totalTokens: 180 };
 }
 
+/** Test theme whose bold and italic stay observable when Chalk detects no terminal. */
+function styledTheme(): Theme {
+	const theme = createTheme();
+	theme.bold = (text) => `\u001b[1m${text}\u001b[22m`;
+	theme.italic = (text) => `\u001b[3m${text}\u001b[23m`;
+	return theme;
+}
+
 function typeKeys(view: InjectionsView, text: string): void {
 	for (const key of text) view.handleInput(key);
 }
@@ -2046,22 +2054,25 @@ function withoutLeaders(line: string): string {
 
 test("InjectionsView filters rows by name, keeps ancestors, and Escape steps back out", () => {
 	let closed = false;
-	const view = new InjectionsView(createTheme(), { snapshot: searchSnapshot() }, () => {
+	const theme = styledTheme();
+	const view = new InjectionsView(theme, { snapshot: searchSnapshot() }, () => {
 		closed = true;
 	}, () => 30);
 	assert.match(plainFrame(view).join("\n"), /↑↓\/jk Navigate · Enter Preview · \/ Filter · Esc Close/);
 
 	view.handleInput("/");
 	let plain = plainFrame(view);
-	const promptIndex = plain.findIndex((line) => line.startsWith("  Filter by Name:"));
+	const promptIndex = plain.findIndex((line) => line.startsWith("  Name | Content >"));
 	assert.equal(promptIndex, 4, "the prompt sits below the header and its blank row");
 	assert.equal(plain[promptIndex + 1], "");
-	assert.match(plain.join("\n"), /↑↓ Navigate · Tab Content · Enter Preview · Esc Clear/);
+	assert.match(plain.join("\n"), /↑↓ Navigate · Tab Mode · Enter Preview · Esc Clear/);
 
 	typeKeys(view, "cym");
 	const lines = view.render(80);
 	plain = lines.map((line) => stripStyle(line).trimEnd());
-	assert.match(plain[promptIndex] ?? "", /^ {2}Filter by Name: cym +1 match$/);
+	assert.match(plain[promptIndex] ?? "", /^ {2}Name \| Content > cym +1 match$/);
+	assert.ok((lines[promptIndex] ?? "").includes(theme.bold(theme.italic("Name"))), "the active mode is bold italic");
+	assert.ok((lines[promptIndex] ?? "").includes(theme.fg("dim", "Content")), "the other mode is dim");
 	const rows = plain.slice(promptIndex + 2, plain.indexOf("", promptIndex + 2));
 	assert.deepEqual(rows.map(withoutLeaders), ["  pi 170", "  └─ Skills (3) 150", "→    └─ cymbal 50"]);
 	assert.ok((lines[promptIndex + 4] ?? "").includes(SEARCH_MATCH_BG), "the matched label text is highlighted");
@@ -2072,13 +2083,13 @@ test("InjectionsView filters rows by name, keeps ancestors, and Escape steps bac
 	assert.match(plainFrame(view)[2] ?? "", /^cymbal/);
 	view.handleInput("\u001b");
 	plain = plainFrame(view);
-	assert.match(plain[promptIndex] ?? "", /^ {2}Filter by Name: cym +1 match$/);
+	assert.match(plain[promptIndex] ?? "", /^ {2}Name \| Content > cym +1 match$/);
 	assert.match(plain.join("\n"), /↑↓\/jk Navigate · Enter Preview · \/ Filter · Esc Clear/);
 
 	// Escape drops the filter but keeps the selected row, then closes the view.
 	view.handleInput("\u001b");
 	plain = plainFrame(view);
-	assert.ok(!plain.some((line) => line.includes("Filter by")));
+	assert.ok(!plain.some((line) => line.includes("Name | Content >")));
 	assert.ok(plain.map(withoutLeaders).includes("→    ├─ cymbal 50"));
 	assert.equal(closed, false);
 	view.handleInput("\u001b");
@@ -2090,7 +2101,7 @@ test("InjectionsView shows an empty filter result and Escape while typing drops 
 	view.handleInput("/");
 	typeKeys(view, "zzz");
 	let plain = plainFrame(view);
-	assert.match(plain.join("\n"), /Filter by Name: zzz +No matches/);
+	assert.match(plain.join("\n"), /Name \| Content > zzz +No matches/);
 	assert.ok(plain.includes("  No injections match the filter."));
 	view.handleInput("\r");
 	assert.match(plainFrame(view)[2] ?? "", /^Context Injections/, "Enter has no row to open");
@@ -2098,18 +2109,22 @@ test("InjectionsView shows an empty filter result and Escape while typing drops 
 	view.handleInput("/");
 	view.handleInput("\u001b");
 	plain = plainFrame(view);
-	assert.ok(!plain.some((line) => line.includes("Filter by")));
+	assert.ok(!plain.some((line) => line.includes("Name | Content >")));
 	assert.ok(plain.some((line) => line.includes("agent-browser")));
 });
 
 test("InjectionsView content filter carries its query into the preview search", () => {
-	const view = new InjectionsView(createTheme(), { snapshot: searchSnapshot() }, () => {}, () => 30);
+	const theme = styledTheme();
+	const view = new InjectionsView(theme, { snapshot: searchSnapshot() }, () => {}, () => 30);
 	view.handleInput("/");
 	view.handleInput("\t");
 	typeKeys(view, "tree-sitter");
+	const prompt = view.render(80).find((line) => stripStyle(line).startsWith("  Name | Content >")) ?? "";
+	assert.ok(prompt.includes(theme.bold(theme.italic("Content"))), "Tab makes Content the active mode");
+	assert.ok(prompt.includes(theme.fg("dim", "Name")));
 	let plain = plainFrame(view);
-	assert.match(plain.join("\n"), /Filter by Content: tree-sitter +2 matches/);
-	assert.match(plain.join("\n"), /↑↓ Navigate · Tab Name · Enter Preview · Esc Clear/);
+	assert.match(plain.join("\n"), /Name \| Content > tree-sitter +2 matches/);
+	assert.match(plain.join("\n"), /↑↓ Navigate · Tab Mode · Enter Preview · Esc Clear/);
 	assert.ok(plain.some((line) => line.startsWith("→    └─ cymbal")));
 	assert.ok(plain.some((line) => line.includes("└─ web_search")));
 	assert.ok(!plain.some((line) => line.includes("agent-browser")));
@@ -2136,7 +2151,7 @@ test("InjectionsView content filter carries its query into the preview search", 
 
 	// Escape leaves the preview, keeping the content filter on the list.
 	view.handleInput("\u001b");
-	assert.match(plainFrame(view).join("\n"), /Filter by Content: tree-sitter +2 matches/);
+	assert.match(plainFrame(view).join("\n"), /Name \| Content > tree-sitter +2 matches/);
 });
 
 test("InjectionsView preview search types live, keeps the query on Enter, and drops it on Escape", () => {
@@ -2206,7 +2221,7 @@ test("InjectionsView content filter matches JSON as its preview expands it", () 
 	view.handleInput("/");
 	view.handleInput("\t");
 	typeKeys(view, '"type": "object"');
-	assert.match(plainFrame(view).join("\n"), /Filter by Content: "type": "object" +1 match/);
+	assert.match(plainFrame(view).join("\n"), /Name \| Content > "type": "object" +1 match/);
 	view.handleInput("\r");
 	assert.match(plainFrame(view)[4] ?? "", /^ {2}Search: "type": "object" +1\/1$/);
 });

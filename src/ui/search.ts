@@ -411,7 +411,12 @@ export class SearchPrompt {
 	 * and a right-aligned status such as the match count.
 	 */
 	public render(theme: Theme, width: number, label: string, status: string): string {
-		const prefix = `${BODY_INDENT}${theme.fg("dim", `${label}: `)}`;
+		return this.renderAfter(theme, width, theme.fg("dim", `${label}: `), status);
+	}
+
+	/** Prompt row after an already styled `lead`, such as a mode switcher, instead of a plain label. */
+	public renderAfter(theme: Theme, width: number, lead: string, status: string): string {
+		const prefix = `${BODY_INDENT}${lead}`;
 		const right = status === "" ? "" : `${theme.fg("dim", status)} `;
 		const queryWidth = Math.max(1, width - visibleWidth(prefix) - visibleWidth(right) - 1);
 		const query = this.open
