@@ -50,7 +50,7 @@ See what fills your context, for example, what survives compaction:
 
 Inspect hidden parts of the context, such as tool definitions:
 
-![Context injections view and item preview](https://media.githubusercontent.com/media/dimk90/pi-context-view/e9f75e538ada31af0c1ba3517bad0a13f06050e6/doc/images/context-injections.gif)  
+![Context injections view and item preview](https://media.githubusercontent.com/media/dimk90/pi-context-view/0ee9a806e9c23bea642edabacfd6830755f3122d/doc/images/context-injections.gif)  
 ➥ Pi theme in this demo: [`dark-legacy`](https://github.com/dimk90/pi-context-view/blob/master/doc/dark-legacy.json).
 
 ### Zoom

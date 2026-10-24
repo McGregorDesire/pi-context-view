@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## `[v0.8.0]` - 24.10.2026
+
+Adds filtering and search feature (thanks to @ohlulu), plus a few optimizations
+that reduce capture overhead.
 
 ### New
 * `[ui]` Add `/` filtering & search to Injections and previews ([#13](https://github.com/dimk90/pi-context-view/pull/13) by @ohlulu).
@@ -14,6 +17,10 @@
 * `[capture]` Skip equal conversation ends before normalizing message units for the guard.
 * `[capture]` Copy provider payloads 3–6 times faster with plain loops.
 * `[capture]` Copy only tool declarations that differ from the session, not every one.
+
+---
+
+<img alt="v0.8.0 filtering demo" width="800" src="https://media.githubusercontent.com/media/dimk90/pi-context-view/8bab7e944082d6aa4ab039c3b934a6855921590f/doc/images/filtering.gif" />
 
 
 ## `[v0.7.2]` - 17.10.2026
