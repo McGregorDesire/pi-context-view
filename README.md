@@ -42,21 +42,24 @@ injected by other extensions.
 
 See what fills your context, for example, what survives compaction:
 
-![Context usage view showing estimated context composition](https://media.githubusercontent.com/media/dimk90/pi-context-view/e9f75e538ada31af0c1ba3517bad0a13f06050e6/doc/images/context-usage.gif)
+![Context usage view showing estimated context composition](https://media.githubusercontent.com/media/dimk90/pi-context-view/e9f75e538ada31af0c1ba3517bad0a13f06050e6/doc/images/context-usage.gif)  
+➥ Pi theme in this demo: [`dark-legacy`](https://github.com/dimk90/pi-context-view/blob/master/doc/dark-legacy.json).
 
 
 ### `/context injections`
 
 Inspect hidden parts of the context, such as tool definitions:
 
-![Context injections view and item preview](https://media.githubusercontent.com/media/dimk90/pi-context-view/e9f75e538ada31af0c1ba3517bad0a13f06050e6/doc/images/context-injections.gif)
+![Context injections view and item preview](https://media.githubusercontent.com/media/dimk90/pi-context-view/e9f75e538ada31af0c1ba3517bad0a13f06050e6/doc/images/context-injections.gif)  
+➥ Pi theme in this demo: [`dark-legacy`](https://github.com/dimk90/pi-context-view/blob/master/doc/dark-legacy.json).
 
 ### Zoom
 
 Zoom in for a more detailed breakdown of large context windows, such as
 1M-token windows:
 
-![Zoom feature](https://media.githubusercontent.com/media/dimk90/pi-context-view/e9f75e538ada31af0c1ba3517bad0a13f06050e6/doc/images/zoom.gif)
+![Zoom feature](https://media.githubusercontent.com/media/dimk90/pi-context-view/e9f75e538ada31af0c1ba3517bad0a13f06050e6/doc/images/zoom.gif)  
+➥ Pi theme in this demo: [`dark-legacy`](https://github.com/dimk90/pi-context-view/blob/master/doc/dark-legacy.json).
 
 ## Install
 
@@ -85,7 +88,8 @@ colors that stay the same across themes. Here are examples of custom
 [terrain](https://github.com/dimk90/pi-context-view/blob/master/doc/palettes/terrain.json) and
 [rainbow](https://github.com/dimk90/pi-context-view/blob/master/doc/palettes/rainbow.json) palettes:
 
-![Terrain and rainbow palettes](https://media.githubusercontent.com/media/dimk90/pi-context-view/e9f75e538ada31af0c1ba3517bad0a13f06050e6/doc/images/palettes.png)
+![Terrain and rainbow palettes](https://media.githubusercontent.com/media/dimk90/pi-context-view/e9f75e538ada31af0c1ba3517bad0a13f06050e6/doc/images/palettes.png)  
+➥ Pi theme in this demo: [`dark-legacy`](https://github.com/dimk90/pi-context-view/blob/master/doc/dark-legacy.json).
 
 See the [theme color reference](https://github.com/dimk90/pi-context-view/blob/develop/doc/PI-THEME-COLORS.md)
 for color names that follow the current theme.
@@ -94,7 +98,8 @@ for color names that follow the current theme.
 
 You can configure the number of rows and columns in the `Context Usage` map:
 
-![Map size demo](https://media.githubusercontent.com/media/dimk90/pi-context-view/2bc280f758d88fc0ac6396e921c7e697c9016086/doc/images/map-sizes.png)
+![Map size demo](https://media.githubusercontent.com/media/dimk90/pi-context-view/2bc280f758d88fc0ac6396e921c7e697c9016086/doc/images/map-sizes.png)  
+➥ Pi theme in this demo: [`dark-legacy`](https://github.com/dimk90/pi-context-view/blob/master/doc/dark-legacy.json).
 
 
 ## Context Footprint

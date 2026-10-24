@@ -2,8 +2,9 @@
 
 - [x] Check unit test problem with `demo-injections.sh` in [PR-13](https://github.com/dimk90/pi-context-view/pull/13)
 
-- [ ] Add the pi-theme file to the doc/.
-  - [ ] Add reference to `pi-dark-legacy` theme for each image/demo in README.
+- [x] Add the pi-theme file to the doc/.
+  - Update theme to the recent pi theme format if needed.
+  - Add reference to `dark-legacy` theme for each image/demo in README.
 
 - [ ] Change filtering mode color from white to the accent color.
 
