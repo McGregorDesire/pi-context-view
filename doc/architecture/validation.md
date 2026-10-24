@@ -13,11 +13,9 @@ Runtime tests run the pinned Pi packages in process, through
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `test/harness/mock-provider.ts` | `startMockProvider()`: loopback OpenAI Completions, OpenAI Responses, and Anthropic streaming with scripted replies, tool calls, delayed stream events, and HTTP failures; records every request body |
 | `test/harness/settings.ts`      | Replaces `SettingsManager.create()` once: `useSettings()` registers a test's settings for its own working directory; any other directory gets empty in-memory settings                                |
-| `test/harness/run-command.ts`   | `runCommand()`: runs a launcher without blocking the event loop, so concurrent launcher tests overlap                                                                                                 |
+| `test/harness/run-command.ts`   | `runCommand()`: runs a child process without blocking the event loop, so concurrent tests overlap                                                                                                     |
 | `test/run.ts`                   | `pnpm test` entry point: all test files in one process, with the top-level tests of every file running concurrently                                                                                   |
 | `test/fixtures/`                | Independent regular-test extensions; the header comment states the expected result in both load orders                                                                                              |
-| `scripts/demo-injections/`      | Demo-only extensions, independent of `test/fixtures/`, and the `--mock` runner (`demo-mock*.ts`); fixture changes do not change regular-test behavior                                                 |
-| `scripts/demo-injections.sh`    | Starts Pi with selected groups from `scripts/demo-injections/` in either load order; [demo-injections.md](../../scripts/demo-injections.md) records the results per version                           |
 
 Runtime tests disable discovered resources, including Pi's built-in extensions,
 and add the built-ins they need as extension factories, such as
@@ -29,48 +27,17 @@ register top-level hooks, which would apply to every file. Mock
 shared static methods through a registry such as `test/harness/settings.ts`,
 keyed by a per-test temporary directory. Use asynchronous child processes, and
 never probe a closed loopback port: another test may already have reused it.
-Loopback provider servers, including the demo endpoint, answer with
+Loopback provider servers answer with
 `Connection: close`: a long synchronous test can block the event loop past the
 server's keep-alive timeout, and the server then closes an idle connection just
 as the client reuses it.
 After hooks run in registration order, so register a hook that stops a session
 or awaits a child's exit before the hook that removes the directory it uses.
 
-`demo-injections.test.ts` checks launcher
-selection, order, and demo fixture paths without starting a provider.
-`demo-mock.test.ts` checks the launcher's optional `--mock` mode: a separate,
-Completions-only loopback endpoint that discards bodies, appearance-only
-configuration, in-memory sessions, conflicting-argument rejection, signal and
-failure cleanup, and ordinary prompts through the pinned CLI with and without
-codemode. Config and argument cases call
-`scripts/demo-injections/demo-mock-config.ts` directly,
-so Pi's resource APIs are imported once in the shared test process. These cases
-use separate scratch directories without changing the process environment.
-Subprocess tests cover launcher wiring, argument rejection, signals, startup and
-child failures, and the real CLI; detailed config cases do not relaunch Pi.
-Missing npm packages have one focused launcher case with a child-only npm stub
-that permits only `npm root -g`. Shared config fixtures avoid missing npm
-packages so Pi's synchronous global-package lookup cannot block other tests.
-Theme cases cover selected installed-package assets, automatic
-light/dark pairs, manifest paths and exclusions, configured paths, and local
-packages, without executing package extensions during discovery or installing
-missing packages. `--mock --local` cases cover global configured, auto-discovered,
-and package extensions, relative imports, resource and built-in exclusions,
-project rejection even when a global extension would grant trust, unchanged
-original files, and lifecycle hooks through a normal mock request. Without
-`--local`, the same installed extensions stay disabled.
-No real provider or PTY is involved. The demo mock is not the recording provider
-in `test/harness/`, and imports no regular test module.
-`demo-fixtures.test.ts` loads demo files by path through Pi's resource loader
-and checks the combined overview against the mock provider: distinct message
-and section edits, exact tool/prompt attribution, payload edits, both load
-orders, all three supported APIs, and reversed group order. It also checks
-conversation edits without the other groups and both payload findings against
-the launcher's body-discarding mock. No demo fixture is imported by a regular
-test.
-`module-boundaries.test.ts` rejects imports between demo fixtures and regular
-tests, fixtures, or harness modules, including indirect imports. Both fixture
-sets are typechecked by `pnpm check`, but they are not required to stay identical.
+`scripts/demo-injections.sh` and `scripts/demo-injections/` are for demos only:
+`pnpm test` does not run them, and `pnpm check` only typechecks them. Check
+demo changes by running the launcher, as
+[demo-injections.md](../../scripts/demo-injections.md) describes.
 Probe cases that open a view need TUI
 mode: run them in a real PTY as the `pi-extension` skill describes.
 
@@ -82,6 +49,7 @@ mode: run them in a real PTY as the `pi-extension` skill describes.
 | Handler ordering          | Load each fixture before and after the monitor. Pi's resource order matches [Handler Order](pi-requests.md#handler-order), with project trust resolved; check that order by hand after a Pi upgrade.                                                                                                                                                                     | `capture-runtime`, `payload-runtime`, `probe-runtime`              |
 | Structured edits          | Add, modify, and delete conversation messages; patch system sections; mutate messages in place; change active tools on a later prompt.                                                                                                                                                                                                                                   | `capture-runtime`, `capture-diff`, `hidden-tools-runtime`          |
 | Payload changes           | Rewrite the payload before and after the monitor and confirm the stated visibility limits, including the four injection points of [#9](https://github.com/dimk90/pi-context-view/pull/9).                                                                                                                                                                                | `payload-runtime`, `capture-runtime`, `payload-guard`              |
+| Combined edits            | Every change kind in one request, with all three APIs and both orders, stays distinct. A path-loaded tool owns its Tools and Rules lines exactly.                                                                                                                                                                                                                        | `combined-runtime`                                                 |
 | Forced prompt             | Return `systemPrompt` from `before_agent_start`; the capture applies it in both load orders, in real and probe runs, and the guard in real runs. Injections marks the section edits it replaced, uncounted.                                                                                                                                                                                                        | `capture-runtime`, `forced-prompt`, `payload-runtime`              |
 | Built-ins                 | Codemode with an active `codemode` tool in normal and `"codemode": { "mode": "only" }` settings; tool-search; MCP with a minimal direct-tool server. Recorded prompt/description changes stay apart from hidden declarations.                                                                                                                                            | `payload-runtime`, `hidden-tools-runtime`                          |
 | Usage tools               | With codemode `only`, Usage counts only `codemode` before and after a request, including probes and incomplete guards. Injections leaves out and counts the snapshot's hidden tools before the first prompt. Active-tool changes apply to Usage at once and to Injections at the next request. Payload removals do not affect Usage. The placeholder never appears.      | `hidden-tools-runtime`, `hidden-tools`                             |

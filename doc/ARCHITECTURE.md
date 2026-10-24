@@ -136,7 +136,7 @@ flowchart TD
 | `src/ui/`                    | Handle navigation, layout, previews, and fullscreen rendering.                                                |
 | `test/harness/`              | Mock provider, settings stub, and command runner for tests; see [validation.md](architecture/validation.md).  |
 | `test/fixtures/`             | Independent regular-test extensions that change requests at each lifecycle point, for both load orders.       |
-| `scripts/demo-injections/`   | Demo fixtures and `--mock` runner for `scripts/demo-injections.sh`; fixtures share no modules with tests.       |
+| `scripts/demo-injections/`   | Demo fixtures and `--mock` runner for `scripts/demo-injections.sh`; not run by `pnpm test`.                     |
 
 `src/ui/` and `src/usage.ts` import no capture or probe module, directly or
 indirectly; `test/module-boundaries.test.ts` enforces this. The probe layer
