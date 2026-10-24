@@ -2112,6 +2112,26 @@ test("InjectionsView shows an empty filter result and Escape while typing drops 
 	assert.ok(plain.some((line) => line.includes("agent-browser")));
 });
 
+test("InjectionsView erasing or canceling a typed filter restores the selection from before it", () => {
+	const view = new InjectionsView(createTheme(), { snapshot: snapshot(16) }, () => {}, () => 16);
+	for (let step = 0; step < 10; step++) view.handleInput("j");
+	const before = plainFrame(view);
+
+	// Erasing the query restores the list exactly, selection and scroll included.
+	view.handleInput("/");
+	const prompt = plainFrame(view);
+	typeKeys(view, "pi");
+	view.handleInput("\u007f");
+	view.handleInput("\u007f");
+	assert.deepEqual(plainFrame(view), prompt, "erasing the query returns to the pre-filter row");
+
+	// Escape while typing, after moving through the matches, also restores it.
+	typeKeys(view, "pi");
+	view.handleInput("\u001b[B");
+	view.handleInput("\u001b");
+	assert.deepEqual(plainFrame(view), before, "Escape returns to the pre-filter row");
+});
+
 test("InjectionsView content filter carries its query into the preview search", () => {
 	const theme = styledTheme();
 	const view = new InjectionsView(theme, { snapshot: searchSnapshot() }, () => {}, () => 30);

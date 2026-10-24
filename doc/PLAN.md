@@ -6,7 +6,7 @@
   - Update theme to the recent pi theme format if needed.
   - Add reference to `dark-legacy` theme for each image/demo in README.
 
-- [ ] Change filtering mode color from white to the accent color.
+- [x] Change filtering mode color from white to the accent color.
 
 - [ ] **Update injections demo recording**
 

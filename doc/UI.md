@@ -110,7 +110,8 @@ apart.
   Value columns stay where the unfiltered list puts them, so filtering never
   shifts them. Enter keeps the filter and opens the selected row; Escape while
   typing drops it, and Escape on a kept filter clears it, keeping the selected
-  row, before it closes the view.
+  row, before it closes the view. Erasing the query or Escape while typing
+  returns the selection and scroll to where they were before filtering.
 - **Previews** highlight live and move to the first match at or below the top
   visible line. `n`/`N` step through matches, wrapping around, and scroll a
   hidden one into view with context above it. A search ends with its preview.

@@ -144,6 +144,8 @@ export class InjectionsView {
 	private readonly allRows: InjectionRow[];
 	private rows: InjectionRow[];
 	private navigator: ListNavigator;
+	/** Unfiltered selection and scroll from before the filter, restored when the query is cleared or canceled. */
+	private unfilteredNavigator: ListNavigator | undefined;
 	private readonly itemsById: Map<string, InjectionItem>;
 	private readonly filter = new SearchPrompt();
 	private filterMode: InjectionFilterMode = "name";
@@ -191,6 +193,7 @@ export class InjectionsView {
 			return;
 		}
 		if (data === SEARCH_KEY) {
+			if (!this.filter.active) this.unfilteredNavigator = this.navigator;
 			this.filter.edit();
 			this.clearCache();
 			return;
@@ -295,7 +298,7 @@ export class InjectionsView {
 	 */
 	private handleFilterInput(data: string): void {
 		if (matchesKey(data, Key.escape)) {
-			this.clearFilter();
+			this.cancelFilter();
 			return;
 		}
 		if (matchesKey(data, Key.enter)) {
@@ -303,7 +306,7 @@ export class InjectionsView {
 				this.filter.submit();
 				this.openPreview();
 			} else {
-				this.clearFilter();
+				this.cancelFilter();
 			}
 			this.clearCache();
 			return;
@@ -336,7 +339,7 @@ export class InjectionsView {
 	private applyFilter(): void {
 		const pattern = this.filter.pattern;
 		if (pattern === undefined) {
-			this.showRows(this.allRows, this.selectedRowKey());
+			this.restoreUnfilteredRows();
 			return;
 		}
 		const filtered = filterInjections(this.input.snapshot, {
@@ -355,7 +358,26 @@ export class InjectionsView {
 	private clearFilter(): void {
 		const selected = this.selectedRowKey();
 		this.filter.clear();
+		this.unfilteredNavigator = undefined;
 		this.showRows(this.allRows, selected);
+	}
+
+	/** Drop the filter being typed and return to the selection and scroll from before it. */
+	private cancelFilter(): void {
+		this.filter.clear();
+		this.restoreUnfilteredRows();
+		this.unfilteredNavigator = undefined;
+	}
+
+	/** Show every row with the navigator saved before filtering, or keep the selected row without one. */
+	private restoreUnfilteredRows(): void {
+		if (this.unfilteredNavigator === undefined) {
+			this.showRows(this.allRows, this.selectedRowKey());
+			return;
+		}
+		this.rows = this.allRows;
+		this.navigator = this.unfilteredNavigator;
+		this.clearCache();
 	}
 
 	/** Replace the visible rows and reselect the row with `key`, or the first row. */
