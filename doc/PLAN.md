@@ -8,7 +8,7 @@
 
 - [x] Change filtering mode color from white to the accent color.
 
-- [ ] **Update injections demo recording**
+- [x] **Update injections demo recording**
 
 - [ ] **Add filtering/search demo recording**
 
