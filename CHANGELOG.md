@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+* `[capture]` Match Pi 1.4's Responses `additional_tools` declarations and tool notices.
+
+
 ## `[v0.8.0]` - 24.10.2026
 
 Adds filtering and search feature (thanks to @ohlulu), plus a few optimizations
