@@ -35,10 +35,7 @@ injected by other extensions.
   defaults, useful for
   [customization](https://github.com/dimk90/pi-context-view#customization).
 
-## Demo
-
-
-### `/context`
+## Demo: `/context`
 
 See what fills your context, for example, what survives compaction:
 
@@ -46,14 +43,14 @@ See what fills your context, for example, what survives compaction:
 ➥ Pi theme in this demo: [`dark-legacy`](https://github.com/dimk90/pi-context-view/blob/master/doc/dark-legacy.json).
 
 
-### `/context injections`
+## Demo: `/context injections`
 
 Inspect hidden parts of the context, such as tool definitions:
 
 ![Context injections view and item preview](https://media.githubusercontent.com/media/dimk90/pi-context-view/0ee9a806e9c23bea642edabacfd6830755f3122d/doc/images/context-injections.gif)  
 ➥ Pi theme in this demo: [`dark-legacy`](https://github.com/dimk90/pi-context-view/blob/master/doc/dark-legacy.json).
 
-### Zoom
+## Demo: Zoom
 
 Zoom in for a more detailed breakdown of large context windows, such as
 1M-token windows:
