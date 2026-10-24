@@ -4,15 +4,16 @@
 
 ### New
 * `[ui]` Add `/` filtering & search to Injections and previews ([#13](https://github.com/dimk90/pi-context-view/pull/13) by [@ohlulu](https://github.com/ohlulu)).
-* `[injections]` Preview changed System Prompt parts as diffs, matching their `+N`/`-N`.
 
 ### Changed
+* `[injections]` Preview changed System Prompt parts as diffs, matching their `+N`/`-N`.
 * `[injections]` Mark section edits that a forced system prompt replaced as `Forced`.
 * `[views]` Match Pi's (v0.86+) section names: Tools, Rules, Docs, and Addendum.
 * `[capture]` Drop the `provider_stream_event` handler, which cost an emit per streamed chunk.
 * `[capture]` Detect a forced system prompt off the request's critical path.
 * `[capture]` Skip equal conversation ends before normalizing message units for the guard.
 * `[capture]` Copy provider payloads 3–6 times faster with plain loops.
+* `[capture]` Copy only tool declarations that differ from the session, not every one.
 
 
 ## `[v0.7.2]` - 17.10.2026

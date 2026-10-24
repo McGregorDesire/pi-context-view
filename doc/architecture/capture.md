@@ -115,8 +115,15 @@ cannot keep references and defer all work.
   copied, so an unchanged request copies no conversation message. The handler
   uses a direct comparison that agrees with the diff keys below; anything
   outside plain JSON data falls back to comparing the keys. `structuredClone`
-  copies the rest, the request's replayed system state, and each historically
-  declared tool's latest definition.
+  copies the rest.
+- **System state.** The copy keeps the request's replayed system state and
+  each historically declared tool's latest definition. Replay builds new
+  containers and strings are immutable, so content and sections are kept by
+  reference. Each tool is compared in place with the baseline's latest
+  declaration of the same name, as Pi's `declarationsEqual()` decides, schema
+  key order included; anything outside plain JSON data falls back to it. An
+  equal tool is the baseline's own object, which is only read; a differing one
+  is copied. The deferred diff then finds equal tools by identity.
 - **Positions for the guard.** The copy keeps the matched prefix length and
   each system message's text, sections, and position among non-system
   messages. The payload guard rebuilds the compared request from those
@@ -126,9 +133,9 @@ cannot keep references and defer all work.
   replaced.
 - **Request model.** The capture copies `ctx.model`'s provider, API, and model
   ID, its `input`, and its top-level `compat` flags for the guard.
-- **Failure.** A request whose differing messages cannot be cloned, for example
-  because a handler added a function value, is not captured; the request itself
-  proceeds unchanged.
+- **Failure.** A request whose differing messages or tools cannot be cloned,
+  for example because a handler added a function value, is not captured; the
+  request itself proceeds unchanged.
 - **Deferred work.** Alignment, attribution, redaction, and publication run in
   `setImmediate`. `session_shutdown` cancels scheduled work.
 

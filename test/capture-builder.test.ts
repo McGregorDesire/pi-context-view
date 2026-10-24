@@ -136,10 +136,40 @@ test("a request copy keeps only the differing messages and the replayed system s
 		id: 1, origin: "real-turn", baseline: { leafId: "leaf", messages: baseline }, ...copy,
 		effectivePrompt: getCurrentSystemPrompt(baseline.map(({ message }) => message)),
 	}, { status: "pending" });
-	assert.deepEqual(snapshot.changes.system, [], "the copied tool schema is unchanged");
+	assert.deepEqual(snapshot.changes.system, [], "the captured tool schema is unchanged");
 	const [modified] = snapshot.changes.conversation;
 	assert.ok(modified.type === "modified" && modified.message.role === "user");
 	assert.equal(modified.message.content, "two, edited");
+});
+
+test("a request copy reuses the baseline's equal declarations and copies only differing ones", () => {
+	const read = { name: "read", description: "Read a file", parameters: { type: "object", properties: {} } };
+	const write = { name: "write", description: "Write a file", parameters: { type: "object", properties: {} } };
+	const system: RequestMessage = { role: "system", content: "Prompt", toolsAdded: [read, write], timestamp: 0 };
+	const baseline: BaselineMessage[] = [{ entryId: "s", message: system }];
+	const redefined = { ...structuredClone(write), description: "Write any file" };
+	const added = { name: "web", description: "Fetch a page", parameters: { type: "object", properties: {} } };
+	// A handler may attach executable fields, which are no part of the declaration and cannot be cloned
+	const executable = { ...structuredClone(read), execute: () => undefined };
+	const messages: RequestMessage[] = [
+		{ role: "system", content: "Prompt", toolsAdded: [executable, redefined, added], timestamp: 0 },
+	];
+
+	const copy = copyRequest(baseline, messages);
+	const [copiedRead, copiedWrite, copiedWeb] = copy.system?.toolsAdded ?? [];
+	assert.equal(copiedRead, read, "an equal declaration is the baseline's object");
+	assert.notEqual(copiedWrite, redefined, "a redefinition is an owned copy");
+	assert.notEqual(copiedWeb, added, "an addition is an owned copy");
+	assert.deepEqual(copy.declarations, [copiedRead, copiedWrite, copiedWeb], "both lists share their objects");
+
+	redefined.description = "changed after capture";
+	const snapshot = buildRequestSnapshot({
+		id: 1, origin: "real-turn", baseline: { leafId: "leaf", messages: baseline }, ...copy, effectivePrompt: "Prompt",
+	}, { status: "pending" });
+	assert.deepEqual(snapshot.changes.system.map((change) => change.type === "tool" && change.declaration?.description), [
+		"Write any file",
+		"Fetch a page",
+	]);
 });
 
 test("the builder publishes after the handler returns, then publishes the settled guard", async () => {

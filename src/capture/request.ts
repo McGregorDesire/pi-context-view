@@ -10,7 +10,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import type { ProbeView } from "../probe/view.ts";
 import type { CaptureOrigin, RequestMessage } from "../snapshot.ts";
-import { trimMatchedEnds, type UnmatchedMessages } from "./diff.ts";
+import { sameDeclaration, trimMatchedEnds, type UnmatchedMessages } from "./diff.ts";
 import type { GuardModel } from "./guard.ts";
 
 /**
@@ -47,7 +47,9 @@ export interface SystemText {
 
 /**
  * The parts of a request the deferred diff and the payload guard need, as this
- * extension's handler saw them. Request-side values are owned copies.
+ * extension's handler saw them. Request-side objects are owned copies, except
+ * declarations equal to the baseline's: those are the baseline's own objects,
+ * which are only read. Strings are kept by reference.
  */
 export interface RequestCopy {
 	/** The request's replayed system state; undefined when it has none. */
@@ -105,8 +107,8 @@ export interface CaptureInput {
 
 /**
  * Read the baseline, copy what differs from it, and keep the effective prompt
- * for deferred forced-prompt detection. Throws when a differing message cannot
- * be cloned, for example when a handler added a function value to it.
+ * for deferred forced-prompt detection. Throws when a differing message or tool
+ * cannot be cloned, for example when a handler added a function value to it.
  */
 export function captureRequest(input: CaptureInput): CapturedRequest {
 	const baseline = readBaseline(input.sessionManager, input.probe);
@@ -125,21 +127,22 @@ export function captureRequest(input: CaptureInput): CapturedRequest {
 
 /**
  * Copy the request's replayed system state and the messages that differ from
- * the baseline. Messages equal to the baseline at both ends are compared in
- * place and never copied. System text positions and historical declarations
- * also belong to the copy: serializers may keep them instead of collapsing.
+ * the baseline. Messages equal to the baseline at both ends, and declarations
+ * equal to the baseline's of the same name, are compared in place and never
+ * copied. System text positions and historical declarations also belong to
+ * the copy: serializers may keep them instead of collapsing.
  */
 export function copyRequest(baseline: readonly BaselineMessage[], messages: readonly RequestMessage[]): RequestCopy {
 	const unmatched = trimMatchedEnds(baseline, messages);
-	// Later handlers share these objects, tool schemas included, and may edit them in place
-	const copy = structuredClone({
-		system: getCurrentSystemMessage(messages), declarations: getDeclaredTools(messages), request: unmatched.request,
-	});
+	// Later handlers share these objects and may edit them in place
+	const request = structuredClone(unmatched.request);
+	const copyTool = createToolCopier(baseline);
+	const system = getCurrentSystemMessage(messages);
 	return {
-		...(copy.system === undefined ? {} : { system: copy.system }),
+		...(system === undefined ? {} : { system: copySystemState(system, copyTool) }),
 		systemTexts: copySystemTexts(messages),
-		declarations: copy.declarations,
-		conversation: { prefix: unmatched.prefix, baseline: unmatched.baseline, request: copy.request },
+		declarations: getDeclaredTools(messages).map(copyTool),
+		conversation: { prefix: unmatched.prefix, baseline: unmatched.baseline, request },
 	};
 }
 
@@ -179,6 +182,36 @@ export function resolveForcedPrompt(capture: ForcedPromptInput): string | undefi
 export function detectForcedPrompt(effectivePrompt: string, baseline: readonly BaselineMessage[]): string | undefined {
 	const replayed = getCurrentSystemPrompt(baseline.map(({ message }) => message));
 	return effectivePrompt === replayed ? undefined : effectivePrompt;
+}
+
+/**
+ * A function that returns, for each request tool, the baseline's declaration
+ * of the same name when it is equal, else an owned copy. Each request object
+ * is compared and copied once, so the current and historical declarations
+ * keep sharing objects. Throws when a differing tool cannot be cloned.
+ */
+function createToolCopier(baseline: readonly BaselineMessage[]): (tool: Tool) => Tool {
+	const baselineTools = new Map(getDeclaredTools(baseline.map(({ message }) => message))
+		.map((tool) => [tool.name, tool]));
+	const copies = new Map<Tool, Tool>();
+	return (tool) => {
+		let copy = copies.get(tool);
+		if (copy === undefined) {
+			const previous = baselineTools.get(tool.name);
+			// Later handlers share request tools, schemas included, and may edit them in place
+			copy = previous !== undefined && sameDeclaration(previous, tool) ? previous : structuredClone(tool);
+			copies.set(tool, copy);
+		}
+		return copy;
+	};
+}
+
+/**
+ * The replayed system state with copied tools. Replay builds new containers
+ * and strings are immutable, so content and sections need no copy.
+ */
+function copySystemState(system: SystemMessage, copyTool: (tool: Tool) => Tool): SystemMessage {
+	return system.toolsAdded === undefined ? system : { ...system, toolsAdded: system.toolsAdded.map(copyTool) };
 }
 
 /**
