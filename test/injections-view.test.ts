@@ -100,7 +100,7 @@ test("InjectionsView follows pi selector styling and cursor alignment", () => {
 		totalTokens: piGroup.totalTokens,
 	};
 	const theme = createTheme();
-	const view = new InjectionsView(theme, { snapshot: styledSnapshot }, () => {});
+	const view = new InjectionsView(theme, { snapshot: styledSnapshot }, () => {}, () => 24);
 
 	let lines = view.render(80);
 	assert.equal(lines[1], "");
@@ -570,7 +570,7 @@ test("InjectionsView preview opens on items, scrolls, and returns to the same ro
 	let closed = false;
 	const view = new InjectionsView(createTheme(), { snapshot: snapshot(8) }, () => {
 		closed = true;
-	});
+	}, () => 24);
 
 	// Enter on a group row does nothing.
 	view.handleInput("\r");
@@ -695,7 +695,7 @@ test("InjectionsView preview labels every known section", () => {
 			groups: [toolGroup],
 			totalTokens: toolGroup.totalTokens,
 		},
-	}, () => {});
+	}, () => {}, () => 24);
 
 	view.handleInput("\u001b[B");
 	view.handleInput("\r");
@@ -763,7 +763,7 @@ test("InjectionsView preview expands the JSON runs the model marks", () => {
 			groups: [toolGroup],
 			totalTokens: toolGroup.totalTokens,
 		},
-	}, () => {});
+	}, () => {}, () => 24);
 
 	// The item preview is full content, so a labeled part expands its marked schema.
 	view.handleInput("\u001b[B");
@@ -916,7 +916,7 @@ test("InjectionsView invalidation rebuilds theme-colored section subheaders", ()
 			groups: [toolGroup],
 			totalTokens: toolGroup.totalTokens,
 		},
-	}, () => {});
+	}, () => {}, () => 24);
 
 	view.handleInput("\u001b[B");
 	view.handleInput("\r");
@@ -1048,7 +1048,7 @@ test("InjectionsView navigation skips the fixed total and Escape closes", () => 
 	let closed = false;
 	const view = new InjectionsView(createTheme(), { snapshot: snapshot(30) }, () => {
 		closed = true;
-	});
+	}, () => 24);
 
 	const initialLines = view.render(80);
 	const scrollIndicator = initialLines.find((line) => /\(1\/\d+\)/.test(stripSgr(line)));

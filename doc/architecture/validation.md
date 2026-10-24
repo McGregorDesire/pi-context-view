@@ -174,6 +174,9 @@ Keep these tests independent of display wording:
 - **Layout rules.** Sweep widths and heights and check bounds, priorities,
   whole-or-absent blocks, and restoration, not exact thresholds or line indexes.
   Check colors with `theme.fg()` instead of raw escape codes.
+- **Fixed terminal height.** Pass the row count to every view a test builds.
+  The default reads `process.stdout.rows`, so results would depend on the
+  terminal that runs `pnpm test`.
 
 Keep exact text only where it is a contract: command grammar and usage, config
 file output, captured content shown in previews, and notation such as `≈`, `~`,
