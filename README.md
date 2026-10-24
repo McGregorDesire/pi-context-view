@@ -73,7 +73,7 @@ To get started, create a configuration file populated with the current defaults:
 ```text
 /context config
 ```
-> This creates `~/.pi/agent/extensions/pi-context-view.json`.
+➥ This creates `~/.pi/agent/extensions/pi-context-view.json`.
 
 See the [configuration reference](https://github.com/dimk90/pi-context-view/blob/master/doc/CONFIG.md)
 for each parameter's meaning and default value.
