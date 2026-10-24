@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### New
+* `[ui]` Add `/` filtering & search to Injections and previews ([#13](https://github.com/dimk90/pi-context-view/pull/13) by [@ohlulu](https://github.com/ohlulu)).
 * `[injections]` Preview changed System Prompt parts as diffs, matching their `+N`/`-N`.
 
 ### Changed
