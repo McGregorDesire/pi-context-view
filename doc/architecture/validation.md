@@ -186,10 +186,12 @@ rules in [UI.md](../UI.md) without freezing incidental copy or layout values:
   legend accessibility, and controls that disappear with their unavailable action.
 - Theme and view-state invalidation, safe text rendering, and no raw content
   before explicit preview.
+- Filtered and empty lists, live preview search, and every hint state of the
+  search prompt, within the width.
 
 `usage-view`, `usage-map`, `injections-view`, `usage-preview`, `injected-preview`,
-`diff-preview`, `json-preview`, `skill-preview`, `status-bar`, `notes`, `color`, and
-`wheel` cover these areas; the focused cases above cover accounting and attribution.
+`diff-preview`, `json-preview`, `skill-preview`, `status-bar`, `notes`, `color`,
+`search`, and `wheel` cover these areas; the focused cases above cover accounting and attribution.
 
 Keep these tests independent of display wording:
 

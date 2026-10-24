@@ -102,6 +102,31 @@ not all compare against the same thing.
 [Token diff accounting](../architecture/measurement.md#token-diffs) owns those
 rules and their limits.
 
+## Filter
+
+`/` filters the tree under the shared
+[search and filter rules](../UI.md#search-and-filter). It compares names by
+default; Tab in the open prompt switches between names and content. Instead of
+a label, the prompt leads with both modes, the active one emphasized, like pi's
+own selector scope toggles, so the alternative stays visible without a
+state-dependent hint; the hint names only the key.
+
+- Name mode matches group and item labels. A matching group or item keeps its
+  whole subtree, since naming a container asks for its contents; rows inside it
+  whose own label matches still count as matches.
+- Content mode matches each item's sanitized text. An item with children
+  matches through them: its own text concatenates theirs, so it stands alone
+  only when no child matches. Group labels are names and never match here.
+
+A filter only hides rows. Shown rows keep their tree connectors, estimates,
+diffs, and status as in the whole tree, and the total still counts the whole
+request. Name mode highlights the query inside matched labels. Content mode
+highlights nothing, because rows never show raw text. An empty result says so
+explicitly, and Enter then opens nothing.
+
+Enter on a content-mode match opens its preview with the same query already
+searched, at its first match.
+
 ## Injection preview
 
 Enter opens sanitized full content with enough identity and accounting context
@@ -120,4 +145,6 @@ declarations from tool calls. Deleted content remains inspectable as a
 zero-token reference, not content the request sent.
 
 Use the shared [preview rules](previews.md) for diff bodies, source annotations,
-and display-only transformations. Escape returns to the same tree position.
+and display-only transformations. `/` searches the preview under the shared
+[search and filter rules](../UI.md#search-and-filter). Escape returns to the
+same tree position.

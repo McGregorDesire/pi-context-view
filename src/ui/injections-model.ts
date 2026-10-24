@@ -6,6 +6,7 @@
 import {
 	type ChangeEditor,
 	type ForcedEdit,
+	type InjectionGroup,
 	type InjectionItem,
 	type InjectionSnapshot,
 	type RequestChange,
@@ -40,6 +41,30 @@ export type ChangeScope =
 	| "request-new"
 	| "payload";
 
+/** What a list filter compares the query against. */
+export type InjectionFilterMode = "name" | "content";
+
+/** A non-blank list filter; the view owns how text is normalized and compared. */
+export interface InjectionFilter {
+	readonly mode: InjectionFilterMode;
+	/** Whether a group or item label contains the query. */
+	readonly nameMatches: (label: string) => boolean;
+	/** Whether an item's content contains the query. */
+	readonly contentMatches: (item: InjectionItem) => boolean;
+}
+
+/**
+ * Rows a filter leaves, by item id and `source:<id>` group key. The snapshot
+ * itself stays whole, so estimates, diffs, and change scopes never depend on
+ * which rows a filter hides.
+ */
+export interface InjectionFilterResult {
+	/** Rows to show: matches and the ancestors kept as their context. */
+	readonly kept: ReadonlySet<string>;
+	/** Rows that matched directly, not as context. */
+	readonly matched: ReadonlySet<string>;
+}
+
 /** One flattened list row derived from the snapshot hierarchy. */
 export type InjectionRow =
 	| {
@@ -51,6 +76,8 @@ export type InjectionRow =
 		readonly diff?: TokenDiff;
 		/** Where the changes of the rows it counts live; absent when none changed. */
 		readonly scope?: ChangeScope;
+		/** Whether an active filter matched this row itself rather than keeping it as context. */
+		readonly matched?: boolean;
 	}
 	| {
 		readonly kind: "item";
@@ -84,6 +111,8 @@ export type InjectionRow =
 		readonly editors?: readonly ChangeEditor[];
 		/** Stable preview target id from the snapshot. */
 		readonly itemId: string;
+		/** Whether an active filter matched this row itself rather than keeping it as context. */
+		readonly matched?: boolean;
 	}
 	| {
 		readonly kind: "separator";
@@ -110,10 +139,80 @@ export function collectItemsById(snapshot: InjectionSnapshot): Map<string, Injec
 	return items;
 }
 
-/** Flatten snapshot groups into rows separated from the non-selectable snapshot total. */
-export function buildInjectionRows(snapshot: InjectionSnapshot): InjectionRow[] {
+/**
+ * Rows the filter matches, plus each match's ancestors as context. In name
+ * mode a matching group or item keeps its whole subtree, since naming a
+ * container asks for its contents. In content mode an item with children
+ * matches through them: its own text concatenates theirs, so it stands alone
+ * only when no child matches.
+ */
+export function filterInjections(snapshot: InjectionSnapshot, filter: InjectionFilter): InjectionFilterResult {
+	const kept = new Set<string>();
+	const matched = new Set<string>();
+	const matches = (item: InjectionItem): boolean => filter.mode === "name"
+		? filter.nameMatches(item.label)
+		: filter.contentMatches(item);
+	for (const group of snapshot.groups) {
+		const wholeGroup = filter.mode === "name" && filter.nameMatches(group.source.label);
+		if (wholeGroup) matched.add(groupKey(group));
+		let groupKept = wholeGroup;
+		for (const item of group.items) {
+			if (filterItem(item, filter.mode, matches, wholeGroup, kept, matched)) groupKept = true;
+		}
+		if (groupKept) kept.add(groupKey(group));
+	}
+	return { kept, matched };
+}
+
+/**
+ * Record which rows of one item the filter keeps and matches; true when any
+ * is kept. `whole` keeps the full subtree, as inside a matching group.
+ */
+function filterItem(
+	item: InjectionItem,
+	mode: InjectionFilterMode,
+	matches: (item: InjectionItem) => boolean,
+	whole: boolean,
+	kept: Set<string>,
+	matched: Set<string>,
+): boolean {
+	const children = item.children ?? [];
+	const matchedChildren = children.filter(matches);
+	for (const child of matchedChildren) matched.add(child.id);
+	const itemMatched = matches(item);
+	if (whole || (mode === "name" && itemMatched)) {
+		if (itemMatched) matched.add(item.id);
+		for (const entry of [item, ...children]) kept.add(entry.id);
+		return true;
+	}
+	if (matchedChildren.length > 0) {
+		for (const entry of [item, ...matchedChildren]) kept.add(entry.id);
+		return true;
+	}
+	if (mode === "content" && itemMatched) {
+		matched.add(item.id);
+		kept.add(item.id);
+		return true;
+	}
+	return false;
+}
+
+/** Match key of a group row, kept apart from item ids. */
+function groupKey(group: InjectionGroup): string {
+	return `source:${group.source.id}`;
+}
+
+/**
+ * Flatten snapshot groups into rows separated from the non-selectable snapshot
+ * total. A filter result hides the rows it does not keep and flags the rows it
+ * matched; every shown row keeps the values and status of the whole snapshot.
+ */
+export function buildInjectionRows(snapshot: InjectionSnapshot, filter?: InjectionFilterResult): InjectionRow[] {
+	const shown = (key: string): boolean => filter === undefined || filter.kept.has(key);
+	const matched = (key: string): boolean | undefined => filter?.matched.has(key);
 	const rows: InjectionRow[] = [];
 	for (const group of snapshot.groups) {
+		if (!shown(groupKey(group))) continue;
 		rows.push({
 			kind: "group",
 			label: group.source.label,
@@ -121,9 +220,11 @@ export function buildInjectionRows(snapshot: InjectionSnapshot): InjectionRow[] 
 			depth: 0,
 			diff: group.diff,
 			scope: combineScopes(group.items.filter((item) => item.diffOnly !== true).map(itemScope)),
+			matched: matched(groupKey(group)),
 		});
-		group.items.forEach((item, itemIndex) => {
-			const isLastItem = itemIndex === group.items.length - 1;
+		const items = group.items.filter((item) => shown(item.id));
+		items.forEach((item, itemIndex) => {
+			const isLastItem = itemIndex === items.length - 1;
 			rows.push({
 				kind: "item",
 				label: item.label,
@@ -141,8 +242,9 @@ export function buildInjectionRows(snapshot: InjectionSnapshot): InjectionRow[] 
 				diffOnly: item.diffOnly,
 				...rowStatus(item),
 				itemId: item.id,
+				matched: matched(item.id),
 			});
-			const children = item.children ?? [];
+			const children = (item.children ?? []).filter((child) => shown(child.id));
 			children.forEach((child, childIndex) => {
 				rows.push({
 					kind: "item",
@@ -159,6 +261,7 @@ export function buildInjectionRows(snapshot: InjectionSnapshot): InjectionRow[] 
 					requestOnly: child.requestOnly,
 					...rowStatus(child),
 					itemId: child.id,
+					matched: matched(child.id),
 				});
 			});
 		});
@@ -370,6 +473,12 @@ export class PreviewScroller {
 
 	public page(direction: -1 | 1): boolean {
 		return this.scrollBy(direction * Math.max(1, this.visibleCount - 1));
+	}
+
+	/** Leave a visible line in place; otherwise scroll it near the top, below `context` lines. */
+	public reveal(line: number, context: number): boolean {
+		if (line >= this.offsetValue && line < this.offsetValue + this.visibleCount) return false;
+		return this.scrollTo(line - context);
 	}
 
 	public reset(): void {
