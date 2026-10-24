@@ -395,11 +395,14 @@ export class InjectionsView {
 		return [this.filter.renderAfter(this.theme, width, this.filterModeSwitcher(), status), ""];
 	}
 
-	/** `Name | Content >` lead of the filter prompt: the active mode bold italic, the other dim. */
+	/**
+	 * `◉ Name | ○ Content >` lead of the filter prompt, marked like pi's own scope toggles:
+	 * the active mode `◉` in bold accent, the other `○` dim.
+	 */
 	private filterModeSwitcher(): string {
 		const theme = this.theme;
 		const mode = (value: InjectionFilterMode, label: string): string =>
-			value === this.filterMode ? theme.bold(theme.italic(label)) : theme.fg("dim", label);
+			value === this.filterMode ? theme.bold(theme.fg("accent", `◉ ${label}`)) : theme.fg("dim", `○ ${label}`);
 		return `${mode("name", "Name")}${theme.fg("dim", " | ")}${mode("content", "Content")}${theme.fg("dim", " > ")}`;
 	}
 
