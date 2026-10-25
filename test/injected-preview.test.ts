@@ -205,10 +205,14 @@ test("Injections shows attributed guidelines only after Enter, for parent and ch
 	view.handleInput("\u001b");
 	view.handleInput("\u001b[F"); // Last tool
 	view.handleInput("\r");
-	// The tool counts only its definition; System Prompt counts and shows its guideline.
-	assert.match(plain(view.render(120)), /Definition · \d+ tokens/);
-	assert.doesNotMatch(plain(view.render(120)), /verify claims|<-\u00A0npm:web/);
-	assert.ok(!hasHighlightLegend(view.render(120)));
+	// The tool counts only its definition; it shows its guideline as counted in System Prompt.
+	const tool = view.render(120);
+	assert.match(plain(tool), /Definition · \d+ tokens/);
+	const counted = plain([stateMarkers(theme, { countedInSystemPrompt: true })]);
+	assert.ok(plain(tool).replace(/\s+/g, " ").includes(`Rules · 0 tokens${counted} - ${GUIDELINE}`));
+	assert.doesNotMatch(plain(tool), /<-\u00A0npm:web/);
+	assert.ok(!hasHighlightLegend(tool));
+	assertLegend(tool, theme, ["counted-in-system-prompt"]);
 });
 
 test("Injections attributes Available Tools snippets in the parent and standalone child", () => {

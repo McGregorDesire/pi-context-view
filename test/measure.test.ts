@@ -161,18 +161,25 @@ test("analyzeSystemPrompt counts a tool's definition and leaves its prompt lines
 
 	const items = analyzeSystemPrompt(systemPrompt, {}, tools);
 	const search = items.find((entry) => entry.id === "tool:npm:web:search");
-	assert.deepEqual(search?.sections?.map((section) => section.label), ["Definition"]);
+	// The rendered lines show on the tool for reference, counted only in System Prompt.
+	assert.deepEqual(
+		search?.sections?.map((section) => [section.label, section.countedInSystemPrompt, section.tokens]),
+		[["Tools", true, 0], ["Rules", true, 0], ["Definition", undefined, search?.tokens]],
+	);
+	assert.equal(search?.sections?.[1]?.text, `\n- ${guidelines[0]}\n- ${guidelines[1]}`);
 	assert.equal(search?.text, 'search: Search\n{"q":"string"}');
-	assert.equal(search?.sections?.[0]?.tokens, search?.tokens);
 	// The schema is marked where it was serialized, so previews expand it without detecting JSON.
-	const definition = search?.sections?.[0];
+	const definition = search?.sections?.[2];
 	const schemaSpan = definition?.jsonSpan;
 	assert.ok(schemaSpan !== undefined);
 	assert.equal(definition?.text.slice(schemaSpan.start, schemaSpan.end), '{"q":"string"}');
 
 	const builtin = items.find((entry) => entry.id === "tool:builtin")?.children?.[0];
-	assert.deepEqual(builtin?.sections?.map((section) => section.label), ["Definition"]);
-	assert.equal(builtin?.sections?.[0]?.tokens, builtin?.tokens);
+	assert.deepEqual(builtin?.sections?.map((section) => [section.label, section.tokens]),
+		[["Tools", 0], ["Definition", builtin?.tokens]]);
+	// The aggregate part still marks the schema, since only the definition is in the child text.
+	const part = items.find((entry) => entry.id === "tool:builtin")?.sections?.[0];
+	assert.equal(part?.text.slice(part.jsonSpan?.start, part.jsonSpan?.end), "{}");
 	// The lines pi renders for the extension tool count once, in System Prompt.
 	const base = items.find((entry) => entry.id === "base-prompt");
 	for (const line of ["\n- search: Search the web", `\n- ${guidelines[0]}`, `\n- ${guidelines[1]}`]) {
@@ -392,7 +399,10 @@ test("Available Tools annotates extension snippets inside the text it counts", (
 	assert.equal(availableTools.text, prompt.slice(start, prompt.indexOf("\n</tools>", start)));
 	assert.equal(availableTools.chars, availableTools.text.length);
 	// The snippet counts once, in System Prompt, never also on its tool.
-	assert.deepEqual(findItem(items, "tool:npm:web:search")?.sections?.map((section) => section.label), ["Definition"]);
+	const search = findItem(items, "tool:npm:web:search");
+	assert.equal(search?.text.includes("Search the web"), false);
+	assert.deepEqual(search?.sections?.filter((section) => section.tokens > 0).map((section) => section.label),
+		["Definition"]);
 	assert.equal(base.tokens, textTokens(base.text));
 	assert.equal(base.sections?.reduce((sum, section) => sum + section.tokens, 0), base.tokens);
 	assert.equal(base.sections?.map((section) => section.text).join(""), base.text);

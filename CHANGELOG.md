@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Changed
+* `[views]` Show a tool's rendered `Tools` and `Rules` lines in its preview at 0 tokens.
+
 ### Fixed
 * `[capture]` Match Pi 1.4's Responses `additional_tools` declarations and tool notices.
 
