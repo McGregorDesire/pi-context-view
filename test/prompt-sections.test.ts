@@ -20,7 +20,7 @@ function additionsPart(items: readonly InjectionItem[]): InjectionItem | undefin
 test("XML sections after cwd remain named System Prompt parts, not guessed extension additions", () => {
 	const sections = { review: "Read npm:web guidance.", constraints: "Keep it small." };
 	const prompt = buildSystemPrompt({ cwd: CWD, sections });
-	// Even a later handler's sections, missing from our prepared options, are recognized.
+	// Even a later handler's sections, missing from our prepared options, are recognized
 	for (const options of [{}, { sections }]) {
 		const items = analyzeSystemPrompt(prompt, options, [], { sources: [{ source: "npm:web", path: "/web.ts" }] });
 		assert.equal(additionsPart(items), undefined);
@@ -51,7 +51,7 @@ test("a custom prefix can restore selected native XML sections without marking t
 	const items = analyzeSystemPrompt(prompt, { customPrompt: "Custom prefix", sections }, [TOOL]);
 	assert.deepEqual(items[0].children?.filter((part) => part.dropped).map((part) => part.label), ["Rules"]);
 	const tool = items.find((item) => item.kind === "tool");
-	// The restored snippet counts in System Prompt, and the guideline stays dropped.
+	// The restored snippet counts in System Prompt, and the guideline stays dropped
 	assert.deepEqual(tool?.sections?.map((part) => [part.label, part.dropped, part.countedInSystemPrompt, part.tokens > 0]),
 		[["Tools", undefined, true, false], ["Rules", true, undefined, false], ["Definition", undefined, undefined, true]]);
 	assert.equal(items[0].sections?.find((part) => part.label === "Tools")?.injectedReferences?.length, 1);

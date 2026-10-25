@@ -68,7 +68,7 @@ interface MarkerLegend {
 const MARKER_LEGENDS: Record<Exclude<ContextMarker, "diff">, MarkerLegend> = {
 	highlighted: {
 		keyword: "Highlighted",
-		// Extension lines carry this color, so the bullet opens in it too.
+		// Extension lines carry this color, so the bullet opens in it too
 		color: "syntaxNumber",
 		explanation: " parts are injected by extensions into pi’s system prompt.",
 	},

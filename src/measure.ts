@@ -308,7 +308,7 @@ function measureGeneratedSection(
 		return true;
 	}
 	if (name === "skills" && body.includes("<available_skills>")) {
-		// Read the captured records, not today's loader metadata after resume or a patch.
+		// Read the captured records, not today's loader metadata after resume or a patch
 		const record =
 			/<skill>\s*<name>(.*?)<\/name>\s*<description>([\s\S]*?)<\/description>\s*<location>(.*?)<\/location>/g;
 		const skills = [...body.matchAll(record)].map((match) => ({
@@ -413,7 +413,7 @@ function measureTools(
 		}
 		// Built-in tools claim their bullets without annotating them, so a later
 		// extension tool repeating one cannot take a line pi already renders for
-		// pi itself or for a built-in tool.
+		// pi itself or for a built-in tool
 		const ownedGuidelines = claimGuidelines(tool, claimedGuidelines);
 		const definition = { ...createDefinitionSection(tool), ...changeField(tool.change) };
 		const lines = toolPromptLines(tool, ownedGuidelines);

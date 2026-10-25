@@ -108,7 +108,7 @@ export function highlightLine(theme: Theme, line: string, ranges: readonly Highl
 	const width = visibleWidth(line);
 	let result = "";
 	let column = 0;
-	// Every slice comes from the original line, which carries the styles active at its start.
+	// Every slice comes from the original line, which carries the styles active at its start
 	for (const range of [...ranges].sort((a, b) => a.start - b.start)) {
 		const start = Math.max(column, Math.min(range.start, width));
 		const end = Math.min(range.end, width);
@@ -118,7 +118,7 @@ export function highlightLine(theme: Theme, line: string, ranges: readonly Highl
 		column = end;
 	}
 	if (column === 0) return line;
-	// Slicing stops at the last visible column, so restore the resets that close the line.
+	// Slicing stops at the last visible column, so restore the resets that close the line
 	return `${result}${sliceByColumn(line, column, width - column, true)}${line.match(TRAILING_ANSI)?.[0] ?? ""}`;
 }
 
@@ -466,7 +466,7 @@ function matchSegments(spans: readonly CorpusSpan[], firstSpan: number, start: n
 		const segmentStart = span.linear ? span.start + Math.max(start, span.textStart) - span.textStart : span.start;
 		const segmentEnd = span.linear ? span.start + Math.min(end, span.textEnd) - span.textStart : span.end;
 		const previous = segments.at(-1);
-		// Consecutive spans on one row, including the space between words, join into one segment.
+		// Consecutive spans on one row, including the space between words, join into one segment
 		if (previous !== undefined && previous.row === span.row) {
 			segments[segments.length - 1] = { ...previous, end: Math.max(previous.end, segmentEnd) };
 		} else {

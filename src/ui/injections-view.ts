@@ -201,7 +201,7 @@ export class InjectionsView {
 			this.clearCache();
 			return;
 		}
-		// One notch moves the selection one row, like a single step key.
+		// One notch moves the selection one row, like a single step key
 		const wheel = parseWheelDirection(data);
 		if (wheel !== undefined) {
 			if (this.navigator.moveBy(wheel)) this.clearCache();
@@ -321,7 +321,7 @@ export class InjectionsView {
 		if (this.filter.type(data)) {
 			this.applyFilter();
 		} else {
-			// The cursor may have moved without changing the query.
+			// The cursor may have moved without changing the query
 			this.clearCache();
 		}
 	}
@@ -572,7 +572,7 @@ export class InjectionsView {
 	private getPreviewLines(width: number, item: InjectionItem): string[] {
 		const wrapWidth = Math.max(10, width - BODY_INDENT.length - 1);
 		if (this.previewLines !== undefined && this.previewWrapWidth === wrapWidth) return this.previewLines;
-		// The item preview is the full-content level, so marked JSON expands here.
+		// The item preview is the full-content level, so marked JSON expands here
 		const lines = previewBodyLines(
 			this.theme,
 			item,

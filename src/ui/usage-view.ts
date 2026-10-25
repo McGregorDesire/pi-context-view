@@ -262,7 +262,7 @@ export class UsageView {
 		this.categoryColors = input.categoryColors;
 		this.fitMapScale = calculateFitMapScale(this.usage);
 		this.legendRows = this.buildLegendRows();
-		// The trailing buffer/free block has no preview: it scrolls with the list but is never selectable.
+		// The trailing buffer/free block has no preview: it scrolls with the list but is never selectable
 		const selectableCount = this.legendRows.filter((row) => row.type === "category").length;
 		this.navigator = new ListNavigator(this.legendRows.length, 1, selectableCount);
 	}
@@ -270,7 +270,7 @@ export class UsageView {
 	/** Handle category navigation, preview opening, and close keys. */
 	public handleInput(data: string): void {
 		if (this.previewRow !== undefined) {
-			// Route on the same predicate the renderer uses, so keys always target the visible level.
+			// Route on the same predicate the renderer uses, so keys always target the visible level
 			const blockStream = this.getFullContentEntry(this.previewRow) === undefined;
 			// Navigation keys still navigate the level while the search prompt is open
 			if (this.search.prompt.editing && !isSearchNavigationKey(data)) {
@@ -284,7 +284,7 @@ export class UsageView {
 			this.done(undefined);
 			return;
 		}
-		// One notch moves the selection one row, like a single step key.
+		// One notch moves the selection one row, like a single step key
 		const wheel = parseWheelDirection(data);
 		if (wheel !== undefined) {
 			if (this.navigator.moveBy(wheel)) this.clearCache();
@@ -526,7 +526,7 @@ export class UsageView {
 		const keyLines = map === undefined ? [] : this.mapKeyLines(map, width, rows);
 		const reservedLineCount = DETAIL_CATEGORY_HEADER_LINE_COUNT +
 			(keyLines.length === 0 ? 0 : keyLines.length + 1);
-		// The counter sits below the last legend row, so it consumes one of the available rows.
+		// The counter sits below the last legend row, so it consumes one of the available rows
 		const viewport = calculateViewport(this.legendRows.length, rows, reservedLineCount);
 		this.navigator.setVisibleCount(viewport.visibleCount);
 
@@ -539,7 +539,7 @@ export class UsageView {
 			const row = this.legendRows[index];
 			if (row === undefined) break;
 			const selected = index === this.navigator.selected;
-			// The cursor stays in one fixed column at the start of the legend.
+			// The cursor stays in one fixed column at the start of the legend
 			const cursor = selected ? theme.fg("accent", "→ ") : "  ";
 			visibleRows.push(this.fit(`${cursor}${this.legendLine(row, columns, rowWidth, selected)}`, width));
 		}
@@ -797,13 +797,13 @@ export class UsageView {
 			this.closePreview();
 			return;
 		}
-		// Decide from the entries, not render caches: keys can arrive before the stream first renders.
+		// Decide from the entries, not render caches: keys can arrive before the stream first renders
 		const row = this.previewRow;
 		if (row !== undefined && this.previewEntries(row).length > 0) {
 			const anchor = this.cachedStreamSearch?.starts[this.blockNavigator.selected] ?? 0;
 			if (this.handleSearchKey(data, anchor)) return;
 		}
-		// Blocks are selected rather than scrolled, so one notch steps one block.
+		// Blocks are selected rather than scrolled, so one notch steps one block
 		const wheel = parseWheelDirection(data);
 		if (wheel !== undefined) {
 			const moved = wheel < 0 ? this.blockNavigator.stepBack() : this.blockNavigator.stepForward();
@@ -884,11 +884,11 @@ export class UsageView {
 	 * it lies in this block, so a match hidden by the cap is one Enter away.
 	 */
 	private openBlock(): void {
-		// The rendered stream carries the height-dependent cap the user sees, so it decides what Enter opens.
+		// The rendered stream carries the height-dependent cap the user sees, so it decides what Enter opens
 		const index = this.blockNavigator.selected;
 		const block = this.cachedStream?.blocks[index];
 		if (block === undefined || block.hiddenLineCount === 0) return;
-		// The opened level searches the same header and content rows, so offsets carry over unchanged.
+		// The opened level searches the same header and content rows, so offsets carry over unchanged
 		const start = this.cachedStreamSearch?.starts[index] ?? 0;
 		const blockLineCount = block.lines.length + block.hiddenLineCount;
 		const currentRow = this.currentMatchRow();
@@ -1015,7 +1015,7 @@ export class UsageView {
 		);
 		this.previewScroller.setExtent(body.length, viewport.visibleCount);
 		const searchLines = this.contentSearch(body, showEntryHeader ? this.entryHeader(entry) : undefined);
-		// Body rows follow the header row when it is searched.
+		// Body rows follow the header row when it is searched
 		const bodyRow = searchLines.header === undefined ? 0 : 1;
 		const revealLine = this.search.sync(searchLines.lines);
 		if (revealLine !== undefined) {
@@ -1188,7 +1188,7 @@ export class UsageView {
 			cells.push(theme.fg("dim", `[${formatEntryTimestamp(entry.timestamp)}]`));
 		}
 		entry.breadcrumb.forEach((cell, index) => {
-			// The leading cell names the producer and heads the whole block, so it is bold.
+			// The leading cell names the producer and heads the whole block, so it is bold
 			const lead = index === 0;
 			const color: ThemeColor = lead ? "mdHeading" : "muted";
 			const name = normalizeInlineText(cell);
@@ -1306,7 +1306,7 @@ function maxMapColumns(width: number): number {
 	if (width < MAP_SIDE_BY_SIDE_MIN_WIDTH) return 0;
 	const spaced = width >= SPACED_MAP_MIN_WIDTH;
 	const gap = spaced ? SPACED_MAP_COLUMN_GAP : MAP_COLUMN_GAP;
-	// Spaced cells cost two columns each, except the last one, which has no trailing space.
+	// Spaced cells cost two columns each, except the last one, which has no trailing space
 	const available = width - BODY_INDENT.length - gap - MIN_DETAIL_WIDTH + (spaced ? 1 : 0);
 	return Math.max(0, Math.floor(available / (spaced ? 2 : 1)));
 }
@@ -1326,7 +1326,7 @@ function previewWrapWidth(width: number): number {
  * stream this cap produces.
  */
 function previewBlockMaxLines(terminalRows: number, reservedLineCount: number): number {
-	// Assume the counter row; a stream short enough to drop it loses at most one line per block.
+	// Assume the counter row; a stream short enough to drop it loses at most one line per block
 	const visibleCount = terminalRows - PREVIEW_FIXED_LINE_COUNT - reservedLineCount - 1;
 	const fitted = Math.floor((visibleCount - TWO_BLOCK_FRAME_ROWS) / 2);
 	return Math.max(PREVIEW_BLOCK_MIN_LINES, Math.min(PREVIEW_BLOCK_MAX_LINES, fitted));
