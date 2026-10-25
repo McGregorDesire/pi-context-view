@@ -7,6 +7,7 @@
 
 ### Fixed
 * `[capture]` Match Pi 1.4's Responses `additional_tools` declarations and tool notices.
+* `[injections]` Keep the selected group when clearing a filter, even if labels repeat.
 
 
 ## `[v0.8.0]` - 24.10.2026

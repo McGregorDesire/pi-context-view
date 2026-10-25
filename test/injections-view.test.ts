@@ -2132,6 +2132,26 @@ test("InjectionsView erasing or canceling a typed filter restores the selection 
 	assert.deepEqual(plainFrame(view), before, "Escape returns to the pre-filter row");
 });
 
+test("InjectionsView clearing a filter keeps a selected group whose label another group shares", () => {
+	const sameLabel = (sourceId: string, items: InjectionItem[]): InjectionGroup => {
+		const base = group(sourceId, false, items);
+		return { ...base, source: { ...base.source, label: "tools" } };
+	};
+	const alpha = { ...item("alpha", "local:a", false, 10), label: "alpha" };
+	const beta = { ...item("beta", "local:b", false, 20), label: "beta" };
+	const view = new InjectionsView(createTheme(), {
+		snapshot: { groups: [sameLabel("local:a", [alpha]), sameLabel("local:b", [beta])], totalTokens: 30 },
+	}, () => {}, () => 30);
+	view.handleInput("/");
+	typeKeys(view, "beta");
+	view.handleInput("\r");
+	view.handleInput("\u001b");
+	view.handleInput("k");
+	view.handleInput("\u001b");
+	const groupRows = plainFrame(view).map(withoutLeaders).filter((line) => /^. {1,3}tools /.test(line));
+	assert.deepEqual(groupRows, ["  tools 10", "\u2192 tools 20"]);
+});
+
 test("InjectionsView content filter carries its query into the preview search", () => {
 	const theme = styledTheme();
 	const view = new InjectionsView(theme, { snapshot: searchSnapshot() }, () => {}, () => 30);

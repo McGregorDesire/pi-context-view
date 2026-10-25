@@ -69,6 +69,8 @@ export interface InjectionFilterResult {
 export type InjectionRow =
 	| {
 		readonly kind: "group";
+		/** Stable `source:<id>` key, the same one filter results use. */
+		readonly groupKey: string;
 		readonly label: string;
 		readonly tokens: number;
 		readonly depth: 0;
@@ -191,7 +193,7 @@ function itemMatches(item: InjectionItem, filter: InjectionFilter): boolean {
 	return filter.mode === "name" ? filter.nameMatches(item.label) : filter.contentMatches(item);
 }
 
-/** Match key of a group row, kept apart from item ids. */
+/** Stable key of a group row, kept apart from item ids; labels of different sources can collide. */
 function groupKey(group: InjectionGroup): string {
 	return `source:${group.source.id}`;
 }
@@ -209,6 +211,7 @@ export function buildInjectionRows(snapshot: InjectionSnapshot, filter?: Injecti
 		if (!shown(groupKey(group))) continue;
 		rows.push({
 			kind: "group",
+			groupKey: groupKey(group),
 			label: group.source.label,
 			tokens: group.totalTokens,
 			depth: 0,

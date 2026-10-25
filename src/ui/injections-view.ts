@@ -890,6 +890,7 @@ function isMatchedRow(row: InjectionRow): boolean {
 /** Identity that survives rebuilding rows for a different filter. */
 function rowKey(row: InjectionRow): string {
 	if (row.kind === "item") return `item:${row.itemId}`;
+	if (row.kind === "group") return row.groupKey;
 	return `${row.kind}:${row.label}`;
 }
 
